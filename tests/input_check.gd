@@ -4,9 +4,12 @@
 ##   godot --path . --resolution 450x800 --script res://tests/input_check.gd
 extends SceneTree
 
+## Seconds between actions.
+const STEP_TIME := 0.85
+
 var main: Node
 var menu: Node
-var frames: int = 0
+var elapsed: float = 0.0
 var step: int = 0
 var checks: int = 0
 var failures: int = 0
@@ -18,18 +21,19 @@ func _initialize() -> void:
 	root.add_child(main)
 
 
-func _process(_delta: float) -> bool:
-	frames += 1
-	if frames < 4:
-		return false
+func _process(delta: float) -> bool:
+	elapsed += delta
 	if menu == null:
+		if elapsed < 0.1:
+			return false
 		menu = main._menu
 
-	# One action every few frames, so the UI settles between them. The gap has
-	# to outlast the longest transition — the curtain out and back in — or a
-	# click lands while the menu is still behind it.
-	if frames % 22 != 0:
+	# Steps are paced in seconds, not frames: transitions are timed in seconds
+	# and this window runs uncapped, so a frame count would race them. The gap
+	# has to outlast the longest one — the curtain out and back in.
+	if elapsed < STEP_TIME:
 		return false
+	elapsed = 0.0
 	step += 1
 
 	match step:
@@ -48,14 +52,13 @@ func _process(_delta: float) -> bool:
 			_click(menu.get_node("%ModesButton"))
 		6:
 			_ok(menu.get_node("%ModesPanel").visible, "MODES opens the carousel")
-			# Second card is today's map.
 			var cards: Node = menu.get_node("%Cards")
-			_ok(cards.get_child_count() == 2, "both modes are offered")
-			_click(cards.get_child(1))
+			_ok(cards.get_child_count() == 3, "all three modes are offered")
+			_click(cards.get_child(2))  # today's map
 		7:
 			_ok(not menu.get_node("%ModesPanel").visible,
 				"picking a mode drops back to the menu")
-			_ok(main.selected_daily, "and today's map is the one selected")
+			_ok(main.selected_mode == 1, "and today's map is the one selected")
 			_click(menu.get_node("%StartButton"))
 		8:
 			_ok(main.state == 1, "the run key launches the chosen mode")
@@ -67,7 +70,7 @@ func _process(_delta: float) -> bool:
 		9:
 			_click(menu.get_node("%Cards").get_child(0))
 		10:
-			_ok(not main.selected_daily, "classic can be chosen back")
+			_ok(main.selected_mode == 0, "classic can be chosen back")
 		11:
 			_click(menu.get_node("%StartButton"))
 		12:

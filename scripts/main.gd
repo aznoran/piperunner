@@ -4,6 +4,10 @@ extends Node2D
 
 enum State { MENU, PLAYING, DEAD }
 
+## What the run key launches. Classic is endless; a daily is endless on a
+## shared map; a story run ends when its station's goal is met.
+enum Mode { CLASSIC, DAILY, STORY }
+
 const REASON_OUT_OF_FUEL := "Out of fuel"
 ## Beat before the game-over card slides in, so the crash is legible.
 const DEATH_PAUSE := 0.42
@@ -69,7 +73,9 @@ var started: bool = false
 ## True while playing today's fixed-seed challenge (spec section 11, P1).
 var daily_mode: bool = false
 ## The mode the run key will launch, picked in the modes carousel.
-var selected_daily: bool = false
+var selected_mode: Mode = Mode.CLASSIC
+## The station a story run is playing. Null outside story mode.
+var active_level: Level
 
 var _cell_size: float = 100.0
 var _camera_frozen: bool = false
@@ -81,6 +87,9 @@ var _death_pause: float = 0.0
 var _death_reason: String = ""
 var _death_was_record: bool = false
 var _death_went_further: bool = false
+## Set when a story station was just cleared, so the pause before the card
+## knows which card to show.
+var _pending_clear: Dictionary = {}
 var _hint_pulse: float = 0.0
 ## Where the camera holds the cart right now. Animated on the way into a run
 ## instead of switching, which is what made the cart appear to teleport.
@@ -108,9 +117,10 @@ func _ready() -> void:
 	_menu.cart_chosen.connect(func(variant: int) -> void:
 		_cart.variant = variant
 		_cart.queue_redraw())
-	_menu.start_pressed.connect(func() -> void: start_run(selected_daily))
+	_menu.start_pressed.connect(func() -> void: start_run(selected_mode))
 	_menu.mode_chosen.connect(_select_mode)
-	_overlay.retry_pressed.connect(func() -> void: start_run(daily_mode))
+	_menu.level_chosen.connect(_select_level)
+	_overlay.retry_pressed.connect(func() -> void: start_run(selected_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
 	GameState.best_changed.connect(_hud.set_best)
 	get_viewport().size_changed.connect(_apply_layout)
@@ -195,14 +205,39 @@ func _curtain_to_menu() -> void:
 
 ## A mode is chosen in the menu and launched by the run key, rather than each
 ## mode carrying its own button — that keeps one obvious way to start.
-func _select_mode(daily: bool) -> void:
-	selected_daily = daily
-	_menu.set_mode_name("TODAY" if daily else "CLASSIC", daily)
-	# A daily is a different map, so lay it out now: the menu is showing the
-	# board the next run will be played on.
-	daily_mode = daily
+func _select_mode(mode: Mode) -> void:
+	selected_mode = mode
+	daily_mode = mode == Mode.DAILY
+	if mode == Mode.STORY:
+		active_level = Levels.current(GameState)
+	_refresh_mode_name()
+	# The menu shows the board the next run will be played on, so a mode change
+	# lays its map out now rather than swapping it at the press.
 	_prepare_board(true)
 	_snap_camera()
+
+
+## Picks a specific station and switches to story mode.
+func _select_level(number: int) -> void:
+	active_level = Levels.find(number)
+	if active_level == null:
+		return
+	selected_mode = Mode.STORY
+	daily_mode = false
+	_refresh_mode_name()
+	_prepare_board(true)
+	_snap_camera()
+
+
+func _refresh_mode_name() -> void:
+	match selected_mode:
+		Mode.DAILY:
+			_menu.set_mode_name("TODAY", _menu.MODE_DAILY)
+		Mode.STORY:
+			var label := "STATION %d" % active_level.number if active_level != null else "STORY"
+			_menu.set_mode_name(label, _menu.MODE_STORY)
+		_:
+			_menu.set_mode_name("CLASSIC", _menu.MODE_CLASSIC)
 
 
 func _set_camera_anchor(value: float) -> void:
@@ -284,7 +319,12 @@ func _prepare_board(with_resources: bool) -> void:
 	# One seed drives the whole run; the queue gets its own stream so tuning the
 	# preview length cannot reshuffle the map. On a daily the seed comes from
 	# the date, so every player gets the same board (spec section 11, P1).
-	var run_seed: int = GameState.daily_seed() if daily_mode else randi()
+	# A daily and a story station are fixed maps; classic rolls a fresh one.
+	var run_seed := randi()
+	if daily_mode:
+		run_seed = GameState.daily_seed()
+	elif selected_mode == Mode.STORY and active_level != null:
+		run_seed = Levels.seed_for(active_level)
 	_board.start_run(run_seed, with_resources, _first_resource_row())
 	_queue_rng.seed = run_seed + 1
 	_queue.start(_queue_rng, balance.queue_preview)
@@ -309,8 +349,9 @@ func _first_resource_row() -> int:
 	return int(ceil(ahead)) + 2
 
 
-func start_run(daily: bool = false) -> void:
-	daily_mode = daily
+func start_run(mode: Mode = Mode.CLASSIC) -> void:
+	selected_mode = mode
+	daily_mode = mode == Mode.DAILY
 	_overlay.hide_overlay()
 	_menu.fade_out(MENU_FADE)
 	state = State.PLAYING
@@ -354,10 +395,6 @@ func start_run(daily: bool = false) -> void:
 	var push := create_tween()
 	push.tween_method(_set_camera_anchor, _camera_anchor, balance.camera_anchor,
 		CAMERA_PUSH).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	if daily:
-		_board.reveal = 0.0
-		create_tween().tween_property(_board, "reveal", 1.0, WORLD_REVEAL) \
-			.set_trans(Tween.TRANS_SINE)
 	_fade_in(_hud_root(), MENU_FADE)
 	_fade_in(_queue_bar, MENU_FADE)
 	var gate := create_tween()
@@ -372,6 +409,7 @@ func start_run(daily: bool = false) -> void:
 	_hud.set_fuel(1.0)
 	_hud.reset_back_key()
 	_hud.set_daily(daily_mode, GameState.today())
+	_hud.set_objective(active_level if selected_mode == Mode.STORY else null, 0)
 
 
 func _process(delta: float) -> void:
@@ -573,6 +611,9 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 			return
 
 	_board.ensure_rows(cell.y + balance.generate_ahead + 2)
+	_check_station_goal()
+	if state != State.PLAYING:
+		return
 	_hud.set_score(score)
 	_hud.set_fuel(fuel / balance.fuel_max)
 
@@ -631,8 +672,52 @@ func _die(reason: String) -> void:
 	GameState.vibrate(balance.haptics_death_ms)
 	_bank_run()
 
+	_pending_clear = {}
 	_death_reason = ("%s  ·  daily" % reason) if daily_mode else reason
 	_death_pause = DEATH_PAUSE
+
+
+## Everything a goal can be measured against, in one place.
+func run_metrics() -> Dictionary:
+	return {
+		"distance": distance,
+		"crystals": crystals_collected,
+		"chain": best_combo,
+		"dumped": pipes_dumped,
+		"cells": cells_run,
+		"score": score,
+	}
+
+
+## A story run ends the moment its station's goal is met — that is the whole
+## difference from an endless one. Reaching it is a finish, not a crash.
+func _check_station_goal() -> void:
+	if selected_mode != Mode.STORY or active_level == null:
+		return
+	var metrics := run_metrics()
+	_hud.set_objective(active_level, Levels.progress(active_level, metrics))
+	if not Levels.is_met(active_level, metrics):
+		return
+
+	state = State.DEAD
+	_cart.alive = false
+	_input.enabled = false
+	_input.cancel()
+	_board.hide_ghost()
+	_board.hide_frontier()
+	_screen_fx.danger = false
+	_screen_fx.flash()
+	_fx.burst(_cart.position, Skins.current().accent, 34, _cell_size * 8.0)
+	GameState.vibrate(balance.haptics_crystal_ms)
+	_bank_run()
+
+	var reward := Levels.clear(GameState, active_level.number)
+	var cleared := active_level
+	active_level = Levels.current(GameState)
+	_refresh_mode_name()
+	_death_reason = ""
+	_death_pause = DEATH_PAUSE
+	_pending_clear = {"level": cleared, "reward": reward}
 
 
 ## Files the finished run: currency, goal progress and both records.

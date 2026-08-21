@@ -49,6 +49,7 @@ func _process(_delta: float) -> bool:
 	_check_quests()
 	_check_locations()
 	_check_back_key()
+	_check_story()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -607,6 +608,58 @@ func _check_back_key() -> void:
 
 	main._show_menu()
 	state.best = saved_best
+	state.crystals = saved_crystals
+	state.save_game()
+
+
+# --- story run -----------------------------------------------------------
+
+func _check_story() -> void:
+	var state: Node = root.get_node("GameState")
+	var saved_cleared: int = state.levels_cleared
+	var saved_crystals: int = state.crystals
+
+	_ok(Levels.count() >= 12, "the line has stations on it")
+	var numbers := {}
+	for level in Levels.catalogue():
+		numbers[level.number] = true
+		_ok(level.goal_target > 0, "station %d asks for something" % level.number)
+		_ok(not level.title.is_empty(), "station %d is named" % level.number)
+	_eq(numbers.size(), Levels.count(), "station numbers are unique")
+
+	# A station's map is fixed: same seed every attempt, so it is learnable.
+	var first := Levels.find(1)
+	_eq(Levels.seed_for(first), Levels.seed_for(first), "a station keeps its map")
+	_ok(Levels.seed_for(first) != Levels.seed_for(Levels.find(2)),
+		"different stations are different maps")
+
+	state.levels_cleared = 0
+	state.crystals = 0
+	_eq(Levels.current(state).number, 1, "an untouched line starts at one")
+	_ok(Levels.is_unlocked(state, 1), "the first station is open")
+	_ok(not Levels.is_unlocked(state, 2), "the second is not, yet")
+
+	_ok(not Levels.is_met(first, {"distance": first.goal_target - 1}),
+		"one short of the goal is not a clear")
+	_ok(Levels.is_met(first, {"distance": first.goal_target}),
+		"reaching it is")
+
+	var paid := Levels.clear(state, 1)
+	_eq(paid, first.reward, "clearing pays the station's reward")
+	_eq(state.crystals, first.reward, "into the wallet")
+	_eq(state.levels_cleared, 1, "and advances the line")
+	_ok(Levels.is_unlocked(state, 2), "which opens the next station")
+
+	_eq(Levels.clear(state, 1), 0, "replaying a cleared station pays nothing")
+	_eq(state.crystals, first.reward, "so the wallet is unchanged")
+	_eq(state.levels_cleared, 1, "and the line does not move backwards")
+
+	var reloaded: Node = load("res://scripts/game_state.gd").new()
+	reloaded.load_game()
+	_eq(reloaded.levels_cleared, 1, "progress on the line survives a reload")
+	reloaded.free()
+
+	state.levels_cleared = saved_cleared
 	state.crystals = saved_crystals
 	state.save_game()
 

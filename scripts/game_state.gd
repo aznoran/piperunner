@@ -25,6 +25,9 @@ var daily_best: int = 0
 ## quest with id, target, progress and whether the reward has been taken.
 var quest_date: String = ""
 var quests: Array = []
+## Stations of the story run cleared so far. The chain is linear, so one
+## number says everything about where the player is.
+var levels_cleared: int = 0
 
 ## Purchased upgrades, keyed by id. Empty until the meta layer lands.
 var upgrades: Dictionary = {}
@@ -46,6 +49,7 @@ func load_game() -> void:
 	daily_best = config.get_value("progress", "daily_best", 0)
 	quest_date = config.get_value("progress", "quest_date", "")
 	quests = config.get_value("progress", "quests", [])
+	levels_cleared = config.get_value("progress", "levels_cleared", 0)
 	haptics_enabled = config.get_value("settings", "haptics", true)
 	location = config.get_value("settings", "location", "")
 	cart_variant = config.get_value("settings", "cart_variant", 0)
@@ -61,6 +65,7 @@ func save_game() -> void:
 	config.set_value("progress", "daily_best", daily_best)
 	config.set_value("progress", "quest_date", quest_date)
 	config.set_value("progress", "quests", quests)
+	config.set_value("progress", "levels_cleared", levels_cleared)
 	config.set_value("settings", "haptics", haptics_enabled)
 	config.set_value("settings", "location", location)
 	config.set_value("settings", "cart_variant", cart_variant)

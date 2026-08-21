@@ -12,6 +12,7 @@ const BAR_RADIUS := 7
 @onready var _score_label: Label = %ScoreLabel
 @onready var _best_label: Label = %BestLabel
 @onready var _daily_label: Label = %DailyLabel
+@onready var _objective: Label = %ObjectiveLabel
 @onready var _combo_label: Label = %ComboLabel
 @onready var _fuel_track: Panel = %FuelTrack
 @onready var _fuel_bar: Panel = %FuelBar
@@ -68,6 +69,19 @@ func set_skin(skin: LocationSkin) -> void:
 		%BackButton.add_theme_stylebox_override(state, box)
 	(%BackButton.get_node("Icon") as TabIcon).color = Color(skin.accent, 0.8)
 	set_fuel(_fuel_ratio)
+
+
+## The station's goal and how far along it is. Null hides the line, which is
+## what an endless run wants.
+func set_objective(level: Level, progress: int) -> void:
+	_objective.visible = level != null
+	if level == null:
+		return
+	_objective.text = "%s  ·  %d/%d" % [level.goal_short(),
+		mini(progress, level.goal_target), level.goal_target]
+	var done: bool = progress >= level.goal_target
+	_objective.add_theme_color_override("font_color",
+		_skin.accent if done else Color(_skin.pipe_core, 0.95))
 
 
 ## Shows the back key again for a fresh run.

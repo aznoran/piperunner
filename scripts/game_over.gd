@@ -22,6 +22,7 @@ func _ready() -> void:
 func show_game_over(reason: String, score: int, distance: int,
 		is_record: bool, went_further: bool) -> void:
 	visible = true
+	%RetryButton.text = "Try Again"
 	_title.text = reason
 	_final_score.text = str(score)
 	_distance.text = "%d cells climbed" % distance
@@ -33,6 +34,18 @@ func show_game_over(reason: String, score: int, distance: int,
 	elif went_further:
 		_record.text = "FURTHEST YET"
 	_record.visible = is_record or went_further
+
+
+## The other end of a story run: the goal was met, so this is a finish rather
+## than a crash. Retry becomes "next station" once there is one.
+func show_station_cleared(level: Level, reward: int, campaign_done: bool) -> void:
+	visible = true
+	_title.text = "STATION %d CLEARED" % level.number
+	_final_score.text = level.title
+	_distance.text = ("+%d crystals" % reward) if reward > 0 else "Already cleared"
+	_record.text = "STORY COMPLETE" if campaign_done else ""
+	_record.visible = campaign_done
+	%RetryButton.text = "Menu" if campaign_done else "Next"
 
 
 func hide_overlay() -> void:

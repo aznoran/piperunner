@@ -9,12 +9,18 @@ signal start_pressed
 signal location_chosen(skin: LocationSkin)
 ## Emitted when the player picks a different cart look.
 signal cart_chosen(variant: int)
-## Emitted when a mode is picked in the carousel. True for today's fixed map.
-signal mode_chosen(daily: bool)
+## Emitted when a mode is picked in the carousel, as one of MODE_*.
+signal mode_chosen(mode: int)
+## Emitted when a station is picked on the story map.
+signal level_chosen(number: int)
 
 
 ## Style for the buy buttons, built once rather than per row.
 const BUY_RADIUS := 20
+## Mode ids, matching Main.Mode so the signal needs no translation.
+const MODE_CLASSIC := 0
+const MODE_DAILY := 1
+const MODE_STORY := 2
 ## Bar tabs: corner radius and the depth of the bottom lip that gives them
 ## their pressable look.
 const TAB_RADIUS := 16
@@ -31,6 +37,7 @@ const FADE_TIME := 0.24
 @onready var _upgrades_panel: Control = %UpgradesPanel
 @onready var _quests_panel: Control = %QuestsPanel
 @onready var _modes_panel: Control = %ModesPanel
+@onready var _levels_panel: Control = %LevelsPanel
 @onready var _quest_rows: VBoxContainer = %QuestRows
 @onready var _shop_rows: VBoxContainer = %ShopRows
 @onready var _wallet: Label = %Wallet
@@ -43,7 +50,7 @@ var _face: Texture2D
 ## The fade in flight, if any. Kept so a new one can cancel it.
 var _fade_tween: Tween
 ## Kept so a repaint can put the mode name back in the right colour.
-var _mode_is_daily: bool = false
+var _mode_kind: int = MODE_CLASSIC
 
 
 func _ready() -> void:
@@ -53,6 +60,7 @@ func _ready() -> void:
 	%QuestsButton.pressed.connect(_toggle.bind(_quests_panel))
 	%ModesButton.pressed.connect(_open_modes)
 	%CloseModes.pressed.connect(_close_panels)
+	%CloseLevels.pressed.connect(_open_modes)
 	%CloseQuests.pressed.connect(_close_panels)
 	%HowToButton.pressed.connect(_toggle.bind(_how_panel))
 	%LocationButton.pressed.connect(_cycle_location)
@@ -143,12 +151,14 @@ func paint(skin: LocationSkin) -> void:
 	_paint_key(%QuestsButton, skin, skin.accent, false)
 	_paint_key(%SettingsButton, skin, skin.pipe_core, false)
 	%ModeLabel.add_theme_color_override("font_color",
-		Color(skin.warn if _mode_is_daily else skin.accent, 0.9))
+		Color(_mode_tint(skin, _mode_kind), 0.9))
 	(_modes_panel.get_node("Heading") as Label).add_theme_color_override(
 		"font_color", skin.accent)
+	(_levels_panel.get_node("Heading") as Label).add_theme_color_override(
+		"font_color", _mode_tint(skin, MODE_STORY))
 
 	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
-			"%CloseModes",
+			"%CloseModes", "%CloseLevels",
 			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton"]:
 		var button: Button = get_node_or_null(path)
 		if button != null:
@@ -256,6 +266,7 @@ func _close_panels() -> void:
 	_upgrades_panel.visible = false
 	_quests_panel.visible = false
 	_modes_panel.visible = false
+	_levels_panel.visible = false
 
 
 ## Title, mode name and the bar — everything the mode picker replaces.
@@ -381,11 +392,21 @@ func _buy(id: StringName) -> void:
 ## The name shown under the title, so the menu always says what the run key
 ## will launch. Today's map takes the warning colour it wears everywhere else,
 ## so the mode is recognisable before the word is read.
-func set_mode_name(mode: String, daily: bool = false) -> void:
-	_mode_is_daily = daily
+func set_mode_name(mode: String, kind: int = MODE_CLASSIC) -> void:
+	_mode_kind = kind
 	%ModeLabel.text = mode
 	%ModeLabel.add_theme_color_override("font_color",
-		Color(Skins.current().warn if daily else Skins.current().accent, 0.9))
+		Color(_mode_tint(Skins.current(), kind), 0.9))
+
+
+func _mode_tint(skin: LocationSkin, kind: int) -> Color:
+	match kind:
+		MODE_DAILY:
+			return skin.warn
+		MODE_STORY:
+			return skin.shape_color(PipeDefs.Type.UL)
+		_:
+			return skin.accent
 
 
 func _open_modes() -> void:
@@ -403,22 +424,29 @@ func _build_modes() -> void:
 		child.queue_free()
 
 	var today: int = GameState.daily_result()
-	_add_mode_card(cards, "CLASSIC", false, Skins.current().accent,
+	var skin := Skins.current()
+	_add_mode_card(cards, "CLASSIC", MODE_CLASSIC, skin.accent,
 		"Endless. One life, one board, as far as you can take it.",
 		"FURTHEST", str(GameState.best_distance))
-	_add_mode_card(cards, "TODAY", true, Skins.current().warn,
+	_add_mode_card(cards, "STORY", MODE_STORY, _mode_tint(skin, MODE_STORY),
+		"Stations with a goal each. Fixed maps, learned one at a time.",
+		"CLEARED", "%d/%d" % [GameState.levels_cleared, Levels.count()])
+	_add_mode_card(cards, "TODAY", MODE_DAILY, skin.warn,
 		"One map, the same for everyone. New one at midnight.",
 		"YOUR BEST", str(today) if today > 0 else "—")
 
 
-func _add_mode_card(into: HBoxContainer, title: String, daily: bool,
+func _add_mode_card(into: HBoxContainer, title: String, kind: int,
 		tint: Color, blurb: String, stat_name: String, stat: String) -> void:
 	var skin := Skins.current()
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(292, 316)
+	# Three modes fit the width without scrolling; a carousel you have to drag
+	# hides whatever is off-screen, and a mode you cannot see is a mode you do
+	# not play.
+	card.custom_minimum_size = Vector2(218, 330)
 	# Otherwise the scroll container stretches them to its full height.
 	card.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	card.pressed.connect(_pick_mode.bind(daily))
+	card.pressed.connect(_pick_mode.bind(kind))
 
 	for state in ["normal", "hover", "pressed"]:
 		var box := StyleBoxFlat.new()
@@ -432,23 +460,23 @@ func _add_mode_card(into: HBoxContainer, title: String, daily: bool,
 
 	var column := VBoxContainer.new()
 	column.set_anchors_preset(Control.PRESET_FULL_RECT)
-	column.offset_left = 24.0
-	column.offset_right = -24.0
-	column.offset_top = 28.0
-	column.offset_bottom = -28.0
+	column.offset_left = 18.0
+	column.offset_right = -18.0
+	column.offset_top = 22.0
+	column.offset_bottom = -22.0
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_theme_constant_override("separation", 12)
 	card.add_child(column)
 
 	var heading := Label.new()
 	heading.text = title
-	heading.add_theme_font_size_override("font_size", 30)
+	heading.add_theme_font_size_override("font_size", 25)
 	heading.add_theme_color_override("font_color", tint)
 	column.add_child(heading)
 
 	var text := Label.new()
 	text.text = blurb
-	text.add_theme_font_size_override("font_size", 17)
+	text.add_theme_font_size_override("font_size", 15)
 	text.modulate.a = 0.66
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	text.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -462,13 +490,115 @@ func _add_mode_card(into: HBoxContainer, title: String, daily: bool,
 
 	var value := Label.new()
 	value.text = stat
-	value.add_theme_font_size_override("font_size", 36)
+	value.add_theme_font_size_override("font_size", 30)
 	value.add_theme_color_override("font_color", tint)
 	column.add_child(value)
 
 
-func _pick_mode(daily: bool) -> void:
-	mode_chosen.emit(daily)
+func _pick_mode(kind: int) -> void:
+	GameState.vibrate(20)
+	if kind == MODE_STORY:
+		# Story goes one level deeper: which station, not just which mode.
+		_open_levels()
+		return
+	mode_chosen.emit(kind)
+	_close_panels()
+	_refresh()
+
+
+## The story map: one row per station, in order, with the next one to play
+## called out. A straight line rather than a branching board — the chain is
+## linear, and pretending otherwise would be decoration.
+func _open_levels() -> void:
+	_close_panels()
+	_build_levels()
+	_levels_panel.visible = true
+	_set_menu_chrome(false)
+
+
+func _build_levels() -> void:
+	var skin := Skins.current()
+	var tint := _mode_tint(skin, MODE_STORY)
+	var rows: VBoxContainer = %Stations
+	for child in rows.get_children():
+		child.queue_free()
+
+	%Progress.text = "%d of %d cleared" % [GameState.levels_cleared, Levels.count()]
+
+	for level in Levels.catalogue():
+		var cleared := Levels.is_cleared(GameState, level.number)
+		var unlocked := Levels.is_unlocked(GameState, level.number)
+		var is_next: bool = unlocked and not cleared
+
+		var row := Button.new()
+		row.custom_minimum_size = Vector2(0, 92)
+		row.disabled = not unlocked
+		if unlocked:
+			row.pressed.connect(_pick_level.bind(level.number))
+
+		var accent: Color = tint if is_next else (skin.accent if cleared
+			else Color(skin.pipe_core, 0.4))
+		for state in ["normal", "hover", "pressed", "disabled"]:
+			var box := StyleBoxFlat.new()
+			box.bg_color = skin.bg_top.lightened(0.16 if is_next else 0.08)
+			if is_next:
+				box.bg_color = box.bg_color.lerp(tint, 0.16)
+			box.border_color = Color(accent, 0.55 if unlocked else 0.2)
+			box.set_border_width_all(2)
+			box.set_corner_radius_all(16)
+			box.content_margin_left = 18.0
+			box.content_margin_right = 18.0
+			row.add_theme_stylebox_override(state, box)
+		rows.add_child(row)
+
+		var line := HBoxContainer.new()
+		line.set_anchors_preset(Control.PRESET_FULL_RECT)
+		line.offset_left = 18.0
+		line.offset_right = -18.0
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		line.add_theme_constant_override("separation", 16)
+		row.add_child(line)
+
+		var badge := Label.new()
+		badge.text = str(level.number)
+		badge.custom_minimum_size = Vector2(44, 0)
+		badge.add_theme_font_size_override("font_size", 26)
+		badge.add_theme_color_override("font_color", accent)
+		badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		line.add_child(badge)
+
+		var text := VBoxContainer.new()
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		text.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		text.add_theme_constant_override("separation", 2)
+		line.add_child(text)
+
+		var name_label := Label.new()
+		name_label.text = level.title
+		name_label.add_theme_font_size_override("font_size", 19)
+		name_label.modulate.a = 1.0 if unlocked else 0.4
+		text.add_child(name_label)
+
+		var goal := Label.new()
+		goal.text = level.goal_text() if unlocked else "Locked"
+		goal.add_theme_font_size_override("font_size", 15)
+		goal.modulate.a = 0.6 if unlocked else 0.3
+		text.add_child(goal)
+
+		var mark := Label.new()
+		mark.add_theme_font_size_override("font_size", 17)
+		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		if cleared:
+			mark.text = "CLEARED"
+			mark.add_theme_color_override("font_color", Color(skin.accent, 0.8))
+		elif is_next:
+			mark.text = "NEXT"
+			mark.add_theme_color_override("font_color", tint)
+		line.add_child(mark)
+
+
+func _pick_level(number: int) -> void:
+	level_chosen.emit(number)
 	GameState.vibrate(20)
 	_close_panels()
 	_refresh()
@@ -611,6 +741,7 @@ func _reset_progress() -> void:
 	GameState.crystals = 0
 	GameState.upgrades.clear()
 	GameState.quests.clear()
+	GameState.levels_cleared = 0
 	GameState.quest_date = ""
 	GameState.save_game()
 	GameState.best_changed.emit(0)
