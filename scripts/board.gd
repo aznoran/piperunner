@@ -44,6 +44,15 @@ var max_row: int = 0
 
 ## Rocks and crystals are only generated when this is on — the title screen
 ## wants a bare board with nothing but the runway on it.
+## 0..1 fade applied to generated content — grid, rock, pickups, the record
+## line. The runway and the cart are deliberately exempt: they are already on
+## screen behind the menu, so fading them would make them blink at the start
+## of a run instead of the world quietly arriving around them.
+var reveal: float = 1.0:
+	set(value):
+		reveal = clampf(value, 0.0, 1.0)
+		_terrain_dirty = true
+
 var spawn_resources: bool = true
 ## No rock or crystal below this row, so the opening screen is clear and the
 ## first one the player meets is beyond it.
@@ -362,6 +371,11 @@ func draw_terrain(ci: CanvasItem) -> void:
 		return
 	var row_min := _drawn_row_min
 	var row_max := _drawn_row_max
+	if reveal <= 0.0:
+		return
+	_grid_box.border_color = Color(_skin.grid, _skin.grid.a * reveal)
+	_rock_box.bg_color = Color(_skin.rock_fill, _skin.rock_fill.a * reveal)
+	_rock_box.border_color = Color(_skin.rock_edge, _skin.rock_edge.a * reveal)
 
 	# Empty buildable cells, which also shows the player the placement window.
 	for row in range(row_min, row_max + 1):
@@ -379,7 +393,8 @@ func draw_terrain(ci: CanvasItem) -> void:
 			if not rocks.has(cell):
 				continue
 			if _skin.rock_texture != null:
-				ci.draw_texture_rect(_skin.rock_texture, _cell_rect(cell, 0.94), false)
+				ci.draw_texture_rect(_skin.rock_texture, _cell_rect(cell, 0.94), false,
+					Color(1.0, 1.0, 1.0, reveal))
 			else:
 				ci.draw_style_box(_rock_box, _cell_rect(cell, 0.72))
 
@@ -409,7 +424,7 @@ func _draw_record_ghost(ci: CanvasItem) -> void:
 	var y := cell_to_world(Vector2i(0, ghost_row)).y
 	var right := balance.cols * cell_size
 	var mark := _skin.record_ghost
-	mark.a = minf(mark.a * 2.4, 1.0)
+	mark.a = minf(mark.a * 2.4, 1.0) * reveal
 	ci.draw_dashed_line(Vector2(0.0, y), Vector2(right, y), mark,
 		cell_size * 0.05, cell_size * 0.16)
 
@@ -428,10 +443,11 @@ func _draw_record_ghost(ci: CanvasItem) -> void:
 func draw_live(ci: CanvasItem) -> void:
 	if balance == null:
 		return
-	for cell: Vector2i in crystals:
-		if cell.y < _drawn_row_min or cell.y > _drawn_row_max:
-			continue
-		_draw_crystal(ci, cell)
+	if reveal > 0.0:
+		for cell: Vector2i in crystals:
+			if cell.y < _drawn_row_min or cell.y > _drawn_row_max:
+				continue
+			_draw_crystal(ci, cell)
 
 	if _ghost_visible:
 		_draw_ghost(ci)
@@ -473,13 +489,14 @@ func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:
 		# Keep the shaft of light — it is what makes a pickup readable from a
 		# screen away — and let the sprite do the rest.
 		var beam_tint := _skin.pickup
-		beam_tint.a = _skin.pickup_beam_alpha
+		beam_tint.a = _skin.pickup_beam_alpha * reveal
 		var height := cell_size * 6.0
 		ci.draw_rect(Rect2(centre.x - cell_size * 0.07, centre.y - height,
 			cell_size * 0.14, height), beam_tint)
 		var side := cell_size * 0.78 * pulse
 		ci.draw_texture_rect(_skin.pickup_texture,
-			Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side)), false)
+			Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side)), false,
+			Color(1.0, 1.0, 1.0, reveal))
 		return
 
 	# Shaft of light rising out of the crystal, so it reads from a screen away.
@@ -492,14 +509,15 @@ func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:
 	var half := cell_size * 0.17 * pulse
 	var core_half := cell_size * 0.07 * pulse
 	var glow := _skin.pickup
-	glow.a = 0.28
+	glow.a = 0.28 * reveal
 
 	# Diamond = a square turned 45 degrees.
 	ci.draw_set_transform(centre, PI * 0.25, Vector2.ONE)
 	ci.draw_rect(Rect2(-half * 1.5, -half * 1.5, half * 3.0, half * 3.0), glow)
-	ci.draw_rect(Rect2(-half, -half, half * 2.0, half * 2.0), _skin.pickup)
+	ci.draw_rect(Rect2(-half, -half, half * 2.0, half * 2.0),
+		Color(_skin.pickup, reveal))
 	ci.draw_rect(Rect2(-core_half, -core_half, core_half * 2.0, core_half * 2.0),
-		_skin.pickup_core)
+		Color(_skin.pickup_core, reveal))
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

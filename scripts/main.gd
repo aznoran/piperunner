@@ -9,6 +9,10 @@ const REASON_OUT_OF_FUEL := "Out of fuel"
 const DEATH_PAUSE := 0.42
 ## Seconds the daily banner stays up before fading out.
 const BANNER_TIME := 2.6
+## Seconds for the menu to clear and for the generated world to arrive. The
+## board is a touch slower so the two do not finish on the same frame.
+const MENU_FADE := 0.24
+const WORLD_REVEAL := 0.55
 ## Prototype shake, expressed against its 68 px cell so it scales with layout.
 const SHAKE_REFERENCE_CELL := 68.0
 
@@ -151,9 +155,20 @@ func _apply_layout() -> void:
 	_camera.position.x = viewport.x * 0.5
 
 
+## The HUD lives on a CanvasLayer, which has no modulate of its own.
+func _hud_root() -> CanvasItem:
+	return _hud.get_node("Safe")
+
+
+func _fade_in(item: CanvasItem, duration: float) -> void:
+	item.modulate.a = 0.0
+	create_tween().tween_property(item, "modulate:a", 1.0, duration)
+
+
 func _show_menu() -> void:
 	state = State.MENU
 	daily_mode = false
+	_board.reveal = 1.0
 	_input.enabled = false
 	_queue_bar.visible = false
 	_hud.visible = false
@@ -200,7 +215,7 @@ func _first_resource_row() -> int:
 func start_run(daily: bool = false) -> void:
 	daily_mode = daily
 	_overlay.hide_overlay()
-	_menu.close()
+	_menu.fade_out(MENU_FADE)
 	state = State.PLAYING
 	_rebuild_balance()
 
@@ -224,7 +239,21 @@ func start_run(daily: bool = false) -> void:
 	_queue_bar.set_contents(_queue.upcoming, _queue.held)
 	_start_hint.visible = true
 	_hint_pulse = 0.0
-	_input.enabled = true
+
+	# The world arrives rather than appearing: rock, crystals and the grid fade
+	# up while the menu clears. Input waits for the menu to be out of the way,
+	# so a stray finger on a menu button cannot drop a pipe.
+	_input.enabled = false
+	_board.reveal = 0.0
+	create_tween().tween_property(_board, "reveal", 1.0, WORLD_REVEAL) \
+		.set_trans(Tween.TRANS_SINE)
+	_fade_in(_hud_root(), MENU_FADE)
+	_fade_in(_queue_bar, MENU_FADE)
+	var gate := create_tween()
+	gate.tween_interval(MENU_FADE)
+	gate.tween_callback(func() -> void:
+		if state == State.PLAYING:
+			_input.enabled = true)
 
 	_hud.set_score(0)
 	_hud.set_best(GameState.best)

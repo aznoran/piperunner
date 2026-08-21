@@ -14,6 +14,12 @@ signal daily_pressed
 
 ## Style for the buy buttons, built once rather than per row.
 const BUY_RADIUS := 20
+## Bar tabs: corner radius and the depth of the bottom lip that gives them
+## their pressable look.
+const TAB_RADIUS := 16
+const TAB_LIP := 6
+## Seconds the whole menu takes to fade in or out.
+const FADE_TIME := 0.24
 
 @onready var _bar: Control = $Bar
 @onready var _how_panel: Control = %HowPanel
@@ -60,6 +66,24 @@ func open() -> void:
 	visible = true
 	_close_panels()
 	_refresh()
+	_fade(1.0, FADE_TIME)
+
+
+## Fades the menu away and hides it once it is gone, so the board underneath is
+## uncovered rather than uncovered-and-flashed.
+func fade_out(duration: float = FADE_TIME) -> void:
+	var tween := _fade(0.0, duration)
+	tween.chain().tween_callback(close)
+
+
+func _fade(alpha: float, duration: float) -> Tween:
+	var tween := create_tween().set_parallel(true)
+	for child in get_children():
+		if child is CanvasItem:
+			if alpha > 0.0 and not (child as CanvasItem).visible:
+				continue  # closed panels stay closed
+			tween.tween_property(child, "modulate:a", alpha, duration)
+	return tween
 
 
 func close() -> void:
@@ -72,50 +96,37 @@ func close() -> void:
 func _relayout() -> void:
 	var viewport := get_viewport().get_visible_rect().size
 	var bottom_inset := SafeArea.insets(viewport).w
-	var height: float = maxf(viewport.y * 0.17, 130.0)
+	var height: float = maxf(viewport.y * 0.14, 118.0)
 	_bar.size = Vector2(viewport.x, height)
 	_bar.position = Vector2(0.0, viewport.y - height - bottom_inset)
 
 
-## Repaints the menu chrome in the location's colours. The scene ships with a
-## single hard-coded palette; without this the buttons stay teal while the
-## board turns into a forest.
+## Repaints the menu chrome in the location's colours. The scene file can only
+## carry one palette, so the whole bar is styled from the skin at runtime —
+## that is what lets a location change the look of the menu, not just the board.
 func paint(skin: LocationSkin) -> void:
-	for path in ["%UpgradesButton", "%SettingsButton", "%DailyButton",
-			"%QuestsButton", "%CloseHow", "%CloseSettings", "%CloseUpgrades",
-			"%CloseQuests", "%HowToButton", "%LocationButton", "%CartButton",
-			"%DebugUnlockButton"]:
-		var button: Button = get_node_or_null(path)
-		if button == null:
-			continue
-		var tint: Color = skin.warn if path == "%DailyButton" else skin.accent
-		if path == "%ResetBestButton":
-			tint = skin.danger
-		button.add_theme_color_override("font_color", tint)
-		button.add_theme_stylebox_override("normal", _ghost_style(skin, tint))
-		button.add_theme_stylebox_override("hover", _ghost_style(skin, tint))
-		button.add_theme_stylebox_override("pressed", _ghost_style(skin, tint))
+	var bar := StyleBoxFlat.new()
+	bar.bg_color = Color(skin.bg_top.darkened(0.35), 0.92)
+	bar.corner_radius_top_left = 26
+	bar.corner_radius_top_right = 26
+	bar.border_width_top = 2
+	bar.border_color = Color(skin.accent, 0.18)
+	%BarPanel.add_theme_stylebox_override("panel", bar)
 
+	_paint_tab(%UpgradesButton, skin, skin.accent, false)
+	_paint_tab(%DailyButton, skin, skin.warn, false)
+	_paint_tab(%StartButton, skin, skin.accent, true)
+	_paint_tab(%QuestsButton, skin, skin.accent, false)
+	_paint_tab(%SettingsButton, skin, Color(1, 1, 1, 0.7), false)
+
+	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
+			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton"]:
+		var button: Button = get_node_or_null(path)
+		if button != null:
+			_paint_ghost(button, skin, skin.accent)
 	var reset: Button = get_node_or_null("%ResetBestButton")
 	if reset != null:
-		reset.add_theme_color_override("font_color", skin.danger)
-		reset.add_theme_stylebox_override("normal", _ghost_style(skin, skin.danger))
-		reset.add_theme_stylebox_override("hover", _ghost_style(skin, skin.danger))
-		reset.add_theme_stylebox_override("pressed", _ghost_style(skin, skin.danger))
-
-	var start: Button = %StartButton
-	for state in ["normal", "hover", "pressed"]:
-		var box := StyleBoxFlat.new()
-		box.bg_color = skin.accent.darkened(0.2) if state == "pressed" else skin.accent
-		box.set_corner_radius_all(44)
-		box.content_margin_left = 58.0
-		box.content_margin_right = 58.0
-		box.content_margin_top = 26.0
-		box.content_margin_bottom = 26.0
-		start.add_theme_stylebox_override(state, box)
-	var ink: Color = skin.bg_bottom
-	for key in ["font_color", "font_hover_color", "font_pressed_color"]:
-		start.add_theme_color_override(key, ink)
+		_paint_ghost(reset, skin, skin.danger)
 
 	for path in ["%HowPanel", "%SettingsPanel", "%UpgradesPanel", "%QuestsPanel"]:
 		var panel: Control = get_node_or_null(path)
@@ -138,6 +149,31 @@ func paint(skin: LocationSkin) -> void:
 	%Wallet.add_theme_color_override("font_color", skin.accent)
 
 
+## One bar tab. `primary` is the run button: filled with the accent instead of
+## outlined, and wider — it stands out by weight, not by sitting higher.
+func _paint_tab(button: Button, skin: LocationSkin, tint: Color, primary: bool) -> void:
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		var box := StyleBoxFlat.new()
+		box.set_corner_radius_all(TAB_RADIUS)
+		if primary:
+			box.bg_color = tint.darkened(0.14) if state == "pressed" else tint
+			box.border_color = tint.darkened(0.52)
+		else:
+			box.bg_color = skin.bg_top.lightened(0.10 if state == "pressed" else 0.20)
+			box.border_color = Color(0.0, 0.0, 0.0, 0.6)
+		# The lip along the bottom is the whole trick: a flat rectangle reads as
+		# a label, the same rectangle with a dark edge reads as a key.
+		box.border_width_bottom = 2 if state == "pressed" else TAB_LIP
+		box.content_margin_top = float(TAB_LIP if state == "pressed" else 2)
+		button.add_theme_stylebox_override(state, box)
+
+	var ink: Color = skin.bg_bottom if primary else tint
+	for key in ["font_color", "font_hover_color", "font_pressed_color"]:
+		button.add_theme_color_override(key, ink)
+	button.add_theme_font_size_override("font_size", 20 if primary else 15)
+
+
+## Outlined button, used inside the panels where a filled key would shout.
 func _ghost_style(skin: LocationSkin, tint: Color) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color(skin.bg_mid, 0.85)
@@ -149,6 +185,12 @@ func _ghost_style(skin: LocationSkin, tint: Color) -> StyleBoxFlat:
 	box.content_margin_top = 20.0
 	box.content_margin_bottom = 20.0
 	return box
+
+
+func _paint_ghost(button: Button, skin: LocationSkin, tint: Color) -> void:
+	button.add_theme_color_override("font_color", tint)
+	for state in ["normal", "hover", "pressed"]:
+		button.add_theme_stylebox_override(state, _ghost_style(skin, tint))
 
 
 func _toggle(panel: Control) -> void:
@@ -169,6 +211,7 @@ func _close_panels() -> void:
 func _refresh() -> void:
 	var today: int = GameState.daily_result()
 	%DailyButton.text = "DAILY  ·  BEST %d" % today if today > 0 else "DAILY RUN"
+	%DailyButton.text = "TODAY" if GameState.daily_result() <= 0 else "TODAY\n%d" % GameState.daily_result()
 	%LocationButton.text = "Location: %s" % Skins.current().display_name
 	var carts := Skins.current().cart_variant_count()
 	%CartButton.text = ("Cart: %d of %d" % [GameState.cart_variant % carts + 1, carts]
@@ -283,7 +326,7 @@ func _build_quests() -> void:
 	Quests.ensure_today(GameState)
 
 	var tally := Quests.tally(GameState)
-	%QuestsButton.text = "GOALS  %d/%d" % [tally.x, tally.y]
+	%QuestsButton.text = "GOALS\n%d/%d" % [tally.x, tally.y]
 	# Nudge the player when something is sitting there unclaimed.
 	%QuestsButton.modulate = (Color(1.0, 0.92, 0.55)
 		if Quests.has_claimable(GameState) else Color.WHITE)
