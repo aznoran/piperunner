@@ -14,7 +14,11 @@ const BANNER_TIME := 2.6
 const MENU_FADE := 0.24
 const WORLD_REVEAL := 0.55
 ## Where the cart sits on the title screen, as a fraction of screen height.
+## Higher than in play, which also lets the first crystals show in the
+## distance rather than leaving the menu as one bare track.
 const MENU_CAMERA_ANCHOR := 0.46
+## Seconds the camera takes to push forward into the run.
+const CAMERA_PUSH := 0.7
 ## Prototype shake, expressed against its 68 px cell so it scales with layout.
 const SHAKE_REFERENCE_CELL := 68.0
 
@@ -39,6 +43,7 @@ var _magnet_reach: int = 0
 @onready var _start_hint: Label = %StartHint
 @onready var _mode_banner: Label = %ModeBanner
 @onready var _background: TextureRect = $Background/Gradient
+@onready var _decor: MenuDecor = $World/Decor
 
 var state: State = State.MENU
 
@@ -74,6 +79,9 @@ var _death_reason: String = ""
 var _death_was_record: bool = false
 var _death_went_further: bool = false
 var _hint_pulse: float = 0.0
+## Where the camera holds the cart right now. Animated on the way into a run
+## instead of switching, which is what made the cart appear to teleport.
+var _camera_anchor: float = MENU_CAMERA_ANCHOR
 var _banner_left: float = 0.0
 
 
@@ -135,6 +143,7 @@ func apply_skin(skin: LocationSkin) -> void:
 		return
 	Skins.set_current(skin)
 	_background.set_skin(skin)
+	_decor.setup(skin, _cell_size, balance.cols)
 	_board.set_skin(skin)
 	_cart.set_skin(skin)
 	_queue_bar.set_skin(skin)
@@ -149,6 +158,7 @@ func _apply_layout() -> void:
 	_cell_size = viewport.x / float(balance.cols)
 
 	_board.set_cell_size(_cell_size)
+	_decor.setup(Skins.current(), _cell_size, balance.cols)
 	_cart.set_cell_size(_cell_size)
 	_fx.set_cell_size(_cell_size)
 	_queue_bar.set_cell_size(_cell_size)
@@ -165,6 +175,25 @@ func abandon_run() -> void:
 	if state == State.PLAYING and started:
 		return
 	_show_menu()
+
+
+func _set_camera_anchor(value: float) -> void:
+	_camera_anchor = value
+
+
+## Puts the cart back on the runway without disturbing the board the menu has
+## already laid out.
+func _reset_cart() -> void:
+	var start_col: int = balance.cols / 2
+	_cart.place_at(start_col, 0, PipeDefs.Side.D)
+	_board.flood(Vector2i(start_col, 0))
+	_board.set_cart_cell(_cart.cell())
+	_board.set_cart_incoming(Board.NO_CELL)
+	_route_clear()
+
+
+func _route_clear() -> void:
+	_board.show_record(GameState.best_distance)
 
 
 ## The HUD lives on a CanvasLayer, which has no modulate of its own.
@@ -196,7 +225,10 @@ func _show_menu() -> void:
 	_board.hide_ghost()
 	_board.hide_frontier()
 	# The title screen sits over a live but empty board.
-	_prepare_board(false)
+	_camera_anchor = MENU_CAMERA_ANCHOR
+	_decor.modulate.a = MenuDecor.RESTING_ALPHA
+	_decor.visible = true
+	_prepare_board(true)
 	_snap_camera()
 	_overlay.hide_overlay()
 	_menu.open()
@@ -253,20 +285,34 @@ func start_run(daily: bool = false) -> void:
 	_camera_frozen = false
 	_death_pause = 0.0
 
-	_prepare_board(true)
+	if daily:
+		# A daily is a different map, so it has to be laid out now; the banner
+		# covers the swap.
+		_prepare_board(true)
+	else:
+		_reset_cart()
 	_queue_bar.visible = true
 	_hud.visible = true
 	_queue_bar.set_contents(_queue.upcoming, _queue.held)
 	_start_hint.visible = true
 	_hint_pulse = 0.0
 
-	# The world arrives rather than appearing: rock, crystals and the grid fade
-	# up while the menu clears. Input waits for the menu to be out of the way,
-	# so a stray finger on a menu button cannot drop a pipe.
+	# The camera pushes forward into the run while the menu clears: the cart
+	# settles into its playing position instead of jumping there. On a daily
+	# the board was just rebuilt, so its contents fade up too.
 	_input.enabled = false
-	_board.reveal = 0.0
-	create_tween().tween_property(_board, "reveal", 1.0, WORLD_REVEAL) \
-		.set_trans(Tween.TRANS_SINE)
+	# The disused tracks belong to the menu; they clear as the run begins.
+	var fade_decor := create_tween()
+	fade_decor.tween_property(_decor, "modulate:a", 0.0, MENU_FADE)
+	fade_decor.tween_callback(func() -> void: _decor.visible = false)
+
+	var push := create_tween()
+	push.tween_method(_set_camera_anchor, _camera_anchor, balance.camera_anchor,
+		CAMERA_PUSH).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	if daily:
+		_board.reveal = 0.0
+		create_tween().tween_property(_board, "reveal", 1.0, WORLD_REVEAL) \
+			.set_trans(Tween.TRANS_SINE)
 	_fade_in(_hud_root(), MENU_FADE)
 	_fade_in(_queue_bar, MENU_FADE)
 	var gate := create_tween()
@@ -326,11 +372,7 @@ func _run_frame(delta: float) -> void:
 ## No dead zone: it banks up drift and then snaps, which felt worse.
 func _camera_target() -> float:
 	var viewport_height := get_viewport_rect().size.y
-	# On the title screen the cart sits higher up: at the play anchor it lands
-	# right on top of the run key, which is both ugly and a mis-tap waiting to
-	# happen.
-	var anchor: float = MENU_CAMERA_ANCHOR if state == State.MENU else balance.camera_anchor
-	return _cart.position.y - (anchor - 0.5) * viewport_height
+	return _cart.position.y - (_camera_anchor - 0.5) * viewport_height
 
 
 func _snap_camera() -> void:
