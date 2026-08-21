@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Quest" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quest.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"gather"
+description = "Collect %d crystals"
+metric = &"crystals"
+targets = PackedInt32Array(15, 20, 30)
+reward = 40
+single_run = false

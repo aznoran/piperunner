@@ -23,6 +23,7 @@ docs/       the spec and the reference prototype
 | `input_handler.gd` | press-drag-release aiming (spec 07) |
 | `game_state.gd` | autoload: best score and its ghost route, currency, daily result, settings |
 | `upgrades.gd` | meta progression: catalogue, levels, prices (spec 11, P0) |
+| `quests.gd` | the day's three goals: rolling, tracking, paying out (spec 11, P2) |
 | `skins.gd` | which LocationSkin is in effect |
 | `safe_area.gd` | notch insets, clamped and mobile-only |
 | `board_layer.gd` | splits Board's drawing into a slow and a fast layer |
@@ -73,11 +74,22 @@ roughly twice a second. The live layer (crystals, ghost, frontier ring) redraws
 every frame. That keeps a 400-pipe board at ~590 draw calls and about 0.1 ms of
 script time per frame.
 
+## Daily goals
+
+Three goals a day, rolled from a date-seeded stream so the set is stable all
+day and identical for every player — the same trick as the daily run. They pay
+crystals into the same wallet the shop spends from.
+
+Each goal is a `.tres` in `resources/quests/`: a metric, a spread of candidate
+targets and a payout. Goals phrased "in one run" set `single_run`, which keeps
+the best single attempt instead of summing across the day.
+
 ## Not yet built
 
 - **Biomes** (spec 11, P1) — deliberately skipped; locations are handled by the
   skin system above, which carries no gameplay change.
-- **Continue for an ad**, **rotating quests** (spec 11, P2).
+- **Continue for an ad** (spec 11, P2) — deferred; it does nothing useful
+  until an ad SDK is wired in.
 - **Export presets** (spec 13) — no `export_presets.cfg` yet, so the four
   acceptance items that need a device build are still open.
 - The daily challenge is local only. A shared leaderboard needs a backend.

@@ -15,6 +15,8 @@ const BUY_RADIUS := 20
 @onready var _how_panel: Control = %HowPanel
 @onready var _settings_panel: Control = %SettingsPanel
 @onready var _upgrades_panel: Control = %UpgradesPanel
+@onready var _quests_panel: Control = %QuestsPanel
+@onready var _quest_rows: VBoxContainer = %QuestRows
 @onready var _shop_rows: VBoxContainer = %ShopRows
 @onready var _wallet: Label = %Wallet
 @onready var _best_label: Label = %BestLabel
@@ -29,6 +31,8 @@ func _ready() -> void:
 	%DailyButton.pressed.connect(func() -> void: daily_pressed.emit())
 	%UpgradesButton.pressed.connect(_toggle.bind(_upgrades_panel))
 	%SettingsButton.pressed.connect(_toggle.bind(_settings_panel))
+	%QuestsButton.pressed.connect(_toggle.bind(_quests_panel))
+	%CloseQuests.pressed.connect(_close_panels)
 	%HowToButton.pressed.connect(_toggle.bind(_how_panel))
 	%CloseHow.pressed.connect(_close_panels)
 	%CloseSettings.pressed.connect(_close_panels)
@@ -75,6 +79,7 @@ func _close_panels() -> void:
 	_how_panel.visible = false
 	_settings_panel.visible = false
 	_upgrades_panel.visible = false
+	_quests_panel.visible = false
 
 
 func _refresh() -> void:
@@ -83,6 +88,7 @@ func _refresh() -> void:
 	_best_label.text = "Best run: %d" % GameState.best
 	_haptics_toggle.set_pressed_no_signal(GameState.haptics_enabled)
 	_refresh_shop()
+	_build_quests()
 
 
 # --- shop ---------------------------------------------------------------
@@ -178,6 +184,90 @@ func _buy(id: StringName) -> void:
 	_refresh_shop()
 
 
+# --- daily goals --------------------------------------------------------
+
+## One row per goal: what it asks for, how far along it is, and the payout.
+## Rebuilt rather than patched, since the set changes at midnight and rows are
+## cheap at three of them.
+func _build_quests() -> void:
+	Quests.ensure_today(GameState)
+
+	var tally := Quests.tally(GameState)
+	%QuestsButton.text = "GOALS  %d/%d" % [tally.x, tally.y]
+	# Nudge the player when something is sitting there unclaimed.
+	%QuestsButton.modulate = (Color(1.0, 0.92, 0.55)
+		if Quests.has_claimable(GameState) else Color.WHITE)
+
+	for child in _quest_rows.get_children():
+		child.queue_free()
+
+	for entry: Dictionary in GameState.quests:
+		var quest := Quests.find(StringName(entry["id"]))
+		if quest == null:
+			continue
+		var target: int = int(entry["target"])
+		var progress: int = mini(int(entry["progress"]), target)
+		var done: bool = Quests.is_complete(entry)
+		var claimed: bool = entry["claimed"]
+
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+
+		var text := VBoxContainer.new()
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		text.add_theme_constant_override("separation", 3)
+
+		var title := Label.new()
+		title.add_theme_font_size_override("font_size", 18)
+		title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		title.custom_minimum_size = Vector2(250, 0)
+		title.text = quest.text(target)
+		if claimed:
+			title.modulate.a = 0.45
+		text.add_child(title)
+
+		var bar := ProgressBar.new()
+		bar.max_value = target
+		bar.value = progress
+		bar.show_percentage = false
+		bar.custom_minimum_size = Vector2(250, 10)
+		text.add_child(bar)
+
+		var count := Label.new()
+		count.add_theme_font_size_override("font_size", 14)
+		count.modulate.a = 0.6
+		count.text = "%d / %d" % [progress, target]
+		text.add_child(count)
+
+		row.add_child(text)
+
+		var claim := Button.new()
+		claim.add_theme_font_size_override("font_size", 16)
+		claim.add_theme_stylebox_override("normal", _buy_style())
+		claim.add_theme_stylebox_override("hover", _buy_style())
+		claim.add_theme_stylebox_override("pressed", _buy_style())
+		claim.custom_minimum_size = Vector2(92, 0)
+		if claimed:
+			claim.text = "DONE"
+			claim.disabled = true
+		elif done:
+			claim.text = "+%d" % quest.reward
+			claim.pressed.connect(_claim.bind(String(entry["id"])))
+		else:
+			claim.text = "+%d" % quest.reward
+			claim.disabled = true
+		claim.modulate.a = 1.0 if not claim.disabled else 0.4
+		row.add_child(claim)
+
+		_quest_rows.add_child(row)
+
+
+func _claim(id: String) -> void:
+	if Quests.claim(GameState, id) > 0:
+		GameState.vibrate(30)
+	_refresh()
+
+
 # --- settings -----------------------------------------------------------
 
 func _set_haptics(enabled: bool) -> void:
@@ -189,6 +279,8 @@ func _reset_progress() -> void:
 	GameState.best = 0
 	GameState.crystals = 0
 	GameState.upgrades.clear()
+	GameState.quests.clear()
+	GameState.quest_date = ""
 	GameState.save_game()
 	GameState.best_changed.emit(0)
 	_refresh()

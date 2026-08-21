@@ -5,8 +5,8 @@ extends SceneTree
 
 const SHOTS := {
 	30: "menu-shop",
-	70: "menu-settings",
-	110: "menu-howto",
+	70: "menu-goals",
+	110: "menu-settings",
 }
 
 var main: Node
@@ -37,9 +37,18 @@ func _process(_delta: float) -> bool:
 		root.get_node("GameState").crystals = 210
 		menu._toggle(menu._upgrades_panel)
 	elif frames == 50:
-		menu._toggle(menu._settings_panel)
+		# Part-finished goals, so the panel shows a claimable row, a partial
+		# one and an untouched one rather than three empty bars.
+		var state: Node = root.get_node("GameState")
+		state.quest_date = state.today()
+		state.quests = [
+			{"id": "gather", "target": 20, "progress": 20, "claimed": false},
+			{"id": "litter", "target": 30, "progress": 11, "claimed": false},
+			{"id": "survive", "target": 60, "progress": 0, "claimed": false},
+		]
+		menu._toggle(menu._quests_panel)
 	elif frames == 90:
-		menu._toggle(menu._how_panel)
+		menu._toggle(menu._settings_panel)
 
 	if SHOTS.has(frames):
 		pending = SHOTS[frames]

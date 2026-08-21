@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Quest" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quest.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"distance"
+description = "Travel %d cells"
+metric = &"cells"
+targets = PackedInt32Array(80, 120, 200)
+reward = 35
+single_run = false

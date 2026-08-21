@@ -46,6 +46,7 @@ func _process(_delta: float) -> bool:
 	_check_record_ghost()
 	_check_daily()
 	_check_skin_swap()
+	_check_quests()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -443,6 +444,85 @@ func _check_skin_swap() -> void:
 
 	main.apply_skin(original)
 	_eq(Skins.current(), original, "and swaps back")
+
+
+# --- section 11, P2: rotating goals -------------------------------------
+
+func _check_quests() -> void:
+	var state: Node = root.get_node("GameState")
+	var saved_date: String = state.quest_date
+	var saved_quests: Array = state.quests.duplicate(true)
+	var saved_crystals: int = state.crystals
+
+	state.quest_date = ""
+	state.quests = []
+	Quests.ensure_today(state)
+	_eq(state.quests.size(), Quests.DAILY_COUNT, "a day rolls three goals")
+	_eq(state.quest_date, state.today(), "stamped with today's date")
+
+	var ids: Array = []
+	for entry: Dictionary in state.quests:
+		ids.append(entry["id"])
+		_ok(Quests.find(StringName(entry["id"])) != null, "each goal is a real one")
+		_eq(entry["progress"], 0, "each starts at zero")
+		_ok(not entry["claimed"], "and unclaimed")
+	_eq(ids.size(), ids.duplicate().size(), "no duplicates in the set")
+	var unique := {}
+	for id: String in ids:
+		unique[id] = true
+	_eq(unique.size(), ids.size(), "the three goals are distinct")
+
+	# Same date, same set — the roll must not drift between menu visits.
+	var first_ids := ids.duplicate()
+	Quests.ensure_today(state)
+	var again: Array = []
+	for entry: Dictionary in state.quests:
+		again.append(entry["id"])
+	_eq(again, first_ids, "re-checking the same day keeps the same goals")
+
+	# Progress: accumulating goals sum, "in one run" goals keep the best.
+	state.quests = [
+		{"id": "gather", "target": 20, "progress": 0, "claimed": false},
+		{"id": "chain", "target": 5, "progress": 0, "claimed": false},
+	]
+	Quests.report(state, {"crystals": 8, "combo": 3})
+	_eq(state.quests[0]["progress"], 8, "an accumulating goal adds up")
+	_eq(state.quests[1]["progress"], 3, "a one-run goal takes the run's value")
+
+	Quests.report(state, {"crystals": 7, "combo": 2})
+	_eq(state.quests[0]["progress"], 15, "and keeps adding across runs")
+	_eq(state.quests[1]["progress"], 3, "a weaker run does not lower a one-run goal")
+
+	_ok(not Quests.is_complete(state.quests[0]), "15 of 20 is not complete")
+	_ok(not Quests.has_claimable(state), "nothing to claim yet")
+	_eq(Quests.claim(state, "gather"), 0, "an unfinished goal pays nothing")
+
+	var done := Quests.report(state, {"crystals": 10, "combo": 6})
+	_eq(done.size(), 2, "the run that finishes both reports both")
+	_ok(Quests.is_complete(state.quests[0]), "the goal is complete")
+	_ok(Quests.has_claimable(state), "and waiting to be claimed")
+
+	state.crystals = 0
+	var reward: int = Quests.claim(state, "gather")
+	_ok(reward > 0, "claiming pays out")
+	_eq(state.crystals, reward, "the crystals land in the wallet")
+	_eq(Quests.claim(state, "gather"), 0, "a goal cannot be claimed twice")
+	_eq(state.crystals, reward, "and the wallet does not grow again")
+
+	var finished := Quests.report(state, {"crystals": 50})
+	_eq(finished.size(), 0, "an already finished goal is not reported again")
+
+	# Midnight: a new date rolls a fresh set.
+	state.quest_date = "1999-01-01"
+	Quests.ensure_today(state)
+	_eq(state.quest_date, state.today(), "a new day re-rolls")
+	_eq(state.quests.size(), Quests.DAILY_COUNT, "back to three")
+	_eq(state.quests[0]["progress"], 0, "with progress reset")
+
+	state.quest_date = saved_date
+	state.quests = saved_quests
+	state.crystals = saved_crystals
+	state.save_game()
 
 
 ## --script skips project autoloads, so stand them up by hand.

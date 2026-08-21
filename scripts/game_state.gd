@@ -18,6 +18,10 @@ var haptics_enabled: bool = true
 ## Date string of the last daily challenge played, and the score on it.
 var daily_date: String = ""
 var daily_best: int = 0
+## Date the current quest set was rolled for, and the set itself: one entry per
+## quest with id, target, progress and whether the reward has been taken.
+var quest_date: String = ""
+var quests: Array = []
 
 ## Purchased upgrades, keyed by id. Empty until the meta layer lands.
 var upgrades: Dictionary = {}
@@ -38,6 +42,8 @@ func load_game() -> void:
 	upgrades = config.get_value("progress", "upgrades", {})
 	daily_date = config.get_value("progress", "daily_date", "")
 	daily_best = config.get_value("progress", "daily_best", 0)
+	quest_date = config.get_value("progress", "quest_date", "")
+	quests = config.get_value("progress", "quests", [])
 	haptics_enabled = config.get_value("settings", "haptics", true)
 
 
@@ -50,6 +56,8 @@ func save_game() -> void:
 	config.set_value("progress", "upgrades", upgrades)
 	config.set_value("progress", "daily_date", daily_date)
 	config.set_value("progress", "daily_best", daily_best)
+	config.set_value("progress", "quest_date", quest_date)
+	config.set_value("progress", "quests", quests)
 	config.set_value("settings", "haptics", haptics_enabled)
 	config.save(SAVE_PATH)
 

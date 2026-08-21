@@ -43,6 +43,11 @@ var score: int = 0
 var combo: int = 0
 var cells_run: int = 0
 var crystals_collected: int = 0
+## Longest chain this run, for the quest that asks for one.
+var best_combo: int = 0
+## Pipes dropped in a row below the cart — the litter play from spec 08, and
+## the only quest metric nothing was counting yet.
+var pipes_dumped: int = 0
 var fuel: float = 0.0
 var speed: float = 0.0
 ## The cart waits for the player's first pipe. Spec section 02.
@@ -196,6 +201,8 @@ func start_run(daily: bool = false) -> void:
 	combo = 0
 	cells_run = 0
 	crystals_collected = 0
+	best_combo = 0
+	pipes_dumped = 0
 	fuel = balance.fuel_max
 	speed = balance.start_speed
 	started = false
@@ -371,6 +378,9 @@ func _try_place(cell: Vector2i) -> void:
 	if _board.place(cell, _queue.current()) == Board.Placement.REJECTED:
 		return
 
+	if cell.y < _cart.row:
+		pipes_dumped += 1
+
 	_queue.consume()
 	_queue_bar.set_contents(_queue.upcoming, _queue.held)
 	started = true
@@ -395,6 +405,7 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 
 	for spot in _pull_crystals(cell):
 		combo += 1
+		best_combo = maxi(best_combo, combo)
 		crystals_collected += 1
 		fuel = minf(balance.fuel_max, fuel + balance.fuel_crystal + minf(
 			combo * balance.fuel_combo_bonus, balance.fuel_combo_bonus_cap))
@@ -474,6 +485,13 @@ func _die(reason: String) -> void:
 	_fx.burst(_cart.position, Skins.current().danger, 28, _cell_size * 8.0)
 	GameState.vibrate(balance.haptics_crystal_ms)
 	GameState.bank_crystals(crystals_collected)
+	Quests.report(GameState, {
+		"crystals": crystals_collected,
+		"cells": cells_run,
+		"dumped": pipes_dumped,
+		"score": score,
+		"combo": best_combo,
+	})
 
 	_death_reason = ("%s  ·  daily" % reason) if daily_mode else reason
 	_death_was_record = GameState.submit_score(score, _route, _board.max_row)
