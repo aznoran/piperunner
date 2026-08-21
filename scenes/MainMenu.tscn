@@ -86,7 +86,7 @@ horizontal_alignment = 1
 [node name="Bar" type="Control" parent="."]
 mouse_filter = 2
 
-[node name="HowButton" type="Button" parent="Bar"]
+[node name="UpgradesButton" type="Button" parent="Bar"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 4
@@ -101,7 +101,25 @@ theme_override_font_sizes/font_size = 22
 theme_override_styles/normal = SubResource("Ghost_normal")
 theme_override_styles/hover = SubResource("Ghost_normal")
 theme_override_styles/pressed = SubResource("Ghost_normal")
-text = "HOW TO"
+text = "UPGRADES"
+
+[node name="DailyButton" type="Button" parent="Bar"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -110.0
+offset_top = -74.0
+offset_right = 110.0
+offset_bottom = -22.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "DAILY"
 
 [node name="StartButton" type="Button" parent="Bar"]
 unique_name_in_owner = true
@@ -232,6 +250,16 @@ unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 
+[node name="HowToButton" type="Button" parent="SettingsPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "How to play"
+
 [node name="ResetBestButton" type="Button" parent="SettingsPanel/Box/Column"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -243,6 +271,50 @@ theme_override_styles/pressed = SubResource("Ghost_normal")
 text = "Reset progress"
 
 [node name="CloseSettings" type="Button" parent="SettingsPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "Close"
+
+[node name="UpgradesPanel" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="PanelContainer" parent="UpgradesPanel"]
+custom_minimum_size = Vector2(410, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel_box")
+
+[node name="Column" type="VBoxContainer" parent="UpgradesPanel/Box"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Heading" type="Label" parent="UpgradesPanel/Box/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Upgrades"
+
+[node name="Wallet" type="Label" parent="UpgradesPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 19
+text = "0 crystals"
+
+[node name="ShopRows" type="VBoxContainer" parent="UpgradesPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CloseUpgrades" type="Button" parent="UpgradesPanel/Box/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)

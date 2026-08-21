@@ -10,7 +10,13 @@ const DEATH_PAUSE := 0.42
 ## Prototype shake, expressed against its 68 px cell so it scales with layout.
 const SHAKE_REFERENCE_CELL := 68.0
 
-@export var balance: GameBalance
+## The untouched baseline from disk. Never modified — meta upgrades are
+## applied to a copy (spec section 10 keeps the .tres as the tuning sheet).
+@export var base_balance: GameBalance
+## base_balance plus whatever the player has bought. Rebuilt for each run.
+var balance: GameBalance
+## Cells of reach around the cart that pull crystals in. 0 = must drive over.
+var _magnet_reach: int = 0
 
 @onready var _board: Board = $World/Board
 @onready var _cart: Cart = $World/Cart
@@ -38,6 +44,8 @@ var fuel: float = 0.0
 var speed: float = 0.0
 ## The cart waits for the player's first pipe. Spec section 02.
 var started: bool = false
+## True while playing today's fixed-seed challenge (spec section 11, P1).
+var daily_mode: bool = false
 
 var _cell_size: float = 100.0
 var _camera_frozen: bool = false
@@ -49,11 +57,15 @@ var _death_pause: float = 0.0
 var _death_reason: String = ""
 var _death_was_record: bool = false
 var _hint_pulse: float = 0.0
+## Cells this run has driven through, flattened as col, row, col, row...
+## Saved as the ghost when the run beats the record.
+var _route: PackedInt32Array = PackedInt32Array()
 
 
 func _ready() -> void:
-	if balance == null:
-		balance = load("res://resources/GameBalance.tres")
+	if base_balance == null:
+		base_balance = load("res://resources/GameBalance.tres")
+	_rebuild_balance()
 
 	_board.setup(balance)
 	_cart.board = _board
@@ -66,8 +78,9 @@ func _ready() -> void:
 	_input.aim_released.connect(_on_aim_released)
 	_input.aim_cancelled.connect(_on_aim_cancelled)
 
-	_menu.start_pressed.connect(start_run)
-	_overlay.retry_pressed.connect(start_run)
+	_menu.start_pressed.connect(start_run.bind(false))
+	_menu.daily_pressed.connect(start_run.bind(true))
+	_overlay.retry_pressed.connect(func() -> void: start_run(daily_mode))
 	_overlay.menu_pressed.connect(_show_menu)
 	GameState.best_changed.connect(_hud.set_best)
 	get_viewport().size_changed.connect(_apply_layout)
@@ -77,6 +90,18 @@ func _ready() -> void:
 	_hud.set_score(0)
 	_hud.set_fuel(1.0)
 	_show_menu()
+
+
+## Folds bought upgrades into a copy of the baseline. Called before every run,
+## so a purchase made in the shop takes effect on the next one.
+func _rebuild_balance() -> void:
+	balance = base_balance.duplicate()
+	balance.fuel_max += Upgrades.bonus(&"tank", GameState)
+	balance.queue_preview += int(Upgrades.bonus(&"preview", GameState))
+	balance.runway += int(Upgrades.bonus(&"runway", GameState))
+	_magnet_reach = int(Upgrades.bonus(&"magnet", GameState))
+	if _board != null:
+		_board.setup(balance)
 
 
 ## Switches the location's look. Rules, generation and events are untouched —
@@ -111,6 +136,7 @@ func _apply_layout() -> void:
 
 func _show_menu() -> void:
 	state = State.MENU
+	daily_mode = false
 	_input.enabled = false
 	_queue_bar.visible = false
 	_hud.visible = false
@@ -127,8 +153,9 @@ func _show_menu() -> void:
 ## the board stays bare — just the cart and the runway ahead of it.
 func _prepare_board(with_resources: bool) -> void:
 	# One seed drives the whole run; the queue gets its own stream so tuning the
-	# preview length cannot reshuffle the map (spec section 11, daily runs).
-	var run_seed := randi()
+	# preview length cannot reshuffle the map. On a daily the seed comes from
+	# the date, so every player gets the same board (spec section 11, P1).
+	var run_seed: int = GameState.daily_seed() if daily_mode else randi()
 	_board.start_run(run_seed, with_resources, _first_resource_row())
 	_queue_rng.seed = run_seed + 1
 	_queue.start(_queue_rng, balance.queue_preview)
@@ -137,6 +164,9 @@ func _prepare_board(with_resources: bool) -> void:
 	_cart.place_at(start_col, 0, PipeDefs.Side.D)
 	_board.flood(Vector2i(start_col, 0))
 	_board.set_cart_cell(_cart.cell())
+
+	_route = PackedInt32Array()
+	_board.show_record(GameState.best_route, GameState.best_row, GameState.best)
 
 	_fx.clear()
 	_screen_fx.clear()
@@ -150,10 +180,12 @@ func _first_resource_row() -> int:
 	return int(ceil(ahead)) + 2
 
 
-func start_run() -> void:
+func start_run(daily: bool = false) -> void:
+	daily_mode = daily
 	_overlay.hide_overlay()
 	_menu.close()
 	state = State.PLAYING
+	_rebuild_balance()
 
 	score = 0
 	combo = 0
@@ -334,6 +366,8 @@ func _try_place(cell: Vector2i) -> void:
 # --- run events ---------------------------------------------------------
 
 func _on_cart_stepped(cell: Vector2i) -> void:
+	_route.append(cell.x)
+	_route.append(cell.y)
 	_board.set_cart_cell(cell)
 
 	var previous_max := _board.max_row
@@ -344,7 +378,7 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 
 	cells_run += 1
 
-	if _board.take_crystal(cell):
+	for spot in _pull_crystals(cell):
 		combo += 1
 		crystals_collected += 1
 		fuel = minf(balance.fuel_max, fuel + balance.fuel_crystal + minf(
@@ -352,7 +386,7 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 		var points: int = balance.crystal_points * mini(combo, balance.crystal_combo_cap)
 		score += points
 
-		var at := _board.cell_to_world(cell)
+		var at := _board.cell_to_world(spot)
 		_fx.burst(at, Skins.current().accent, 20, _cell_size * 6.0)
 		_fx.floater(at, "+%d" % points, Skins.current().accent)
 		_screen_fx.flash()
@@ -374,6 +408,23 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 	var low := fuel / balance.fuel_max < 0.25
 	_cart.low_fuel = low
 	_screen_fx.low_fuel = low
+
+
+## Crystals collected by arriving at `cell`: the one under the cart, plus any
+## within the magnet's reach. Nearest first, so the chain counts up outward.
+func _pull_crystals(cell: Vector2i) -> Array[Vector2i]:
+	var taken: Array[Vector2i] = []
+	if _board.take_crystal(cell):
+		taken.append(cell)
+	for ring in range(1, _magnet_reach + 1):
+		for dx in range(-ring, ring + 1):
+			for dy in range(-ring, ring + 1):
+				if maxi(absi(dx), absi(dy)) != ring:
+					continue  # only the shell of this ring
+				var spot := cell + Vector2i(dx, dy)
+				if _board.take_crystal(spot):
+					taken.append(spot)
+	return taken
 
 
 ## A crystal left behind in a row the cart has climbed past breaks the chain.
@@ -410,7 +461,9 @@ func _die(reason: String) -> void:
 	GameState.bank_crystals(crystals_collected)
 
 	_death_reason = reason
-	_death_was_record = GameState.submit_score(score)
+	_death_was_record = GameState.submit_score(score, _route, _board.max_row)
+	if daily_mode:
+		GameState.submit_daily(score)
 	_hud.set_best(GameState.best)
 	_death_pause = DEATH_PAUSE
 

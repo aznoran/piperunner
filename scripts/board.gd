@@ -49,6 +49,12 @@ var spawn_resources: bool = true
 ## first one the player meets is beyond it.
 var resource_floor: int = 0
 
+## The previous best run, replayed faintly under the live track.
+var ghost_route: PackedInt32Array = PackedInt32Array()
+var ghost_row: int = 0
+var ghost_score: int = 0
+var ghost_visible: bool = false
+
 ## Cell the cart currently occupies — nothing may be dropped on it.
 var cart_cell := NO_CELL
 ## Cell the cart is already rolling into. Locked too, so a pipe can never be
@@ -373,6 +379,58 @@ func draw_terrain(ci: CanvasItem) -> void:
 			continue
 		var pipe: PipeCell = pipes[cell]
 		_draw_pipe(ci, cell_to_world(cell), pipe.type, pipe.flooded, 1.0)
+
+	if ghost_visible:
+		_draw_record_ghost(ci)
+
+
+## Shows the best run's path and the row it ended on. Spec section 11, P0:
+## the near-miss effect — dying one cell short of your record is unbearable.
+func show_record(route: PackedInt32Array, row: int, score: int) -> void:
+	ghost_route = route
+	ghost_row = row
+	ghost_score = score
+	ghost_visible = route.size() >= 4 and score > 0
+	_terrain_dirty = true
+
+
+func _draw_record_ghost(ci: CanvasItem) -> void:
+	var line := _skin.record_ghost
+	var width := cell_size * 0.13
+	var previous := Vector2.ZERO
+	var joined := false
+
+	for i in range(0, ghost_route.size() - 1, 2):
+		var cell := Vector2i(ghost_route[i], ghost_route[i + 1])
+		if cell.y < _drawn_row_min - 1 or cell.y > _drawn_row_max + 1:
+			joined = false  # off screen: do not bridge across the gap
+			continue
+		var point := cell_to_world(cell)
+		if joined:
+			ci.draw_dashed_line(previous, point, line, width, cell_size * 0.22)
+		previous = point
+		joined = true
+
+	if ghost_row < _drawn_row_min - 1 or ghost_row > _drawn_row_max + 1:
+		return
+
+	# The finish line, drawn across the whole board so it cannot be missed.
+	var y := cell_to_world(Vector2i(0, ghost_row)).y
+	var right := balance.cols * cell_size
+	var mark := _skin.record_ghost
+	mark.a = minf(mark.a * 2.4, 1.0)
+	ci.draw_dashed_line(Vector2(0.0, y), Vector2(right, y), mark,
+		cell_size * 0.05, cell_size * 0.16)
+
+	var font := ThemeDB.fallback_font
+	if font == null:
+		return
+	var label := "BEST %d" % ghost_score
+	var size := maxi(12, int(cell_size * 0.24))
+	var text_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0, size).x
+	ci.draw_string(font, Vector2(right - text_width - cell_size * 0.15,
+		y - cell_size * 0.16), label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size, mark)
 
 
 ## Crystals, the placement ghost and the frontier ring. Every frame.

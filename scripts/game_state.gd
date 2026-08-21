@@ -7,9 +7,17 @@ const SAVE_PATH := "user://piperunner.cfg"
 signal best_changed(value: int)
 
 var best: int = 0
+## Cells the best run drove through, flattened as col, row, col, row...
+## Replayed on the board as a ghost line (spec section 11, P0).
+var best_route: PackedInt32Array = PackedInt32Array()
+## Row the best run reached — where the finish line is drawn.
+var best_row: int = 0
 ## Crystals banked across runs — the currency for meta upgrades (spec 11, P0).
 var crystals: int = 0
 var haptics_enabled: bool = true
+## Date string of the last daily challenge played, and the score on it.
+var daily_date: String = ""
+var daily_best: int = 0
 
 ## Purchased upgrades, keyed by id. Empty until the meta layer lands.
 var upgrades: Dictionary = {}
@@ -24,27 +32,69 @@ func load_game() -> void:
 	if config.load(SAVE_PATH) != OK:
 		return
 	best = config.get_value("progress", "best", 0)
+	best_route = config.get_value("progress", "best_route", PackedInt32Array())
+	best_row = config.get_value("progress", "best_row", 0)
 	crystals = config.get_value("progress", "crystals", 0)
 	upgrades = config.get_value("progress", "upgrades", {})
+	daily_date = config.get_value("progress", "daily_date", "")
+	daily_best = config.get_value("progress", "daily_best", 0)
 	haptics_enabled = config.get_value("settings", "haptics", true)
 
 
 func save_game() -> void:
 	var config := ConfigFile.new()
 	config.set_value("progress", "best", best)
+	config.set_value("progress", "best_route", best_route)
+	config.set_value("progress", "best_row", best_row)
 	config.set_value("progress", "crystals", crystals)
 	config.set_value("progress", "upgrades", upgrades)
+	config.set_value("progress", "daily_date", daily_date)
+	config.set_value("progress", "daily_best", daily_best)
 	config.set_value("settings", "haptics", haptics_enabled)
 	config.save(SAVE_PATH)
 
 
-## Returns true when this run beat the record.
-func submit_score(score: int) -> bool:
+## Returns true when this run beat the record. The route is kept alongside the
+## number so the next run can race its own ghost.
+func submit_score(score: int, route: PackedInt32Array = PackedInt32Array(),
+		row: int = 0) -> bool:
 	if score <= best:
 		save_game()
 		return false
 	best = score
+	best_route = route
+	best_row = row
 	best_changed.emit(best)
+	save_game()
+	return true
+
+
+## Today's date, the key for the daily challenge.
+func today() -> String:
+	return Time.get_date_string_from_system()
+
+
+## Seed for today's challenge. Everyone playing on the same date gets the same
+## map (spec section 11, P1) — which is why generation never touches the global
+## RNG.
+func daily_seed() -> int:
+	return ("piperunner-" + today()).hash()
+
+
+## Best score on today's challenge, 0 if it has not been played yet.
+func daily_result() -> int:
+	return daily_best if daily_date == today() else 0
+
+
+## Returns true when this beat today's result.
+func submit_daily(score: int) -> bool:
+	if daily_date != today():
+		daily_date = today()
+		daily_best = 0
+	if score <= daily_best:
+		save_game()
+		return false
+	daily_best = score
 	save_game()
 	return true
 

@@ -15,7 +15,7 @@
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
-balance = ExtResource("2_balance")
+base_balance = ExtResource("2_balance")
 
 [node name="Background" type="CanvasLayer" parent="."]
 layer = -100

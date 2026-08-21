@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Upgrade" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/upgrade.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"preview"
+display_name = "Queue sight"
+description = "See one more piece ahead. Planning beats reacting."
+costs = PackedInt32Array(150, 400)
+step = 1.0
+unit = "piece"

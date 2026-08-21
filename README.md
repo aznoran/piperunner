@@ -21,10 +21,31 @@ docs/       the spec and the reference prototype
 | `pipe_defs.gd` | pipe geometry and the exit-side rule (spec 04) |
 | `pipe_queue.gd` | forced queue and the HOLD pocket (spec 09) |
 | `input_handler.gd` | press-drag-release aiming (spec 07) |
-| `game_state.gd` | autoload: best score, currency, settings, haptics |
+| `game_state.gd` | autoload: best score and its ghost route, currency, daily result, settings |
+| `upgrades.gd` | meta progression: catalogue, levels, prices (spec 11, P0) |
+| `skins.gd` | which LocationSkin is in effect |
 | `safe_area.gd` | notch insets, clamped and mobile-only |
 | `board_layer.gd` | splits Board's drawing into a slow and a fast layer |
-| `fx.gd`, `screen_fx.gd`, `hud.gd`, `queue_bar.gd`, `game_over.gd`, `palette.gd` | presentation |
+| `main_menu.gd`, `game_over.gd`, `hud.gd`, `queue_bar.gd`, `fx.gd`, `screen_fx.gd`, `background.gd` | presentation |
+
+## Locations
+
+A location is a look, not a ruleset. `resources/location_skin.gd` holds every
+colour the game draws procedurally — board, track, pickups, the cart, feedback
+— and `resources/skins/NeonNeutral.tres` is the one that ships. Add a `.tres`,
+hand it to `Main.apply_skin()`, and the same rules, generation and events play
+out in a different palette. Nothing else needs to change.
+
+`Skins` is a plain global class rather than an autoload, so scripts that read a
+skin compile standalone for the headless tools.
+
+## Meta progression
+
+Crystals collected during a run are banked on death and spent in the menu shop.
+The four upgrades live in `resources/upgrades/` as one `.tres` each — id, name,
+blurb, per-level costs, and what a level is worth — so retuning or adding one
+touches no code. They are folded into a **copy** of `GameBalance.tres` before
+each run, leaving the tuning sheet on disk as the untouched baseline.
 
 ## Running
 
@@ -41,7 +62,8 @@ godot --headless --path . --script res://tests/headless_run.gd   # bot plays 5 r
 godot --path . --resolution 720x1280 --script res://tests/perf_check.gd
 ```
 
-`tests/screenshot.gd` renders a run and writes PNGs to `$SHOT_DIR`.
+`tests/screenshot.gd` renders a run and writes PNGs to `$SHOT_DIR`;
+`tests/screenshot_ui.gd` does the same for the menu panels.
 
 ## Rendering notes
 
@@ -53,5 +75,10 @@ script time per frame.
 
 ## Not yet built
 
-Everything in spec section 11 — meta upgrades, record ghost, biomes, daily
-challenge, continue-for-ad, quests — plus the export presets in section 13.
+- **Biomes** (spec 11, P1) — deliberately skipped; locations are handled by the
+  skin system above, which carries no gameplay change.
+- **Continue for an ad**, **rotating quests** (spec 11, P2).
+- **Export presets** (spec 13) — no `export_presets.cfg` yet, so the four
+  acceptance items that need a device build are still open.
+- The daily challenge is local only. A shared leaderboard needs a backend.
+- No audio.

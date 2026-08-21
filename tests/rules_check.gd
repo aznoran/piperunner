@@ -41,6 +41,11 @@ func _process(_delta: float) -> bool:
 	_check_crystal_and_combo()
 	_check_death_reasons()
 	_check_save_round_trip()
+	_check_upgrades()
+	_check_magnet()
+	_check_record_ghost()
+	_check_daily()
+	_check_skin_swap()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -274,6 +279,170 @@ func _check_save_round_trip() -> void:
 
 	state.best = original
 	state.save_game()
+
+
+# --- section 11, P0: meta progression -----------------------------------
+
+func _check_upgrades() -> void:
+	var state: Node = root.get_node("GameState")
+	var saved_crystals: int = state.crystals
+	var saved_upgrades: Dictionary = state.upgrades.duplicate()
+	var baseline_fuel: float = main.base_balance.fuel_max
+	state.upgrades.clear()
+	state.crystals = 0
+
+	var tank := Upgrades.find(&"tank")
+	_ok(tank != null, "the tank upgrade is in the catalogue")
+	_eq(Upgrades.level(&"tank", state), 0, "nothing is owned to begin with")
+	_ok(not Upgrades.can_afford(&"tank", state), "cannot buy without crystals")
+	_ok(not Upgrades.buy(&"tank", state), "a refused purchase changes nothing")
+	_eq(Upgrades.level(&"tank", state), 0, "...and banks no level")
+
+	state.crystals = tank.costs[0]
+	_ok(Upgrades.buy(&"tank", state), "buying with exactly enough works")
+	_eq(state.crystals, 0, "the crystals are spent")
+	_eq(Upgrades.level(&"tank", state), 1, "the level is banked")
+	_eq(Upgrades.bonus(&"tank", state), tank.step, "one level is worth one step")
+
+	state.crystals = 999999
+	while Upgrades.next_cost(&"tank", state) >= 0:
+		Upgrades.buy(&"tank", state)
+	_eq(Upgrades.level(&"tank", state), tank.max_level(), "levels stop at the cap")
+	_eq(Upgrades.next_cost(&"tank", state), -1, "a maxed upgrade has no next cost")
+	_ok(not Upgrades.buy(&"tank", state), "a maxed upgrade cannot be bought again")
+
+	main._rebuild_balance()
+	_eq(main.balance.fuel_max, baseline_fuel + tank.step * tank.max_level(),
+		"the tank upgrade raises the tank")
+	_eq(main.base_balance.fuel_max, baseline_fuel,
+		"the baseline sheet on disk is left untouched")
+
+	state.crystals = saved_crystals
+	state.upgrades = saved_upgrades
+	state.save_game()
+	main._rebuild_balance()
+	balance = main.balance
+
+
+func _check_magnet() -> void:
+	main.start_run()
+	main.cells_run = 0
+	var row := 40
+	var centre := Vector2i(3, row)
+	var beside := Vector2i(4, row)
+	board.pipes[centre] = Board.PipeCell.new(PipeDefs.Type.V)
+	board.max_row = row - 1
+
+	main._magnet_reach = 0
+	board.crystals[beside] = true
+	main._on_cart_stepped(centre)
+	_ok(board.crystals.has(beside),
+		"without the magnet a crystal beside the cart is left behind")
+
+	main._magnet_reach = 1
+	main._on_cart_stepped(centre)
+	_ok(not board.crystals.has(beside), "the magnet pulls in a neighbour")
+
+	main._magnet_reach = 1
+	var far := Vector2i(3, row + 3)
+	board.crystals[far] = true
+	main._on_cart_stepped(centre)
+	_ok(board.crystals.has(far), "the magnet does not reach past its radius")
+	board.crystals.erase(far)
+	main._magnet_reach = 0
+
+
+# --- section 11, P0: record ghost ---------------------------------------
+
+func _check_record_ghost() -> void:
+	var state: Node = root.get_node("GameState")
+	var saved_best: int = state.best
+	var saved_route: PackedInt32Array = state.best_route
+	var saved_row: int = state.best_row
+
+	state.best = 0
+	var route := PackedInt32Array([3, 0, 3, 1, 4, 1])
+	_ok(state.submit_score(50, route, 7), "a better score is recorded")
+	_eq(state.best_route, route, "the route is kept alongside the score")
+	_eq(state.best_row, 7, "so is the row it ended on")
+
+	var reloaded: Node = load("res://scripts/game_state.gd").new()
+	reloaded.load_game()
+	_eq(reloaded.best_route, route, "the ghost route survives a reload")
+	_eq(reloaded.best_row, 7, "so does the finishing row")
+	reloaded.free()
+
+	state.submit_score(10, PackedInt32Array([0, 0]), 1)
+	_eq(state.best_route, route, "a worse run leaves the ghost alone")
+
+	board.show_record(route, 7, 50)
+	_ok(board.ghost_visible, "a real route turns the ghost on")
+	board.show_record(PackedInt32Array(), 0, 0)
+	_ok(not board.ghost_visible, "an empty route leaves it off")
+
+	state.best = saved_best
+	state.best_route = saved_route
+	state.best_row = saved_row
+	state.save_game()
+
+
+# --- section 11, P1: daily challenge ------------------------------------
+
+func _check_daily() -> void:
+	var state: Node = root.get_node("GameState")
+	var saved_date: String = state.daily_date
+	var saved_daily: int = state.daily_best
+
+	_eq(state.daily_seed(), state.daily_seed(), "today's seed is stable")
+
+	# The whole point: one seed, one board, for everyone.
+	board.start_run(state.daily_seed(), true, 0)
+	var first_rocks: Dictionary = board.rocks.duplicate()
+	var first_crystals: Dictionary = board.crystals.duplicate()
+	board.start_run(state.daily_seed(), true, 0)
+	_eq(board.rocks.size(), first_rocks.size(), "the same seed lays the same rocks")
+	_eq(board.crystals.size(), first_crystals.size(), "and the same crystals")
+	var identical := true
+	for cell: Vector2i in first_rocks:
+		if not board.rocks.has(cell):
+			identical = false
+	for cell: Vector2i in first_crystals:
+		if not board.crystals.has(cell):
+			identical = false
+	_ok(identical, "...in exactly the same cells")
+
+	state.daily_date = ""
+	state.daily_best = 0
+	_eq(state.daily_result(), 0, "an unplayed day reads as zero")
+	_ok(state.submit_daily(31), "a first attempt is recorded")
+	_eq(state.daily_result(), 31, "and reads back")
+	_ok(not state.submit_daily(12), "a worse attempt does not overwrite it")
+	_eq(state.daily_result(), 31, "the better score stands")
+
+	state.daily_date = saved_date
+	state.daily_best = saved_daily
+	state.save_game()
+
+
+# --- location skins ------------------------------------------------------
+
+func _check_skin_swap() -> void:
+	var original := Skins.current()
+	var probe := LocationSkin.new()
+	probe.display_name = "Probe"
+	probe.accent = Color.RED
+
+	main.apply_skin(probe)
+	_eq(Skins.current(), probe, "the skin swaps")
+	_eq(board._skin, probe, "the board repaints")
+	_eq(cart._skin, probe, "so does the cart")
+	_eq(PipeDefs.exit_side(PipeDefs.Type.V, PipeDefs.Side.D), PipeDefs.Side.U,
+		"a skin change leaves the rules alone")
+	_eq(probe.shape_color(PipeDefs.Type.V), probe.accent,
+		"a skin with no shape colours falls back to its accent")
+
+	main.apply_skin(original)
+	_eq(Skins.current(), original, "and swaps back")
 
 
 ## --script skips project autoloads, so stand them up by hand.

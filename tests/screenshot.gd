@@ -20,6 +20,9 @@ var frames: int = 0
 var cooldown: int = 0
 var out_dir: String = "/tmp"
 var pending: String = ""
+## Frame the second run began on, so the ghost can be caught while it is still
+## on screen — it sits at the row the previous run died on.
+var restarted_at: int = -1
 
 
 func _initialize() -> void:
@@ -27,6 +30,13 @@ func _initialize() -> void:
 	if out_dir.is_empty():
 		out_dir = "/tmp"
 	_stand_up_autoloads()
+	# Start from a clean record so the first run sets one and the later runs
+	# have a ghost to race.
+	var state: Node = root.get_node("GameState")
+	state.best = 0
+	state.best_route = PackedInt32Array()
+	state.best_row = 0
+
 	main = load("res://scenes/Main.tscn").instantiate()
 	root.add_child(main)
 	RenderingServer.frame_post_draw.connect(_on_post_draw)
@@ -36,6 +46,8 @@ func _process(_delta: float) -> bool:
 	frames += 1
 	if SHOTS.has(frames):
 		pending = SHOTS[frames]
+	if restarted_at > 0 and frames == restarted_at + 40:
+		pending = "record-ghost"
 
 	if frames == 40:
 		main.start_run()
@@ -46,8 +58,10 @@ func _process(_delta: float) -> bool:
 			_bot_step()
 	elif frames > 90 and main.state == 2:  # DEAD — start another so shots land
 		main.start_run()
+		if restarted_at < 0:
+			restarted_at = frames
 
-	return frames > 720
+	return frames > 1180
 
 
 func _on_post_draw() -> void:
