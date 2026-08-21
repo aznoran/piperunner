@@ -38,6 +38,11 @@ func _process(delta: float) -> bool:
 
 	match step:
 		1:
+			# A fresh boot is classic, with no station goal left on screen.
+			_ok(not menu.get_node("%ModeGoal").visible,
+				"no station goal on a fresh boot")
+			_eq(menu.get_node("%ModeLabel").text, "CLASSIC",
+				"and the mode reads as classic")
 			_click(menu.get_node("%UpgradesButton"))
 		2:
 			_ok(menu.get_node("%UpgradesPanel").visible, "UPGRADES opens the shop")

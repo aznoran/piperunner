@@ -402,6 +402,8 @@ func set_mode_name(mode: String, kind: int = MODE_CLASSIC, goal: String = "") ->
 	%ModeLabel.text = mode
 	%ModeGoal.text = goal
 	%ModeGoal.visible = not goal.is_empty()
+	if goal.is_empty():
+		return
 	%ModeGoal.add_theme_color_override("font_color",
 		Color(_mode_tint(Skins.current(), kind), 0.62))
 	%ModeLabel.add_theme_color_override("font_color",

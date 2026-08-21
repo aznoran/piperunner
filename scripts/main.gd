@@ -133,6 +133,7 @@ func _ready() -> void:
 	var saved := Skins.by_name(GameState.location)
 	if saved != null:
 		apply_skin(saved)
+	_refresh_mode_name()
 	_cart.variant = GameState.cart_variant
 	_hud.set_best(GameState.best)
 	_hud.set_score(0)
