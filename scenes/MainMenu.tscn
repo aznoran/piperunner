@@ -1,6 +1,7 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_menu"]
+[ext_resource type="Script" path="res://scripts/tab_icon.gd" id="2_icon"]
 
 [sub_resource type="StyleBoxFlat" id="Start_normal"]
 bg_color = Color(0.298039, 0.878431, 0.701961, 1)
@@ -114,38 +115,209 @@ theme_override_constants/separation = 8
 
 [node name="UpgradesButton" type="Button" parent="Bar/Tabs"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(76, 76)
+custom_minimum_size = Vector2(78, 88)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+
+[node name="Content" type="VBoxContainer" parent="Bar/Tabs/UpgradesButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 12.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 5
+
+[node name="Icon" type="Control" parent="Bar/Tabs/UpgradesButton/Content"]
+custom_minimum_size = Vector2(0, 27)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_icon")
+kind = 0
+
+[node name="Caption" type="Label" parent="Bar/Tabs/UpgradesButton/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
 text = "DEPOT"
+horizontal_alignment = 1
+
+[node name="Badge" type="Label" parent="Bar/Tabs/UpgradesButton"]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -30.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = 26.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+text = "3"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="DailyButton" type="Button" parent="Bar/Tabs"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(76, 76)
+custom_minimum_size = Vector2(78, 88)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+
+[node name="Content" type="VBoxContainer" parent="Bar/Tabs/DailyButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 12.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 5
+
+[node name="Icon" type="Control" parent="Bar/Tabs/DailyButton/Content"]
+custom_minimum_size = Vector2(0, 27)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_icon")
+kind = 1
+
+[node name="Caption" type="Label" parent="Bar/Tabs/DailyButton/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
 text = "TODAY"
+horizontal_alignment = 1
+
+[node name="Badge" type="Label" parent="Bar/Tabs/DailyButton"]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -30.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = 26.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+text = "3"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="StartButton" type="Button" parent="Bar/Tabs"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(126, 76)
+custom_minimum_size = Vector2(132, 88)
+layout_mode = 2
+
+[node name="Content" type="VBoxContainer" parent="Bar/Tabs/StartButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 12.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 5
+
+[node name="Icon" type="Control" parent="Bar/Tabs/StartButton/Content"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_icon")
+kind = 2
+
+[node name="Caption" type="Label" parent="Bar/Tabs/StartButton/Content"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "START"
+horizontal_alignment = 1
 
 [node name="QuestsButton" type="Button" parent="Bar/Tabs"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(76, 76)
+custom_minimum_size = Vector2(78, 88)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+
+[node name="Content" type="VBoxContainer" parent="Bar/Tabs/QuestsButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 12.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 5
+
+[node name="Icon" type="Control" parent="Bar/Tabs/QuestsButton/Content"]
+custom_minimum_size = Vector2(0, 27)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_icon")
+kind = 3
+
+[node name="Caption" type="Label" parent="Bar/Tabs/QuestsButton/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
 text = "GOALS"
+horizontal_alignment = 1
+
+[node name="Badge" type="Label" parent="Bar/Tabs/QuestsButton"]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -30.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = 26.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+text = "3"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="SettingsButton" type="Button" parent="Bar/Tabs"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(76, 76)
+custom_minimum_size = Vector2(78, 88)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+
+[node name="Content" type="VBoxContainer" parent="Bar/Tabs/SettingsButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 12.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 5
+
+[node name="Icon" type="Control" parent="Bar/Tabs/SettingsButton/Content"]
+custom_minimum_size = Vector2(0, 27)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_icon")
+kind = 4
+
+[node name="Caption" type="Label" parent="Bar/Tabs/SettingsButton/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
 text = "SETUP"
+horizontal_alignment = 1
 
 [node name="HowPanel" type="CenterContainer" parent="."]
 unique_name_in_owner = true

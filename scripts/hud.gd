@@ -3,6 +3,9 @@
 class_name Hud
 extends CanvasLayer
 
+## Emitted by the back button: leave the run and return to the menu.
+signal exit_pressed
+
 const BAR_RADIUS := 7
 
 @onready var _safe: MarginContainer = $Safe
@@ -31,14 +34,9 @@ func _ready() -> void:
 	_fuel_bar.add_theme_stylebox_override("panel", _bar_box)
 
 	_combo_label.modulate.a = 0.0
+	%ExitButton.pressed.connect(func() -> void: exit_pressed.emit())
 	get_viewport().size_changed.connect(_apply_safe_area)
 	_apply_safe_area()
-
-
-## Repaints with a new location skin.
-func set_skin(skin: LocationSkin) -> void:
-	_skin = skin
-	set_fuel(_fuel_ratio)
 
 
 func _process(delta: float) -> void:
@@ -58,6 +56,20 @@ func set_best(value: int) -> void:
 
 ## Marks the run as today's fixed-seed challenge, which otherwise looks
 ## exactly like an ordinary one.
+## Restyles the back button for the location.
+func set_skin(skin: LocationSkin) -> void:
+	_skin = skin
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(skin.bg_top, 0.7)
+	box.border_color = Color(skin.accent, 0.3)
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(23)
+	for state in ["normal", "hover", "pressed"]:
+		%ExitButton.add_theme_stylebox_override(state, box)
+	%ExitButton.add_theme_color_override("font_color", Color(skin.accent, 0.85))
+	set_fuel(_fuel_ratio)
+
+
 func set_daily(is_daily: bool, date: String = "") -> void:
 	_daily_label.visible = is_daily
 	_daily_label.text = "DAILY  ·  %s" % date if not date.is_empty() else "DAILY"

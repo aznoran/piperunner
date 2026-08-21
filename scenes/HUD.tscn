@@ -54,6 +54,14 @@ theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
 theme_override_font_sizes/font_size = 20
 text = "DAILY"
 
+[node name="ExitButton" type="Button" parent="Safe/Rows/TopRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(46, 46)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_font_sizes/font_size = 20
+text = "‹"
+
 [node name="ComboLabel" type="Label" parent="Safe/Rows/TopRow"]
 unique_name_in_owner = true
 modulate = Color(1, 1, 1, 0)

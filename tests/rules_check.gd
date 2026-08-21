@@ -48,6 +48,7 @@ func _process(_delta: float) -> bool:
 	_check_skin_swap()
 	_check_quests()
 	_check_locations()
+	_check_abandon_run()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -574,6 +575,47 @@ func _check_locations() -> void:
 	_eq(plain.cart_variant_count(), 1, "and offers a single look")
 
 	Skins.set_current(original)
+
+
+## Leaving a run through the back button banks it exactly as a crash would.
+func _check_abandon_run() -> void:
+	var state: Node = root.get_node("GameState")
+	var saved_best: int = state.best
+	var saved_distance: int = state.best_distance
+	var saved_crystals: int = state.crystals
+	state.best = 0
+	state.best_distance = 0
+	state.crystals = 0
+
+	main.start_run()
+	main.started = true
+	main.score = 88
+	main.distance = 26
+	main.crystals_collected = 5
+
+	main.abandon_run()
+	_eq(main.state, 0, "leaving a run returns to the menu")
+	_eq(state.best, 88, "the score still counts")
+	_eq(state.best_distance, 26, "so does the distance")
+	_eq(state.crystals, 5, "and the crystals are banked")
+
+	# Backing out before the first pipe banks nothing — there was no run.
+	state.best = 0
+	state.best_distance = 0
+	state.crystals = 0
+	main.start_run()
+	main.score = 40
+	main.distance = 12
+	main.crystals_collected = 3
+	main.abandon_run()
+	_eq(main.state, 0, "backing out early also returns to the menu")
+	_eq(state.best, 0, "an untouched run banks no score")
+	_eq(state.crystals, 0, "and no crystals")
+
+	state.best = saved_best
+	state.best_distance = saved_distance
+	state.crystals = saved_crystals
+	state.save_game()
 
 
 ## --script skips project autoloads, so stand them up by hand.

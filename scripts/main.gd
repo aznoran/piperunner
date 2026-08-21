@@ -91,6 +91,7 @@ func _ready() -> void:
 	_input.aim_released.connect(_on_aim_released)
 	_input.aim_cancelled.connect(_on_aim_cancelled)
 
+	_hud.exit_pressed.connect(abandon_run)
 	_menu.location_chosen.connect(apply_skin)
 	_menu.cart_chosen.connect(func(variant: int) -> void:
 		_cart.variant = variant
@@ -153,6 +154,16 @@ func _apply_layout() -> void:
 	_input.hold_rect = _queue_bar.hold_rect
 	_input.queue_strip_top = _queue_bar.strip_top
 	_camera.position.x = viewport.x * 0.5
+
+
+## Leaves a run for the menu. The run is banked exactly as if the cart had
+## derailed — score, distance, crystals and goal progress all count. Throwing
+## the run away instead would punish curiosity about the menu, and banking it
+## cannot be farmed: the numbers are the ones actually reached.
+func abandon_run() -> void:
+	if state == State.PLAYING and started:
+		_bank_run()
+	_show_menu()
 
 
 ## The HUD lives on a CanvasLayer, which has no modulate of its own.
@@ -521,6 +532,14 @@ func _die(reason: String) -> void:
 	_shake = 16.0 * (_cell_size / SHAKE_REFERENCE_CELL)
 	_fx.burst(_cart.position, Skins.current().danger, 28, _cell_size * 8.0)
 	GameState.vibrate(balance.haptics_death_ms)
+	_bank_run()
+
+	_death_reason = ("%s  ·  daily" % reason) if daily_mode else reason
+	_death_pause = DEATH_PAUSE
+
+
+## Files the finished run: currency, goal progress and both records.
+func _bank_run() -> void:
 	GameState.bank_crystals(crystals_collected)
 	Quests.report(GameState, {
 		"crystals": crystals_collected,
@@ -529,14 +548,11 @@ func _die(reason: String) -> void:
 		"score": score,
 		"combo": best_combo,
 	})
-
-	_death_reason = ("%s  ·  daily" % reason) if daily_mode else reason
 	_death_was_record = GameState.submit_score(score)
 	_death_went_further = GameState.submit_distance(distance)
 	if daily_mode:
 		GameState.submit_daily(score)
 	_hud.set_best(GameState.best)
-	_death_pause = DEATH_PAUSE
 
 
 func _screen_to_world(screen_position: Vector2) -> Vector2:

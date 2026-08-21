@@ -17,6 +17,9 @@ const BUY_RADIUS := 20
 ## Bar tabs: corner radius and the depth of the bottom lip that gives them
 ## their pressable look.
 const TAB_RADIUS := 16
+## The baked button face and the 9-patch inset that keeps its corners crisp.
+const TAB_FACE := "res://art/ui/tab_face.png"
+const TAB_MARGIN := 30
 const TAB_LIP := 6
 ## Seconds the whole menu takes to fade in or out.
 const FADE_TIME := 0.24
@@ -34,6 +37,7 @@ const FADE_TIME := 0.24
 
 ## Buy button per upgrade id, so a purchase refreshes without rebuilding rows.
 var _rows: Dictionary = {}
+var _face: Texture2D
 
 
 func _ready() -> void:
@@ -105,6 +109,8 @@ func _relayout() -> void:
 ## carry one palette, so the whole bar is styled from the skin at runtime —
 ## that is what lets a location change the look of the menu, not just the board.
 func paint(skin: LocationSkin) -> void:
+	_face = load(TAB_FACE)
+
 	var bar := StyleBoxFlat.new()
 	bar.bg_color = Color(skin.bg_top.darkened(0.35), 0.92)
 	bar.corner_radius_top_left = 26
@@ -117,7 +123,7 @@ func paint(skin: LocationSkin) -> void:
 	_paint_tab(%DailyButton, skin, skin.warn, false)
 	_paint_tab(%StartButton, skin, skin.accent, true)
 	_paint_tab(%QuestsButton, skin, skin.accent, false)
-	_paint_tab(%SettingsButton, skin, Color(1, 1, 1, 0.7), false)
+	_paint_tab(%SettingsButton, skin, skin.pipe_core, false)
 
 	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
 			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton"]:
@@ -149,28 +155,45 @@ func paint(skin: LocationSkin) -> void:
 	%Wallet.add_theme_color_override("font_color", skin.accent)
 
 
-## One bar tab. `primary` is the run button: filled with the accent instead of
-## outlined, and wider — it stands out by weight, not by sitting higher.
+## One bar tab. `primary` is the run button: filled with the accent rather than
+## sunk into the panel, and wider — it stands out by weight, not by height.
+##
+## The face is a baked greyscale gradient tinted per state. A StyleBoxFlat
+## cannot do that, and flat fills are what made the first version of this bar
+## look like a row of labels.
 func _paint_tab(button: Button, skin: LocationSkin, tint: Color, primary: bool) -> void:
 	for state in ["normal", "hover", "pressed", "disabled"]:
-		var box := StyleBoxFlat.new()
-		box.set_corner_radius_all(TAB_RADIUS)
-		if primary:
-			box.bg_color = tint.darkened(0.14) if state == "pressed" else tint
-			box.border_color = tint.darkened(0.52)
-		else:
-			box.bg_color = skin.bg_top.lightened(0.10 if state == "pressed" else 0.20)
-			box.border_color = Color(0.0, 0.0, 0.0, 0.6)
-		# The lip along the bottom is the whole trick: a flat rectangle reads as
-		# a label, the same rectangle with a dark edge reads as a key.
-		box.border_width_bottom = 2 if state == "pressed" else TAB_LIP
-		box.content_margin_top = float(TAB_LIP if state == "pressed" else 2)
+		var box := StyleBoxTexture.new()
+		box.texture = _face
+		box.set_texture_margin_all(TAB_MARGIN)
+		box.modulate_color = _tab_tint(skin, tint, primary, state)
+		box.content_margin_top = float(TAB_LIP if state == "pressed" else 0)
 		button.add_theme_stylebox_override(state, box)
 
-	var ink: Color = skin.bg_bottom if primary else tint
-	for key in ["font_color", "font_hover_color", "font_pressed_color"]:
-		button.add_theme_color_override(key, ink)
-	button.add_theme_font_size_override("font_size", 20 if primary else 15)
+	var ink: Color = skin.bg_bottom.darkened(0.2) if primary else tint
+	var caption: Label = button.get_node("Content/Caption")
+	caption.add_theme_color_override("font_color", ink)
+	var icon: TabIcon = button.get_node("Content/Icon")
+	icon.color = ink
+
+	var badge: Label = button.get_node_or_null("Badge")
+	if badge != null:
+		var pill := StyleBoxFlat.new()
+		pill.bg_color = skin.warn
+		pill.set_corner_radius_all(11)
+		badge.add_theme_stylebox_override("normal", pill)
+		badge.add_theme_color_override("font_color", skin.bg_bottom)
+
+
+func _tab_tint(skin: LocationSkin, tint: Color, primary: bool, state: String) -> Color:
+	if primary:
+		return tint.darkened(0.16) if state == "pressed" else tint
+	var base := skin.bg_top.lightened(0.16)
+	if state == "pressed":
+		return base.darkened(0.12)
+	if state == "hover":
+		return base.lightened(0.06)
+	return base
 
 
 ## Outlined button, used inside the panels where a filled key would shout.
@@ -209,9 +232,7 @@ func _close_panels() -> void:
 
 
 func _refresh() -> void:
-	var today: int = GameState.daily_result()
-	%DailyButton.text = "DAILY  ·  BEST %d" % today if today > 0 else "DAILY RUN"
-	%DailyButton.text = "TODAY" if GameState.daily_result() <= 0 else "TODAY\n%d" % GameState.daily_result()
+	_set_badge(%DailyButton, 1 if GameState.daily_result() <= 0 else 0)
 	%LocationButton.text = "Location: %s" % Skins.current().display_name
 	var carts := Skins.current().cart_variant_count()
 	%CartButton.text = ("Cart: %d of %d" % [GameState.cart_variant % carts + 1, carts]
@@ -326,10 +347,8 @@ func _build_quests() -> void:
 	Quests.ensure_today(GameState)
 
 	var tally := Quests.tally(GameState)
-	%QuestsButton.text = "GOALS\n%d/%d" % [tally.x, tally.y]
-	# Nudge the player when something is sitting there unclaimed.
-	%QuestsButton.modulate = (Color(1.0, 0.92, 0.55)
-		if Quests.has_claimable(GameState) else Color.WHITE)
+	_set_badge(%QuestsButton, tally.y - tally.x if tally.y > tally.x else 0)
+	_set_badge(%UpgradesButton, 1 if Quests.has_claimable(GameState) else 0)
 
 	for child in _quest_rows.get_children():
 		child.queue_free()
@@ -425,6 +444,16 @@ func _cycle_location() -> void:
 	paint(skin)
 	_build_shop()
 	_refresh()
+
+
+## Small count in the corner of a tab. Zero hides it — a badge that is always
+## there stops being noticed.
+func _set_badge(button: Button, count: int) -> void:
+	var badge: Label = button.get_node_or_null("Badge")
+	if badge == null:
+		return
+	badge.visible = count > 0
+	badge.text = str(count)
 
 
 func _cycle_cart() -> void:

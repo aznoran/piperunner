@@ -1,0 +1,10 @@
+[gd_resource type="Theme" load_steps=3 format=3]
+
+[ext_resource type="FontFile" path="res://art/fonts/ChakraPetch-SemiBold.ttf" id="1"]
+[ext_resource type="FontFile" path="res://art/fonts/ChakraPetch-Bold.ttf" id="2"]
+
+[resource]
+default_font = ExtResource("1")
+default_font_size = 18
+Label/fonts/font = ExtResource("1")
+Button/fonts/font = ExtResource("2")
