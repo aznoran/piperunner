@@ -87,6 +87,10 @@ var _death_pause: float = 0.0
 var _death_reason: String = ""
 var _death_was_record: bool = false
 var _death_went_further: bool = false
+## True while the board on screen is the untouched one the menu laid out. A
+## retry comes straight from the game-over card, where the board is the one
+## just played — pipes flooded, rock gone, the lot — so it has to be rebuilt.
+var _board_fresh: bool = false
 ## Set when a story station was just cleared, so the pause before the card
 ## knows which card to show.
 var _pending_clear: Dictionary = {}
@@ -232,10 +236,14 @@ func _select_level(number: int) -> void:
 func _refresh_mode_name() -> void:
 	match selected_mode:
 		Mode.DAILY:
-			_menu.set_mode_name("TODAY", _menu.MODE_DAILY)
+			_menu.set_mode_name("TODAY", _menu.MODE_DAILY,
+				"One map, same for everyone")
 		Mode.STORY:
-			var label := "STATION %d" % active_level.number if active_level != null else "STORY"
-			_menu.set_mode_name(label, _menu.MODE_STORY)
+			if active_level == null:
+				_menu.set_mode_name("STORY", _menu.MODE_STORY)
+			else:
+				_menu.set_mode_name("%d · %s" % [active_level.number, active_level.title],
+					_menu.MODE_STORY, active_level.goal_text())
 		_:
 			_menu.set_mode_name("CLASSIC", _menu.MODE_CLASSIC)
 
@@ -337,6 +345,7 @@ func _prepare_board(with_resources: bool) -> void:
 	_board.show_record(GameState.best_distance)
 
 	_board.set_cart_fill(_cart.cell(), 0.0, _cart.entry)
+	_board_fresh = true
 	_fx.clear()
 	_screen_fx.clear()
 	_snap_camera()
@@ -371,9 +380,15 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	_camera_frozen = false
 	_death_pause = 0.0
 
-	# The board on screen is already the one for this mode; just put the cart
-	# back on it.
-	_reset_cart()
+	# Coming from the menu the board is already laid out for this mode, and
+	# reusing it is what makes the start read as a move rather than a cut.
+	# Coming from a retry it is the board just played, and has to go.
+	if _board_fresh:
+		_reset_cart()
+	else:
+		_prepare_board(true)
+	_board_fresh = false
+	_decor.visible = false
 	# The board came from the menu, so the queue was built before this run's
 	# balance sheet existed; a preview upgrade has to be applied now.
 	_queue.resize(balance.queue_preview)

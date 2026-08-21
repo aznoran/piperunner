@@ -122,6 +122,14 @@ func _process(delta: float) -> bool:
 			_click(main._overlay.get_node("%RetryButton"))
 		27:
 			_ok(main.state == 1, "retry starts another run")
+			# A retry has to be a clean board: the one on screen was just
+			# played, so its pipes are flooded and its rock is gone.
+			var flooded := 0
+			for cell: Vector2i in main._board.pipes:
+				if (main._board.pipes[cell] as Board.PipeCell).flooded and cell.y > 0:
+					flooded += 1
+			_eq(flooded, 0, "a retry starts on a fresh board")
+			_ok(not main._decor.visible, "and without the menu's background tracks")
 			main._try_place(Vector2i(3, 4))
 			main._die("Derailed")
 		28:

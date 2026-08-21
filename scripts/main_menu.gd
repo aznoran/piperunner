@@ -271,10 +271,15 @@ func _close_panels() -> void:
 
 ## Title, mode name and the bar — everything the mode picker replaces.
 func _set_menu_chrome(shown: bool) -> void:
-	for path in ["Title", "ModeLabel", "Bar"]:
+	for path in ["Title", "ModeLabel", "ModeGoal", "Bar"]:
 		var node: CanvasItem = get_node_or_null(path)
-		if node != null:
-			node.visible = shown
+		if node == null:
+			continue
+		# The goal line only exists on a station, so it stays hidden unless one
+		# is selected.
+		if path == "ModeGoal" and (node as Label).text.is_empty():
+			continue
+		node.visible = shown
 
 
 func _refresh() -> void:
@@ -392,9 +397,13 @@ func _buy(id: StringName) -> void:
 ## The name shown under the title, so the menu always says what the run key
 ## will launch. Today's map takes the warning colour it wears everywhere else,
 ## so the mode is recognisable before the word is read.
-func set_mode_name(mode: String, kind: int = MODE_CLASSIC) -> void:
+func set_mode_name(mode: String, kind: int = MODE_CLASSIC, goal: String = "") -> void:
 	_mode_kind = kind
 	%ModeLabel.text = mode
+	%ModeGoal.text = goal
+	%ModeGoal.visible = not goal.is_empty()
+	%ModeGoal.add_theme_color_override("font_color",
+		Color(_mode_tint(Skins.current(), kind), 0.62))
 	%ModeLabel.add_theme_color_override("font_color",
 		Color(_mode_tint(Skins.current(), kind), 0.9))
 

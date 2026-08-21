@@ -84,6 +84,19 @@ theme_override_font_sizes/font_size = 34
 text = "CLASSIC"
 horizontal_alignment = 1
 
+[node name="ModeGoal" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 232.0
+offset_bottom = 274.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 20
+text = "Reach row 12"
+horizontal_alignment = 1
+
 [node name="Bar" type="Control" parent="."]
 mouse_filter = 2
 
