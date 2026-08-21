@@ -40,6 +40,19 @@ out in a different palette. Nothing else needs to change.
 `Skins` is a plain global class rather than an autoload, so scripts that read a
 skin compile standalone for the headless tools.
 
+Two locations ship. **Neon Neutral** is drawn entirely from colour. **Forest**
+adds sprites: a skin may set `rock_texture`, `pickup_texture` and a list of
+`cart_variants`, and anything left null falls back to the drawn shape — so a
+location can be pure colour, pure art, or a mix. `pixel_art` switches texture
+filtering to nearest so pixel tiles do not turn to mush at cell size.
+
+Forest art is Kenney's [Pixel Platformer](https://kenney.nl/assets/pixel-platformer),
+CC0. Which tiles were taken and what for is recorded in
+`art/skins/forest/CREDITS.txt`.
+
+The menu chrome repaints from the skin at runtime (`MainMenu.paint`), because
+the scene file can only hold one hard-coded palette.
+
 ## Meta progression
 
 Crystals collected during a run are banked on death and spent in the menu shop.

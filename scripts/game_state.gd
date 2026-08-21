@@ -14,6 +14,10 @@ var best_distance: int = 0
 ## Crystals banked across runs — the currency for meta upgrades (spec 11, P0).
 var crystals: int = 0
 var haptics_enabled: bool = true
+## Display name of the chosen location skin. Empty means the default.
+var location: String = ""
+## Which of the location's cart looks the player picked.
+var cart_variant: int = 0
 ## Date string of the last daily challenge played, and the score on it.
 var daily_date: String = ""
 var daily_best: int = 0
@@ -43,6 +47,8 @@ func load_game() -> void:
 	quest_date = config.get_value("progress", "quest_date", "")
 	quests = config.get_value("progress", "quests", [])
 	haptics_enabled = config.get_value("settings", "haptics", true)
+	location = config.get_value("settings", "location", "")
+	cart_variant = config.get_value("settings", "cart_variant", 0)
 
 
 func save_game() -> void:
@@ -56,6 +62,8 @@ func save_game() -> void:
 	config.set_value("progress", "quest_date", quest_date)
 	config.set_value("progress", "quests", quests)
 	config.set_value("settings", "haptics", haptics_enabled)
+	config.set_value("settings", "location", location)
+	config.set_value("settings", "cart_variant", cart_variant)
 	config.save(SAVE_PATH)
 
 

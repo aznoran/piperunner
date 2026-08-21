@@ -269,6 +269,26 @@ unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 
+[node name="LocationButton" type="Button" parent="SettingsPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "Location"
+
+[node name="CartButton" type="Button" parent="SettingsPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "Cart"
+
 [node name="DebugUnlockButton" type="Button" parent="SettingsPanel/Box/Column"]
 unique_name_in_owner = true
 layout_mode = 2

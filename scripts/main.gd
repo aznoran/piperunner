@@ -87,6 +87,10 @@ func _ready() -> void:
 	_input.aim_released.connect(_on_aim_released)
 	_input.aim_cancelled.connect(_on_aim_cancelled)
 
+	_menu.location_chosen.connect(apply_skin)
+	_menu.cart_chosen.connect(func(variant: int) -> void:
+		_cart.variant = variant
+		_cart.queue_redraw())
 	_menu.start_pressed.connect(start_run.bind(false))
 	_menu.daily_pressed.connect(start_run.bind(true))
 	_overlay.retry_pressed.connect(func() -> void: start_run(daily_mode))
@@ -95,6 +99,10 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_apply_layout)
 
 	_apply_layout()
+	var saved := Skins.by_name(GameState.location)
+	if saved != null:
+		apply_skin(saved)
+	_cart.variant = GameState.cart_variant
 	_hud.set_best(GameState.best)
 	_hud.set_score(0)
 	_hud.set_fuel(1.0)

@@ -57,8 +57,35 @@ extends Resource
 @export var frontier_fits: Color = Color("4ce0b3")
 @export var frontier_waiting: Color = Color.WHITE
 
+@export_group("Sprites")
+## Optional artwork. Where a texture is set it replaces the drawn shape;
+## where it is null the colours above are used instead, so a location can be
+## pure colour, pure art, or a mix of the two.
+@export var rock_texture: Texture2D
+@export var pickup_texture: Texture2D
+@export var cart_texture: Texture2D
+## Alternative cart looks for this location. The player picks one in settings;
+## empty means the single cart_texture, or the drawn cart when that is null too.
+@export var cart_variants: Array[Texture2D] = []
+## Pixel art needs nearest-neighbour sampling or it turns to mush when scaled
+## up to cell size.
+@export var pixel_art: bool = false
+
 @export_group("Queue")
 @export var slot_fill: Color = Color("15203a")
+
+
+## Cart artwork for the chosen variant, wrapping if the index runs past the
+## end. Null when this location draws its cart from colours instead.
+func cart_art(variant: int) -> Texture2D:
+	if cart_variants.is_empty():
+		return cart_texture
+	return cart_variants[variant % cart_variants.size()]
+
+
+## How many cart looks this location offers.
+func cart_variant_count() -> int:
+	return maxi(cart_variants.size(), 1)
 
 
 ## Colour for a pipe shape, falling back to the accent if a skin forgets one.

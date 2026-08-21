@@ -5,6 +5,10 @@ class_name MainMenu
 extends CanvasLayer
 
 signal start_pressed
+## Emitted when the player picks a different location.
+signal location_chosen(skin: LocationSkin)
+## Emitted when the player picks a different cart look.
+signal cart_chosen(variant: int)
 ## Today's fixed-seed challenge (spec section 11, P1).
 signal daily_pressed
 
@@ -34,6 +38,8 @@ func _ready() -> void:
 	%QuestsButton.pressed.connect(_toggle.bind(_quests_panel))
 	%CloseQuests.pressed.connect(_close_panels)
 	%HowToButton.pressed.connect(_toggle.bind(_how_panel))
+	%LocationButton.pressed.connect(_cycle_location)
+	%CartButton.pressed.connect(_cycle_cart)
 	%DebugUnlockButton.pressed.connect(_debug_unlock)
 	# Never ships: hidden outside a debug build.
 	%DebugUnlockButton.visible = OS.is_debug_build()
@@ -44,6 +50,7 @@ func _ready() -> void:
 	_haptics_toggle.toggled.connect(_set_haptics)
 
 	_build_shop()
+	paint(Skins.current())
 	get_viewport().size_changed.connect(_relayout)
 	_relayout()
 	_close_panels()
@@ -70,6 +77,80 @@ func _relayout() -> void:
 	_bar.position = Vector2(0.0, viewport.y - height - bottom_inset)
 
 
+## Repaints the menu chrome in the location's colours. The scene ships with a
+## single hard-coded palette; without this the buttons stay teal while the
+## board turns into a forest.
+func paint(skin: LocationSkin) -> void:
+	for path in ["%UpgradesButton", "%SettingsButton", "%DailyButton",
+			"%QuestsButton", "%CloseHow", "%CloseSettings", "%CloseUpgrades",
+			"%CloseQuests", "%HowToButton", "%LocationButton", "%CartButton",
+			"%DebugUnlockButton"]:
+		var button: Button = get_node_or_null(path)
+		if button == null:
+			continue
+		var tint: Color = skin.warn if path == "%DailyButton" else skin.accent
+		if path == "%ResetBestButton":
+			tint = skin.danger
+		button.add_theme_color_override("font_color", tint)
+		button.add_theme_stylebox_override("normal", _ghost_style(skin, tint))
+		button.add_theme_stylebox_override("hover", _ghost_style(skin, tint))
+		button.add_theme_stylebox_override("pressed", _ghost_style(skin, tint))
+
+	var reset: Button = get_node_or_null("%ResetBestButton")
+	if reset != null:
+		reset.add_theme_color_override("font_color", skin.danger)
+		reset.add_theme_stylebox_override("normal", _ghost_style(skin, skin.danger))
+		reset.add_theme_stylebox_override("hover", _ghost_style(skin, skin.danger))
+		reset.add_theme_stylebox_override("pressed", _ghost_style(skin, skin.danger))
+
+	var start: Button = %StartButton
+	for state in ["normal", "hover", "pressed"]:
+		var box := StyleBoxFlat.new()
+		box.bg_color = skin.accent.darkened(0.2) if state == "pressed" else skin.accent
+		box.set_corner_radius_all(44)
+		box.content_margin_left = 58.0
+		box.content_margin_right = 58.0
+		box.content_margin_top = 26.0
+		box.content_margin_bottom = 26.0
+		start.add_theme_stylebox_override(state, box)
+	var ink: Color = skin.bg_bottom
+	for key in ["font_color", "font_hover_color", "font_pressed_color"]:
+		start.add_theme_color_override(key, ink)
+
+	for path in ["%HowPanel", "%SettingsPanel", "%UpgradesPanel", "%QuestsPanel"]:
+		var panel: Control = get_node_or_null(path)
+		if panel == null:
+			continue
+		var box: PanelContainer = panel.get_node_or_null("Box")
+		if box == null:
+			continue
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(skin.bg_mid, 0.97)
+		style.border_color = Color(skin.accent, 0.35)
+		style.set_border_width_all(2)
+		style.set_corner_radius_all(18)
+		style.content_margin_left = 24.0
+		style.content_margin_right = 24.0
+		style.content_margin_top = 22.0
+		style.content_margin_bottom = 22.0
+		box.add_theme_stylebox_override("panel", style)
+
+	%Wallet.add_theme_color_override("font_color", skin.accent)
+
+
+func _ghost_style(skin: LocationSkin, tint: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(skin.bg_mid, 0.85)
+	box.border_color = Color(tint, 0.45)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(28)
+	box.content_margin_left = 26.0
+	box.content_margin_right = 26.0
+	box.content_margin_top = 20.0
+	box.content_margin_bottom = 20.0
+	return box
+
+
 func _toggle(panel: Control) -> void:
 	var opening := not panel.visible
 	_close_panels()
@@ -88,6 +169,12 @@ func _close_panels() -> void:
 func _refresh() -> void:
 	var today: int = GameState.daily_result()
 	%DailyButton.text = "DAILY  ·  BEST %d" % today if today > 0 else "DAILY RUN"
+	%LocationButton.text = "Location: %s" % Skins.current().display_name
+	var carts := Skins.current().cart_variant_count()
+	%CartButton.text = ("Cart: %d of %d" % [GameState.cart_variant % carts + 1, carts]
+		if carts > 1 else "Cart: standard")
+	%CartButton.disabled = carts <= 1
+	%CartButton.modulate.a = 1.0 if carts > 1 else 0.45
 	_best_label.text = "Best run: %d" % GameState.best
 	_haptics_toggle.set_pressed_no_signal(GameState.haptics_enabled)
 	_refresh_shop()
@@ -283,6 +370,26 @@ func _debug_unlock() -> void:
 	GameState.crystals = 999
 	GameState.save_game()
 	GameState.vibrate(60)
+	_refresh()
+
+
+## Locations are looks, not rulesets, so switching is instant and harmless.
+func _cycle_location() -> void:
+	var skin := Skins.next()
+	GameState.location = skin.display_name
+	GameState.save_game()
+	location_chosen.emit(skin)
+	paint(skin)
+	_build_shop()
+	_refresh()
+
+
+func _cycle_cart() -> void:
+	var carts := Skins.current().cart_variant_count()
+	GameState.cart_variant = (GameState.cart_variant + 1) % carts
+	GameState.save_game()
+	cart_chosen.emit(GameState.cart_variant)
+	GameState.vibrate(20)
 	_refresh()
 
 

@@ -91,6 +91,11 @@ func _ready() -> void:
 ## Repaints with a new location skin.
 func set_skin(skin: LocationSkin) -> void:
 	_skin = skin
+	var filter: int = (CanvasItem.TEXTURE_FILTER_NEAREST if skin.pixel_art
+		else CanvasItem.TEXTURE_FILTER_LINEAR)
+	texture_filter = filter
+	for layer in [$Terrain, $Live]:
+		layer.texture_filter = filter
 	_build_styleboxes()
 	_terrain_dirty = true
 
@@ -371,7 +376,11 @@ func draw_terrain(ci: CanvasItem) -> void:
 	for row in range(row_min, row_max + 1):
 		for col in balance.cols:
 			var cell := Vector2i(col, row)
-			if rocks.has(cell):
+			if not rocks.has(cell):
+				continue
+			if _skin.rock_texture != null:
+				ci.draw_texture_rect(_skin.rock_texture, _cell_rect(cell, 0.94), false)
+			else:
 				ci.draw_style_box(_rock_box, _cell_rect(cell, 0.72))
 
 	for cell: Vector2i in pipes:
@@ -459,6 +468,19 @@ func _draw_pipe(ci: CanvasItem, centre: Vector2, type: int, flooded: bool, alpha
 func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:
 	var centre := cell_to_world(cell)
 	var pulse := 1.0 + 0.12 * sin(_time * 4.5 + cell.x)
+
+	if _skin.pickup_texture != null:
+		# Keep the shaft of light — it is what makes a pickup readable from a
+		# screen away — and let the sprite do the rest.
+		var beam_tint := _skin.pickup
+		beam_tint.a = _skin.pickup_beam_alpha
+		var height := cell_size * 6.0
+		ci.draw_rect(Rect2(centre.x - cell_size * 0.07, centre.y - height,
+			cell_size * 0.14, height), beam_tint)
+		var side := cell_size * 0.78 * pulse
+		ci.draw_texture_rect(_skin.pickup_texture,
+			Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side)), false)
+		return
 
 	# Shaft of light rising out of the crystal, so it reads from a screen away.
 	var beam := _skin.pickup

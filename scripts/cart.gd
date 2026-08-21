@@ -25,6 +25,8 @@ var t: float = 0.0
 var alive: bool = false
 ## Drives the glow colour; Main owns the actual fuel number.
 var low_fuel: bool = false
+## Which of the location's cart looks to wear.
+var variant: int = 0
 
 var _stylebox_body := StyleBoxFlat.new()
 var _stylebox_window := StyleBoxFlat.new()
@@ -38,6 +40,8 @@ func _ready() -> void:
 ## Repaints with a new location skin.
 func set_skin(skin: LocationSkin) -> void:
 	_skin = skin
+	texture_filter = (CanvasItem.TEXTURE_FILTER_NEAREST if skin.pixel_art
+		else CanvasItem.TEXTURE_FILTER_LINEAR)
 	set_cell_size(_cell_size)
 
 
@@ -169,6 +173,21 @@ func visual_row() -> float:
 
 func _draw() -> void:
 	var unit := _cell_size * 0.26
+	var art := _skin.cart_art(variant)
+	if art != null:
+		var glow_tint: Color = _skin.cart_glow_low if low_fuel else _skin.cart_glow
+		for ring in range(4, 0, -1):
+			glow_tint.a = 0.05 * (5 - ring)
+			draw_circle(Vector2.ZERO, unit * (0.7 + 0.3 * ring), glow_tint)
+		# The sprite is drawn upright: the cart's own rotation would spin it
+		# through corners, and a wagon does not roll onto its side.
+		var side := _cell_size * 0.8
+		draw_set_transform(Vector2.ZERO, -rotation, Vector2.ONE)
+		draw_texture_rect(art,
+			Rect2(-Vector2(side, side) * 0.5, Vector2(side, side)), false)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
+
 	# Stand-in for the prototype's shadowBlur: a few fading rings.
 	var glow: Color = _skin.danger if low_fuel else _skin.accent
 	for ring in range(4, 0, -1):

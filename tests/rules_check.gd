@@ -47,6 +47,7 @@ func _process(_delta: float) -> bool:
 	_check_daily()
 	_check_skin_swap()
 	_check_quests()
+	_check_locations()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -533,6 +534,46 @@ func _check_quests() -> void:
 	state.quests = saved_quests
 	state.crystals = saved_crystals
 	state.save_game()
+
+
+# --- locations -----------------------------------------------------------
+
+func _check_locations() -> void:
+	var original := Skins.current()
+	var all := Skins.catalogue()
+	_ok(all.size() >= 2, "more than one location ships")
+
+	var names := {}
+	for skin in all:
+		names[skin.display_name] = true
+		_ok(not skin.display_name.is_empty(), "every location is named")
+	_eq(names.size(), all.size(), "location names are unique")
+
+	var forest := Skins.by_name("Forest")
+	_ok(forest != null, "the forest location is in the catalogue")
+	_ok(forest.rock_texture != null, "it brings art for obstacles")
+	_ok(forest.pickup_texture != null, "and for pickups")
+	_ok(forest.cart_variant_count() > 1, "and several cart looks")
+
+	# Cycling visits every location and comes back round.
+	var seen := {}
+	for i in all.size():
+		seen[Skins.current().display_name] = true
+		Skins.set_current(Skins.next())
+	_eq(seen.size(), all.size(), "cycling reaches every location")
+	_eq(Skins.current(), original, "and returns to where it started")
+
+	# A cart variant index never falls off the end.
+	for variant in [0, 1, 2, 7, 99]:
+		_ok(forest.cart_art(variant) != null,
+			"cart variant %d resolves" % variant)
+
+	var plain := Skins.by_name("Neon Neutral")
+	_ok(plain != null, "the default location is in the catalogue")
+	_eq(plain.cart_art(0), null, "a location without art draws its cart instead")
+	_eq(plain.cart_variant_count(), 1, "and offers a single look")
+
+	Skins.set_current(original)
 
 
 ## --script skips project autoloads, so stand them up by hand.

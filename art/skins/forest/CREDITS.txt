@@ -1,0 +1,16 @@
+Forest location art
+-------------------
+Source: Kenney — "Pixel Platformer"
+        https://kenney.nl/assets/pixel-platformer
+License: CC0 1.0 Universal (public domain dedication).
+         Free for any use, commercial included, no attribution required.
+         Credited here because it is the decent thing to do.
+
+Tiles used, by their index in the pack's Tiles/ folder:
+  126 -> tree.png      obstacles
+  067 -> gem.png       fuel pickup
+  047 -> cart_crate.png         cart, variant 1
+  030 -> cart_chest.png         cart, variant 2
+  026 -> cart_crate_banded.png  cart, variant 3
+  124 -> shrub.png     spare
+  128 -> mushroom.png  spare
