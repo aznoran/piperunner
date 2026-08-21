@@ -43,7 +43,7 @@ func _process(_delta: float) -> bool:
 	_check_save_round_trip()
 	_check_upgrades()
 	_check_magnet()
-	_check_record_ghost()
+	_check_distance_record()
 	_check_daily()
 	_check_skin_swap()
 	_check_quests()
@@ -140,6 +140,10 @@ func _check_cart_waits() -> void:
 func _check_placement_bounds() -> void:
 	main.start_run()
 	board.max_row = 0
+	# Clear generated rock so the window edges are tested on their own — the
+	# top of the window sits past rock_start_row, where a rock may legitimately
+	# be sitting in the cell being probed.
+	board.rocks.clear()
 	var start_col: int = balance.cols / 2
 
 	_ok(not board.can_place(Vector2i(-1, 2)), "no placing left of the board")
@@ -353,37 +357,43 @@ func _check_magnet() -> void:
 	main._magnet_reach = 0
 
 
-# --- section 11, P0: record ghost ---------------------------------------
+# --- section 11, P0: distance record --------------------------------------
 
-func _check_record_ghost() -> void:
+func _check_distance_record() -> void:
 	var state: Node = root.get_node("GameState")
 	var saved_best: int = state.best
-	var saved_route: PackedInt32Array = state.best_route
-	var saved_row: int = state.best_row
+	var saved_distance: int = state.best_distance
 
+	# Score and distance are separate records and must not shadow each other.
 	state.best = 0
-	var route := PackedInt32Array([3, 0, 3, 1, 4, 1])
-	_ok(state.submit_score(50, route, 7), "a better score is recorded")
-	_eq(state.best_route, route, "the route is kept alongside the score")
-	_eq(state.best_row, 7, "so is the row it ended on")
+	state.best_distance = 0
+	_ok(state.submit_score(120), "a first score is recorded")
+	_ok(state.submit_distance(30), "so is a first distance")
+	_eq(state.best, 120, "the score record stands alone")
+	_eq(state.best_distance, 30, "and so does the distance record")
+
+	_ok(not state.submit_distance(25), "a shorter run does not beat the distance")
+	_eq(state.best_distance, 30, "the distance record holds")
+	_ok(state.submit_distance(31), "one cell further does beat it")
+
+	# A crystal-heavy run can score high without climbing: only score moves.
+	_ok(state.submit_score(400), "a high-scoring run sets a score record")
+	_ok(not state.submit_distance(10), "...without touching the distance record")
+	_eq(state.best_distance, 31, "the furthest row is unchanged")
 
 	var reloaded: Node = load("res://scripts/game_state.gd").new()
 	reloaded.load_game()
-	_eq(reloaded.best_route, route, "the ghost route survives a reload")
-	_eq(reloaded.best_row, 7, "so does the finishing row")
+	_eq(reloaded.best_distance, 31, "the distance record survives a reload")
 	reloaded.free()
 
-	state.submit_score(10, PackedInt32Array([0, 0]), 1)
-	_eq(state.best_route, route, "a worse run leaves the ghost alone")
-
-	board.show_record(route, 7, 50)
-	_ok(board.ghost_visible, "a real route turns the ghost on")
-	board.show_record(PackedInt32Array(), 0, 0)
-	_ok(not board.ghost_visible, "an empty route leaves it off")
+	board.show_record(31)
+	_ok(board.ghost_visible, "a real distance turns the marker on")
+	_eq(board.ghost_row, 31, "the line sits at that row")
+	board.show_record(0)
+	_ok(not board.ghost_visible, "no distance, no marker")
 
 	state.best = saved_best
-	state.best_route = saved_route
-	state.best_row = saved_row
+	state.best_distance = saved_distance
 	state.save_game()
 
 

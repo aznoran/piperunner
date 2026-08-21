@@ -7,11 +7,10 @@ const SAVE_PATH := "user://piperunner.cfg"
 signal best_changed(value: int)
 
 var best: int = 0
-## Cells the best run drove through, flattened as col, row, col, row...
-## Replayed on the board as a ghost line (spec section 11, P0).
-var best_route: PackedInt32Array = PackedInt32Array()
-## Row the best run reached — where the finish line is drawn.
-var best_row: int = 0
+## Furthest row ever reached. Distance and score are different things — a run
+## can score well on crystals without climbing far — so the board's finish
+## line tracks this one, not `best`.
+var best_distance: int = 0
 ## Crystals banked across runs — the currency for meta upgrades (spec 11, P0).
 var crystals: int = 0
 var haptics_enabled: bool = true
@@ -36,8 +35,7 @@ func load_game() -> void:
 	if config.load(SAVE_PATH) != OK:
 		return
 	best = config.get_value("progress", "best", 0)
-	best_route = config.get_value("progress", "best_route", PackedInt32Array())
-	best_row = config.get_value("progress", "best_row", 0)
+	best_distance = config.get_value("progress", "best_distance", 0)
 	crystals = config.get_value("progress", "crystals", 0)
 	upgrades = config.get_value("progress", "upgrades", {})
 	daily_date = config.get_value("progress", "daily_date", "")
@@ -50,8 +48,7 @@ func load_game() -> void:
 func save_game() -> void:
 	var config := ConfigFile.new()
 	config.set_value("progress", "best", best)
-	config.set_value("progress", "best_route", best_route)
-	config.set_value("progress", "best_row", best_row)
+	config.set_value("progress", "best_distance", best_distance)
 	config.set_value("progress", "crystals", crystals)
 	config.set_value("progress", "upgrades", upgrades)
 	config.set_value("progress", "daily_date", daily_date)
@@ -62,17 +59,23 @@ func save_game() -> void:
 	config.save(SAVE_PATH)
 
 
-## Returns true when this run beat the record. The route is kept alongside the
-## number so the next run can race its own ghost.
-func submit_score(score: int, route: PackedInt32Array = PackedInt32Array(),
-		row: int = 0) -> bool:
+## Returns true when this run beat the score record.
+func submit_score(score: int) -> bool:
 	if score <= best:
 		save_game()
 		return false
 	best = score
-	best_route = route
-	best_row = row
 	best_changed.emit(best)
+	save_game()
+	return true
+
+
+## Returns true when this run climbed further than any before it.
+func submit_distance(distance: int) -> bool:
+	if distance <= best_distance:
+		save_game()
+		return false
+	best_distance = distance
 	save_game()
 	return true
 

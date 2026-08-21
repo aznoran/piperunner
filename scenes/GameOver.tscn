@@ -89,6 +89,14 @@ theme_override_font_sizes/font_size = 66
 text = "0"
 horizontal_alignment = 1
 
+[node name="DistanceLabel" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0.65)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "0 cells climbed"
+horizontal_alignment = 1
+
 [node name="Record" type="Label" parent="Center/Column"]
 unique_name_in_owner = true
 visible = false

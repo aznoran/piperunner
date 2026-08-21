@@ -43,6 +43,8 @@ var score: int = 0
 var combo: int = 0
 var cells_run: int = 0
 var crystals_collected: int = 0
+## Rows climbed this run. Distinct from score, which also pays for crystals.
+var distance: int = 0
 ## Longest chain this run, for the quest that asks for one.
 var best_combo: int = 0
 ## Pipes dropped in a row below the cart — the litter play from spec 08, and
@@ -64,11 +66,9 @@ var _shake: float = 0.0
 var _death_pause: float = 0.0
 var _death_reason: String = ""
 var _death_was_record: bool = false
+var _death_went_further: bool = false
 var _hint_pulse: float = 0.0
 var _banner_left: float = 0.0
-## Cells this run has driven through, flattened as col, row, col, row...
-## Saved as the ghost when the run beats the record.
-var _route: PackedInt32Array = PackedInt32Array()
 
 
 func _ready() -> void:
@@ -175,8 +175,7 @@ func _prepare_board(with_resources: bool) -> void:
 	_board.flood(Vector2i(start_col, 0))
 	_board.set_cart_cell(_cart.cell())
 
-	_route = PackedInt32Array()
-	_board.show_record(GameState.best_route, GameState.best_row, GameState.best)
+	_board.show_record(GameState.best_distance)
 
 	_fx.clear()
 	_screen_fx.clear()
@@ -200,6 +199,7 @@ func start_run(daily: bool = false) -> void:
 	score = 0
 	combo = 0
 	cells_run = 0
+	distance = 0
 	crystals_collected = 0
 	best_combo = 0
 	pipes_dumped = 0
@@ -237,7 +237,8 @@ func _process(delta: float) -> void:
 			if _death_pause > 0.0:
 				_death_pause -= delta
 				if _death_pause <= 0.0:
-					_overlay.show_game_over(_death_reason, score, _death_was_record)
+					_overlay.show_game_over(_death_reason, score, distance, _death_was_record,
+		_death_went_further)
 
 
 func _run_frame(delta: float) -> void:
@@ -391,14 +392,13 @@ func _try_place(cell: Vector2i) -> void:
 # --- run events ---------------------------------------------------------
 
 func _on_cart_stepped(cell: Vector2i) -> void:
-	_route.append(cell.x)
-	_route.append(cell.y)
 	_board.set_cart_cell(cell)
 
 	var previous_max := _board.max_row
 	_board.note_row_reached(cell.y)
 	if cell.y > previous_max:
 		score += cell.y - previous_max
+		distance = _board.max_row
 		_note_crystals_passed(previous_max, cell.y)
 
 	cells_run += 1
@@ -494,7 +494,8 @@ func _die(reason: String) -> void:
 	})
 
 	_death_reason = ("%s  ·  daily" % reason) if daily_mode else reason
-	_death_was_record = GameState.submit_score(score, _route, _board.max_row)
+	_death_was_record = GameState.submit_score(score)
+	_death_went_further = GameState.submit_distance(distance)
 	if daily_mode:
 		GameState.submit_daily(score)
 	_hud.set_best(GameState.best)
