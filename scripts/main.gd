@@ -46,6 +46,7 @@ var _magnet_reach: int = 0
 @onready var _menu: MainMenu = $MainMenu
 @onready var _input: InputHandler = $InputHandler
 @onready var _start_hint: Label = %StartHint
+@onready var _praise_label: Label = %PraiseLabel
 @onready var _background: TextureRect = $Background/Gradient
 @onready var _decor: MenuDecor = $World/Decor
 @onready var _curtain: ColorRect = $Curtain/Fill
@@ -53,6 +54,14 @@ var _magnet_reach: int = 0
 var state: State = State.MENU
 
 var _queue := PipeQueue.new()
+var _dealer := Dealer.new()
+var _praise := Praise.new()
+## Pipes placed since the last overwrite, for the clean-run praise.
+var _clean_streak: int = 0
+## Overwrites this run, which a station goal may one day care about.
+var overwrites: int = 0
+## True once this run has spent its one continue.
+var continued: bool = false
 var _queue_rng := RandomNumberGenerator.new()
 
 var score: int = 0
@@ -106,6 +115,8 @@ func _ready() -> void:
 	_rebuild_balance()
 
 	_board.setup(balance)
+	_dealer.setup(balance)
+	_praise.setup(balance)
 	_cart.board = _board
 	_cart.stepped.connect(_on_cart_stepped)
 	_cart.derailed.connect(_on_cart_derailed)
@@ -126,6 +137,7 @@ func _ready() -> void:
 	_menu.level_chosen.connect(_select_level)
 	_overlay.retry_pressed.connect(func() -> void: start_run(selected_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
+	_overlay.continue_pressed.connect(_take_continue)
 	GameState.best_changed.connect(_hud.set_best)
 	get_viewport().size_changed.connect(_apply_layout)
 
@@ -151,6 +163,10 @@ func _rebuild_balance() -> void:
 	_magnet_reach = int(Upgrades.bonus(&"magnet", GameState))
 	if _board != null:
 		_board.setup(balance)
+	_dealer.setup(balance)
+	_praise.setup(balance)
+	_dealer.setup(balance)
+	_praise.setup(balance)
 
 
 ## Switches the location's look. Rules, generation and events are untouched —
@@ -336,7 +352,7 @@ func _prepare_board(with_resources: bool) -> void:
 		run_seed = Levels.seed_for(active_level)
 	_board.start_run(run_seed, with_resources, _first_resource_row())
 	_queue_rng.seed = run_seed + 1
-	_queue.start(_queue_rng, balance.queue_preview)
+	_queue.start(_queue_rng, balance.queue_preview, _dealer)
 
 	var start_col: int = balance.cols / 2
 	_cart.place_at(start_col, 0, PipeDefs.Side.D)
@@ -374,6 +390,10 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	crystals_collected = 0
 	best_combo = 0
 	pipes_dumped = 0
+	overwrites = 0
+	continued = false
+	_clean_streak = 0
+	_praise.start_run()
 	fuel = balance.fuel_max
 	speed = balance.start_speed
 	started = false
@@ -458,6 +478,7 @@ func _run_frame(delta: float) -> void:
 
 	_board.set_cart_incoming(_cart.incoming_cell(balance.place_lockout_progress))
 	_board.set_cart_fill(_cart.cell(), _cart.t, _cart.entry)
+	_praise.tick(delta)
 	_update_camera(delta)
 	_update_frontier()
 
@@ -504,6 +525,55 @@ func _update_camera(delta: float) -> void:
 
 
 # --- lookahead ----------------------------------------------------------
+
+## Shows a praise message, if the selector lets this one through. The pop is
+## short on purpose: it has to land inside the moment it is praising, or it
+## teaches the player about luck rather than about skill.
+func _praise_for(kind: Praise.Kind, combo_value: int = 0) -> void:
+	var text := _praise.consider(kind, combo_value)
+	if text.is_empty():
+		return
+
+	_praise_label.text = text
+	_praise_label.visible = true
+	_praise_label.modulate = Color(Skins.current().accent, 1.0)
+	if kind == Praise.Kind.RECORD:
+		_praise_label.modulate = Color(Skins.current().warn, 1.0)
+	_praise_label.scale = Vector2(0.7, 0.7)
+	_praise_label.position.y = 0.0
+
+	var tween := create_tween()
+	tween.tween_property(_praise_label, "scale", Vector2.ONE, 0.16) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(0.45)
+	tween.set_parallel(true)
+	tween.tween_property(_praise_label, "modulate:a", 0.0, 0.35)
+	tween.tween_property(_praise_label, "position:y", -46.0, 0.35)
+	tween.chain().tween_callback(func() -> void: _praise_label.visible = false)
+
+
+## The side the cart will arrive from at the joint it still has to reach, or
+## NO_EXIT when the track ahead is already built.
+func _joint_need() -> int:
+	var ahead := _board.frontier(_cart.cell(), _cart.entry)
+	if ahead.is_empty() or ahead["blocked"]:
+		return PipeDefs.NO_EXIT
+	return int(ahead["need"])
+
+
+## Cells of built track in front of the cart.
+func _buffer() -> int:
+	var ahead := _board.frontier(_cart.cell(), _cart.entry)
+	return int(ahead["steps"]) if not ahead.is_empty() else 0
+
+
+## How hard the dealer may lean, right now.
+func _assist_now() -> float:
+	var ceiling := _dealer.assist_ceiling(GameState.runs_played, GameState.in_slump())
+	var pressure := _dealer.pressure(fuel, balance.fuel_max, _buffer(),
+		balance.queue_preview)
+	return _dealer.assist(pressure, ceiling)
+
 
 ## Marks the cell where the cart needs pipe next, and warns when the track is
 ## about to run out.
@@ -566,7 +636,15 @@ func _try_place(cell: Vector2i) -> void:
 
 	# Building over an unused pipe is allowed, but it costs fuel — a real trade
 	# rather than a free undo (spec section 08).
+	# A joint served with nothing built ahead of the cart: the player placed it
+	# as the cart was already rolling in. The only praise here that cannot be
+	# earned by accident.
+	var was_clutch: bool = cell == _board.frontier(_cart.cell(), _cart.entry).get(
+		"cell", Board.NO_CELL) and _buffer() == 0 and started
+
 	if _board.get_pipe(cell) != null:
+		overwrites += 1
+		_clean_streak = 0
 		fuel -= balance.fuel_replace
 		_fx.floater(_board.cell_to_world(cell), "-%d" % int(balance.fuel_replace),
 			Skins.current().danger)
@@ -582,12 +660,19 @@ func _try_place(cell: Vector2i) -> void:
 	if cell.y < _cart.row:
 		pipes_dumped += 1
 
-	_queue.consume()
+	_queue.consume(_joint_need(), _assist_now())
 	_queue_bar.set_contents(_queue.upcoming, _queue.held)
 	if not started:
 		_hud.fade_out_back_key()
 	started = true
 	_start_hint.visible = false
+
+	if was_clutch:
+		_praise_for(Praise.Kind.CLUTCH)
+	else:
+		_clean_streak += 1
+		if _clean_streak == balance.praise_clean_run:
+			_praise_for(Praise.Kind.CLEAN)
 	GameState.vibrate(balance.haptics_place_ms)
 
 
@@ -602,10 +687,13 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 		score += cell.y - previous_max
 		distance = _board.max_row
 		_note_crystals_passed(previous_max, cell.y)
+		if GameState.best_distance > 0 and distance == GameState.best_distance + 1:
+			_praise_for(Praise.Kind.RECORD)
 
 	cells_run += 1
 
-	for spot in _pull_crystals(cell):
+	var taken := _pull_crystals(cell)
+	for spot in taken:
 		combo += 1
 		best_combo = maxi(best_combo, combo)
 		crystals_collected += 1
@@ -620,6 +708,11 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 		_screen_fx.flash()
 		_hud.set_combo(combo)
 		GameState.vibrate(balance.haptics_crystal_ms)
+
+	if taken.size() >= 2:
+		_praise_for(Praise.Kind.SWEEP)
+	elif not taken.is_empty() and combo >= _praise.chain_threshold(distance):
+		_praise_for(Praise.Kind.CHAIN, combo)
 
 	if cells_run > balance.grace_cells:
 		_burn_fuel(balance.fuel_per_cell)
@@ -753,6 +846,72 @@ func _check_station_goal() -> void:
 	_pending_clear = {"level": cleared, "reward": reward}
 
 
+## Whether this death is the kind worth offering a way out of: close to the
+## record, close to a station's goal, or simply a long run. A continue on a
+## twelve-cell death is not a favour, it is an interruption.
+func _continue_is_worth_offering() -> bool:
+	if continued or not started:
+		return false
+	if GameState.runs_played < balance.continue_first_run:
+		return false
+	if Time.get_unix_time_from_system() - GameState.last_continue < balance.continue_cooldown:
+		return false
+
+	if distance >= balance.continue_min_distance:
+		return true
+	if GameState.best_distance > 0 \
+			and distance >= GameState.best_distance * balance.continue_record_ratio:
+		return true
+	if selected_mode == Mode.STORY and active_level != null:
+		var progress := Levels.progress(active_level, run_metrics())
+		return progress >= active_level.goal_target * balance.continue_goal_ratio
+	return false
+
+
+## Puts the cart back on the last track it was actually on and refuels part of
+## the tank. Not a revival on the spot: the crash still cost something, or the
+## offer would cheapen every death that follows.
+func _take_continue() -> void:
+	if state != State.DEAD or continued:
+		return
+	continued = true
+	GameState.last_continue = Time.get_unix_time_from_system()
+	GameState.save_game()
+
+	_overlay.hide_overlay()
+	_pending_clear = {}
+	_death_pause = 0.0
+
+	var back: Vector2i = _cart.last_cell
+	if _board.get_pipe(back) == null:
+		back = Vector2i(balance.cols / 2, maxi(_board.max_row - balance.continue_rollback, 0))
+		if _board.get_pipe(back) == null:
+			_curtain_to_menu()
+			return
+
+	_cart.place_at(back.x, back.y, _cart.last_entry)
+	_board.set_cart_cell(_cart.cell())
+	_board.set_cart_incoming(Board.NO_CELL)
+	_board.set_cart_fill(_cart.cell(), 0.0, _cart.entry)
+
+	fuel = balance.fuel_max * balance.continue_fuel_ratio
+	_hud.set_fuel(fuel / balance.fuel_max)
+	_cart.low_fuel = false
+	_screen_fx.low_fuel = false
+	_screen_fx.danger = false
+	combo = 0
+	_hud.set_combo(0)
+
+	# A fresh queue: the one that killed them is not the one to come back with.
+	_queue.start(_queue_rng, balance.queue_preview, _dealer)
+	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+
+	state = State.PLAYING
+	_input.enabled = true
+	_fx.burst(_cart.position, Skins.current().accent, 24, _cell_size * 6.0)
+	GameState.vibrate(balance.haptics_crystal_ms)
+
+
 ## Files the finished run: currency, goal progress and both records.
 func _bank_run() -> void:
 	GameState.bank_crystals(crystals_collected)
@@ -764,7 +923,12 @@ func _bank_run() -> void:
 		"combo": best_combo,
 	})
 	_death_was_record = GameState.submit_score(score)
-	_death_went_further = GameState.submit_distance(distance)
+	# A continued run does not set a distance record. Distance is what the
+	# ghost line on the board measures and what the story goals count, so it
+	# has to mean one uninterrupted run — otherwise the record stops being
+	# something to race.
+	_death_went_further = false if continued else GameState.submit_distance(distance)
+	GameState.note_run(distance)
 	if daily_mode:
 		GameState.submit_daily(score)
 	_hud.set_best(GameState.best)

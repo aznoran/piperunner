@@ -81,6 +81,52 @@ extends Resource
 ## How many upcoming pipes the player can see (spec: four are shown ahead).
 @export var queue_preview: int = 4
 
+@export_group("Praise")
+## Seconds between praise messages. Praise devalues faster than anything else
+## in the game, so this is the main defence.
+@export var praise_cooldown: float = 1.2
+## Most messages a single run may show.
+@export var praise_run_cap: int = 12
+## Chain length that earns the smallest praise at distance 0.
+@export var praise_combo_base: int = 2
+## Every this many cells, the chain bar rises by one — what was worth praising
+## at the start is routine later.
+@export var praise_combo_step: int = 25
+## Pipes placed without an overwrite before the run is called clean.
+@export var praise_clean_run: int = 12
+
+@export_group("Dealer")
+## How strongly the dealer may favour a piece that fits, by experience. Zero
+## reproduces the plain weighted roll from spec section 04.
+@export var assist_max_new: float = 0.90
+@export var assist_max_early: float = 0.65
+@export var assist_max_veteran: float = 0.40
+## Added while the player is in a slump, removed on a decent run.
+@export var assist_slump_bonus: float = 0.20
+## Runs before assistance steps down a tier.
+@export var assist_runs_new: int = 3
+@export var assist_runs_early: int = 10
+## Multipliers applied to a shape's base weight at full assistance.
+@export var assist_fit_gain: float = 3.0
+@export var assist_miss_penalty: float = 0.6
+## Below this fraction of a tank, or this many cells of built track ahead,
+## the player counts as under pressure.
+@export var assist_fuel_floor: float = 0.30
+@export var assist_buffer_floor: int = 3
+
+@export_group("Continue")
+## A death is worth offering a continue on when it lands near the record, near
+## a station's goal, or after a long run.
+@export var continue_record_ratio: float = 0.80
+@export var continue_goal_ratio: float = 0.70
+@export var continue_min_distance: int = 25
+## Seconds between offers, and the first run that may see one.
+@export var continue_cooldown: float = 240.0
+@export var continue_first_run: int = 3
+## What a continue restores.
+@export var continue_fuel_ratio: float = 0.60
+@export var continue_rollback: int = 2
+
 @export_group("Feel")
 @export var haptics_place_ms: int = 35
 @export var haptics_crystal_ms: int = 80

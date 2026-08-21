@@ -27,6 +27,10 @@ var alive: bool = false
 var low_fuel: bool = false
 ## Which of the location's cart looks to wear.
 var variant: int = 0
+## Where the cart was before its last step. A continue puts it back here
+## rather than reviving it inside the wall it hit.
+var last_cell := Vector2i(-9999, -9999)
+var last_entry: int = PipeDefs.Side.D
 
 var _stylebox_body := StyleBoxFlat.new()
 var _stylebox_window := StyleBoxFlat.new()
@@ -96,6 +100,9 @@ func advance(delta: float, speed: float) -> void:
 
 ## One cell of travel. Returns false when the run ended.
 func _step() -> bool:
+	last_cell = cell()
+	last_entry = entry
+
 	var pipe := board.get_pipe(cell())
 	if pipe == null:
 		return _die(REASON_DERAILED)

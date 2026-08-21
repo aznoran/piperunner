@@ -51,6 +51,9 @@ func _process(_delta: float) -> bool:
 	_check_back_key()
 	_check_story()
 	_check_fuel_drain()
+	_check_praise()
+	_check_dealer()
+	_check_continue()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -703,6 +706,156 @@ func _check_fuel_drain() -> void:
 	_eq(main._death_reason, main.REASON_OUT_OF_FUEL, "running dry on time ends the run")
 	_eq(main.fuel, 0.0, "and the tank reads empty")
 
+	main._show_menu()
+
+
+# --- praise --------------------------------------------------------------
+
+func _check_praise() -> void:
+	var praise := Praise.new()
+	praise.setup(balance)
+	praise.start_run()
+
+	_eq(praise.consider(Praise.Kind.CHAIN, 1), "", "a chain of one earns nothing")
+	_eq(praise.consider(Praise.Kind.CHAIN, 2), "NICE", "two earns the smallest")
+	_eq(praise.consider(Praise.Kind.CHAIN, 3), "", "and the cooldown holds the next")
+
+	praise.tick(balance.praise_cooldown + 0.1)
+	_eq(praise.consider(Praise.Kind.CHAIN, 3), "GREAT", "which passes once it expires")
+	praise.tick(balance.praise_cooldown + 0.1)
+	_eq(praise.consider(Praise.Kind.CHAIN, 3), "", "the same word does not come straight back")
+
+	# A record ignores both the cooldown and the cap: it happens once a run.
+	praise.start_run()
+	_eq(praise.consider(Praise.Kind.CHAIN, 2), "NICE", "run starts clean")
+	_eq(praise.consider(Praise.Kind.RECORD), "NEW BEST", "a record never waits")
+
+	# The bar for a chain rises with distance.
+	_eq(praise.chain_threshold(0), balance.praise_combo_base, "the bar starts low")
+	_ok(praise.chain_threshold(balance.praise_combo_step * 2)
+		> praise.chain_threshold(0), "and rises as the run goes on")
+
+	praise.start_run()
+	var shown := 0
+	for i in balance.praise_run_cap * 3:
+		praise.tick(balance.praise_cooldown + 0.1)
+		if not praise.consider(Praise.Kind.CLUTCH).is_empty():
+			shown += 1
+	_ok(shown <= balance.praise_run_cap, "a run has a praise ceiling")
+
+
+# --- dealer --------------------------------------------------------------
+
+func _check_dealer() -> void:
+	var dealer := Dealer.new()
+	dealer.setup(balance)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+
+	# No pressure while there is fuel and track ahead.
+	_eq(dealer.pressure(balance.fuel_max, balance.fuel_max, 6,
+		balance.queue_preview), 0.0, "a comfortable run has no pressure")
+	_ok(dealer.pressure(balance.fuel_max, balance.fuel_max, 0,
+		balance.queue_preview) > 0.5, "no track ahead is pressure")
+	_ok(dealer.pressure(balance.fuel_per_cell * balance.queue_preview,
+		balance.fuel_max, 6, balance.queue_preview) > 0.5,
+		"fuel that will run out inside the preview is pressure too")
+
+	# Projection: the same tank reads worse the further ahead the queue looks.
+	var near := dealer.pressure(30.0, balance.fuel_max, 6, 1)
+	var far := dealer.pressure(30.0, balance.fuel_max, 6, 6)
+	_ok(far >= near, "a longer preview projects further into the trouble")
+
+	# The curve is concave: middling pressure barely helps.
+	var ceiling := dealer.assist_ceiling(0, false)
+	_ok(dealer.assist(0.5, ceiling) < 0.5 * ceiling, "assistance comes in late")
+	_eq(dealer.assist(0.0, ceiling), 0.0, "and is off entirely when calm")
+
+	_ok(dealer.assist_ceiling(0, false) > dealer.assist_ceiling(50, false),
+		"a new player is helped more than a veteran")
+	_ok(dealer.assist_ceiling(50, true) > dealer.assist_ceiling(50, false),
+		"a slump raises the ceiling")
+
+	# With no assistance the roll is the plain weighted one: misfits survive.
+	var need: int = PipeDefs.Side.D
+	var misfits := 0
+	for i in 400:
+		var type := dealer.deal(rng, need, 0.0)
+		if not PipeDefs.SIDES[type].has(need):
+			misfits += 1
+	_ok(misfits > 100, "unassisted rolls still hand out plenty of misfits")
+
+	# At full assistance fits are likelier — but misfits do not disappear.
+	var assisted_misfits := 0
+	for i in 400:
+		var type := dealer.deal(rng, need, 1.0)
+		if not PipeDefs.SIDES[type].has(need):
+			assisted_misfits += 1
+	_ok(assisted_misfits < misfits, "assistance favours pieces that fit")
+	_ok(assisted_misfits > 0, "without ever removing the misfits")
+
+	# Window check: a preview with no way out is what the rescue looks for.
+	_ok(dealer.window_is_dead([PipeDefs.Type.H, PipeDefs.Type.H], PipeDefs.Side.D),
+		"a preview of horizontals cannot serve a joint from below")
+	_ok(not dealer.window_is_dead([PipeDefs.Type.H, PipeDefs.Type.V], PipeDefs.Side.D),
+		"one vertical is enough to keep it alive")
+	_ok(PipeDefs.SIDES[dealer.rescue(rng, PipeDefs.Side.L)].has(PipeDefs.Side.L),
+		"a rescue piece serves the side it was asked for")
+
+
+# --- continue ------------------------------------------------------------
+
+func _check_continue() -> void:
+	var state: Node = root.get_node("GameState")
+	var saved_runs: int = state.runs_played
+	var saved_continue: float = state.last_continue
+	var saved_distance: int = state.best_distance
+
+	state.runs_played = 20
+	state.last_continue = 0.0
+	state.best_distance = 40
+
+	main.start_run()
+	main.started = true
+	main.distance = 5
+	_ok(not main._continue_is_worth_offering(), "a short death is not worth an offer")
+
+	main.distance = 35
+	_ok(main._continue_is_worth_offering(), "one close to the record is")
+
+	main.distance = balance.continue_min_distance + 1
+	state.best_distance = 0
+	_ok(main._continue_is_worth_offering(), "so is simply a long run")
+
+	main.continued = true
+	_ok(not main._continue_is_worth_offering(), "but only once a run")
+	main.continued = false
+
+	state.last_continue = Time.get_unix_time_from_system()
+	_ok(not main._continue_is_worth_offering(), "and not inside the cooldown")
+	state.last_continue = 0.0
+
+	state.runs_played = 1
+	_ok(not main._continue_is_worth_offering(), "nor in the first runs at all")
+	state.runs_played = 20
+
+	# A continued run cannot set a distance record: the ghost line has to mean
+	# one uninterrupted run.
+	state.best_distance = 0
+	main.continued = true
+	main.distance = 50
+	main._bank_run()
+	_eq(state.best_distance, 0, "a continued run sets no distance record")
+
+	main.continued = false
+	main.distance = 50
+	main._bank_run()
+	_eq(state.best_distance, 50, "an uninterrupted one does")
+
+	state.runs_played = saved_runs
+	state.last_continue = saved_continue
+	state.best_distance = saved_distance
+	state.save_game()
 	main._show_menu()
 
 

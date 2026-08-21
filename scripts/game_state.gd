@@ -28,6 +28,12 @@ var quests: Array = []
 ## Stations of the story run cleared so far. The chain is linear, so one
 ## number says everything about where the player is.
 var levels_cleared: int = 0
+## Runs finished, ever. Drives how much the dealer may help.
+var runs_played: int = 0
+## Consecutive runs that fell well short of the player's own record.
+var slump_streak: int = 0
+## Unix time of the last continue offer, so they cannot stack up.
+var last_continue: float = 0.0
 
 ## Purchased upgrades, keyed by id. Empty until the meta layer lands.
 var upgrades: Dictionary = {}
@@ -50,6 +56,9 @@ func load_game() -> void:
 	quest_date = config.get_value("progress", "quest_date", "")
 	quests = config.get_value("progress", "quests", [])
 	levels_cleared = config.get_value("progress", "levels_cleared", 0)
+	runs_played = config.get_value("progress", "runs_played", 0)
+	slump_streak = config.get_value("progress", "slump_streak", 0)
+	last_continue = config.get_value("progress", "last_continue", 0.0)
 	haptics_enabled = config.get_value("settings", "haptics", true)
 	location = config.get_value("settings", "location", "")
 	cart_variant = config.get_value("settings", "cart_variant", 0)
@@ -66,6 +75,9 @@ func save_game() -> void:
 	config.set_value("progress", "quest_date", quest_date)
 	config.set_value("progress", "quests", quests)
 	config.set_value("progress", "levels_cleared", levels_cleared)
+	config.set_value("progress", "runs_played", runs_played)
+	config.set_value("progress", "slump_streak", slump_streak)
+	config.set_value("progress", "last_continue", last_continue)
 	config.set_value("settings", "haptics", haptics_enabled)
 	config.set_value("settings", "location", location)
 	config.set_value("settings", "cart_variant", cart_variant)
@@ -121,6 +133,21 @@ func submit_daily(score: int) -> bool:
 	daily_best = score
 	save_game()
 	return true
+
+
+## Files a finished run for the dealer's benefit: a run that fell well short of
+## the player's own record counts towards a slump, a decent one clears it.
+func note_run(distance: int) -> void:
+	runs_played += 1
+	if best_distance > 0 and distance < best_distance * 0.6:
+		slump_streak += 1
+	elif best_distance == 0 or distance >= best_distance * 0.8:
+		slump_streak = 0
+	save_game()
+
+
+func in_slump() -> bool:
+	return slump_streak >= 3
 
 
 func bank_crystals(count: int) -> void:
