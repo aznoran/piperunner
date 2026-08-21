@@ -8,6 +8,7 @@ const FLASH_TIME := 0.2
 @onready var _flash: ColorRect = $Flash
 @onready var _low_fuel: ColorRect = $LowFuel
 @onready var _danger: ColorRect = $Danger
+@onready var _fog: TextureRect = $Fog
 
 ## Set by Main: fuel below a quarter of a tank.
 var _skin: LocationSkin
@@ -29,6 +30,20 @@ func _ready() -> void:
 ## Repaints with a new location skin.
 func set_skin(skin: LocationSkin) -> void:
 	_skin = skin
+	# Haze along the bottom, so the track behind the cart sinks out of sight
+	# instead of running under the buttons at full strength.
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	gradient.colors = PackedColorArray([
+		Color(skin.bg_bottom, 0.0),
+		Color(skin.bg_bottom, 0.72),
+		Color(skin.bg_bottom, 0.97)])
+	var ramp := GradientTexture2D.new()
+	ramp.gradient = gradient
+	ramp.width = 4
+	ramp.height = 512
+	ramp.fill_to = Vector2(0.0, 1.0)
+	_fog.texture = ramp
 	_flash.color = Color(_skin.accent, _flash.color.a)
 	_low_fuel.color = Color(_skin.danger, _low_fuel.color.a)
 	_danger.color = Color(_skin.danger, _danger.color.a)

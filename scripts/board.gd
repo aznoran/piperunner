@@ -64,6 +64,14 @@ var resource_floor: int = 0
 var ghost_row: int = 0
 var ghost_visible: bool = false
 
+## The cell the cart is inside, how far through it, and which side it entered
+## by. The flooded colour stops at the cart instead of filling the cell ahead
+## of it, which otherwise reads as the track lighting up before the cart gets
+## there.
+var cart_fill_cell := Vector2i(-9999, -9999)
+var cart_fill: float = 0.0
+var cart_fill_entry: int = PipeDefs.Side.D
+
 ## Cell the cart currently occupies — nothing may be dropped on it.
 var cart_cell := NO_CELL
 ## Cell the cart is already rolling into. Locked too, so a pipe can never be
@@ -267,6 +275,21 @@ func set_cart_cell(cell: Vector2i) -> void:
 	cart_cell = cell
 
 
+## Called every frame while a run is live.
+func set_cart_fill(cell: Vector2i, progress: float, entry: int) -> void:
+	if cart_fill_cell != cell:
+		_terrain_dirty = true  # the cell it left must be redrawn as full
+	cart_fill_cell = cell
+	cart_fill = clampf(progress, 0.0, 1.0)
+	cart_fill_entry = entry
+
+
+func clear_cart_fill() -> void:
+	if cart_fill_cell != NO_CELL:
+		_terrain_dirty = true
+	cart_fill_cell = NO_CELL
+
+
 func set_cart_incoming(cell: Vector2i) -> void:
 	if cart_incoming == cell:
 		return
@@ -409,6 +432,8 @@ func draw_terrain(ci: CanvasItem) -> void:
 	for cell: Vector2i in pipes:
 		if cell.y < row_min or cell.y > row_max:
 			continue
+		if cell == cart_fill_cell:
+			continue  # drawn on the live layer, filled up to the cart
 		var pipe: PipeCell = pipes[cell]
 		_draw_pipe(ci, cell_to_world(cell), pipe.type, pipe.flooded, 1.0)
 
@@ -456,6 +481,8 @@ func draw_live(ci: CanvasItem) -> void:
 			if cell.y < _drawn_row_min or cell.y > _drawn_row_max:
 				continue
 			_draw_crystal(ci, cell)
+
+	_draw_cart_cell(ci)
 
 	if _ghost_visible:
 		_draw_ghost(ci)
@@ -527,6 +554,35 @@ func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:
 	ci.draw_rect(Rect2(-core_half, -core_half, core_half * 2.0, core_half * 2.0),
 		Color(_skin.pickup_core, reveal))
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## The cell the cart is in: laid down unflooded, then filled with the used
+## colour from the side it entered as far as the cart has actually travelled.
+func _draw_cart_cell(ci: CanvasItem) -> void:
+	var pipe: PipeCell = pipes.get(cart_fill_cell)
+	if pipe == null:
+		return
+	var centre := cell_to_world(cart_fill_cell)
+	_draw_pipe(ci, centre, pipe.type, false, 1.0)
+
+	var exit: int = PipeDefs.exit_side(pipe.type, cart_fill_entry)
+	if exit == PipeDefs.NO_EXIT:
+		return
+
+	var reach := cell_size * 0.5
+	var in_step: Vector2i = PipeDefs.DIR[cart_fill_entry]
+	var out_step: Vector2i = PipeDefs.DIR[exit]
+	var mouth := centre + Vector2(in_step.x, -in_step.y) * reach
+	var throat := centre + Vector2(out_step.x, -out_step.y) * reach
+	var width := cell_size * 0.09
+	var used: Color = _skin.pipe_core_used
+
+	if cart_fill <= 0.5:
+		ci.draw_line(mouth, mouth.lerp(centre, cart_fill * 2.0), used, width)
+		return
+	ci.draw_line(mouth, centre, used, width)
+	ci.draw_circle(centre, width * 0.5, used)
+	ci.draw_line(centre, centre.lerp(throat, (cart_fill - 0.5) * 2.0), used, width)
 
 
 func _draw_ghost(ci: CanvasItem) -> void:

@@ -189,6 +189,7 @@ func _reset_cart() -> void:
 	_board.flood(Vector2i(start_col, 0))
 	_board.set_cart_cell(_cart.cell())
 	_board.set_cart_incoming(Board.NO_CELL)
+	_board.set_cart_fill(_cart.cell(), 0.0, _cart.entry)
 	_route_clear()
 
 
@@ -267,6 +268,7 @@ func _prepare_board(with_resources: bool) -> void:
 
 	_board.show_record(GameState.best_distance)
 
+	_board.set_cart_fill(_cart.cell(), 0.0, _cart.entry)
 	_fx.clear()
 	_screen_fx.clear()
 	_snap_camera()
@@ -351,6 +353,8 @@ func _process(delta: float) -> void:
 	match state:
 		State.PLAYING:
 			_run_frame(delta)
+		State.MENU:
+			_update_camera(delta)
 		State.DEAD:
 			_update_camera(delta)
 			if _death_pause > 0.0:
@@ -377,6 +381,7 @@ func _run_frame(delta: float) -> void:
 			_mode_banner.visible = false
 
 	_board.set_cart_incoming(_cart.incoming_cell(balance.place_lockout_progress))
+	_board.set_cart_fill(_cart.cell(), _cart.t, _cart.entry)
 	_update_camera(delta)
 	_update_frontier()
 
