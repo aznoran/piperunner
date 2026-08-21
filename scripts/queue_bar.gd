@@ -10,8 +10,10 @@ extends Control
 const SLOT_SCALE := 1.3
 const SLOT_MAX := 100.0
 ## Preview slots, relative to the main one.
-const PREVIEW_SCALE := 0.55
-const PREVIEW_GAP := 1.15
+## Sized so the full five — the piece in hand plus four upgraded previews —
+## fit to the right of centre without running off the edge.
+const PREVIEW_SCALE := 0.58
+const PREVIEW_GAP := 1.14
 const EDGE_MARGIN := 14.0
 
 ## Rect of the HOLD slot in screen space, handed to InputHandler.
@@ -87,9 +89,9 @@ func _hold_centre() -> Vector2:
 	return Vector2(EDGE_MARGIN + _slot * 0.5, _row_y())
 
 
-## The piece in hand sits left of centre, leaving room for the previews.
+## The piece in hand sits dead centre; the queue reads out to the right of it.
 func _next_centre() -> Vector2:
-	return Vector2(size.x * 0.42, _row_y())
+	return Vector2(size.x * 0.5, _row_y())
 
 
 func _draw() -> void:

@@ -230,6 +230,8 @@ func _fade_in(item: CanvasItem, duration: float) -> void:
 ## boot has nothing to animate from, so it snaps.
 func _show_menu(animated: bool = false) -> void:
 	state = State.MENU
+	# Purchases made in the depot take effect on the board the menu lays out.
+	_rebuild_balance()
 	daily_mode = false
 	# Every transition-owned flag goes back to its resting value here, so a
 	# menu reached from any direction — title, back key, game over — is in the
@@ -326,6 +328,9 @@ func start_run(daily: bool = false) -> void:
 		_prepare_board(true)
 	else:
 		_reset_cart()
+		# The board came from the menu, so the queue was built before this
+		# run's balance sheet existed; a preview upgrade has to be applied now.
+		_queue.resize(balance.queue_preview)
 	_queue_bar.visible = true
 	_hud.visible = true
 	_queue_bar.set_contents(_queue.upcoming, _queue.held)

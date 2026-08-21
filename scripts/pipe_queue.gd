@@ -50,6 +50,15 @@ func swap_hold() -> void:
 		held = in_hand
 
 
+## Grows or trims the preview without discarding the pieces already queued —
+## used when an upgrade changes how far ahead the player can see.
+func resize(preview_size: int) -> void:
+	_size = maxi(1, preview_size)
+	while upcoming.size() > _size:
+		upcoming.pop_back()
+	_refill()
+
+
 func _refill() -> void:
 	while upcoming.size() < _size:
 		upcoming.append(PipeDefs.random_type(_rng))

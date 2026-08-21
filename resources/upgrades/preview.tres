@@ -7,6 +7,6 @@ script = ExtResource("1")
 id = &"preview"
 display_name = "Queue sight"
 description = "See one more piece ahead. Planning beats reacting."
-costs = PackedInt32Array(150, 400)
+costs = PackedInt32Array(180)
 step = 1.0
 unit = "piece"
