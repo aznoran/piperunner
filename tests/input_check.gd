@@ -25,8 +25,10 @@ func _process(_delta: float) -> bool:
 	if menu == null:
 		menu = main._menu
 
-	# One action every few frames, so the UI settles between them.
-	if frames % 6 != 0:
+	# One action every few frames, so the UI settles between them. The gap has
+	# to outlast the longest transition — the curtain out and back in — or a
+	# click lands while the menu is still behind it.
+	if frames % 22 != 0:
 		return false
 	step += 1
 

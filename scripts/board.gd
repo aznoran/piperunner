@@ -556,8 +556,13 @@ func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## The cell the cart is in: laid down unflooded, then filled with the used
-## colour from the side it entered as far as the cart has actually travelled.
+## Fills the track up to where the cart actually is.
+##
+## The cart travels centre-to-centre while a cell's pipe runs edge-to-edge, so
+## filling a cell by the same fraction left the colour half a cell behind it.
+## Instead: the half already behind the cart is always full, the half ahead
+## fills as it crosses, and once it passes the boundary the next cell starts
+## filling from its own edge.
 func _draw_cart_cell(ci: CanvasItem) -> void:
 	var pipe: PipeCell = pipes.get(cart_fill_cell)
 	if pipe == null:
@@ -570,19 +575,30 @@ func _draw_cart_cell(ci: CanvasItem) -> void:
 		return
 
 	var reach := cell_size * 0.5
+	var width := cell_size * 0.09
+	var used: Color = _skin.pipe_core_used
 	var in_step: Vector2i = PipeDefs.DIR[cart_fill_entry]
 	var out_step: Vector2i = PipeDefs.DIR[exit]
 	var mouth := centre + Vector2(in_step.x, -in_step.y) * reach
 	var throat := centre + Vector2(out_step.x, -out_step.y) * reach
-	var width := cell_size * 0.09
-	var used: Color = _skin.pipe_core_used
 
-	if cart_fill <= 0.5:
-		ci.draw_line(mouth, mouth.lerp(centre, cart_fill * 2.0), used, width)
-		return
 	ci.draw_line(mouth, centre, used, width)
 	ci.draw_circle(centre, width * 0.5, used)
-	ci.draw_line(centre, centre.lerp(throat, (cart_fill - 0.5) * 2.0), used, width)
+	ci.draw_line(centre, centre.lerp(throat, minf(cart_fill * 2.0, 1.0)), used, width)
+
+	if cart_fill <= 0.5:
+		return
+	# Past the boundary: the cart is visually inside the next cell already.
+	var next_cell: Vector2i = cart_fill_cell + PipeDefs.DIR[exit]
+	var next_pipe: PipeCell = pipes.get(next_cell)
+	if next_pipe == null:
+		return
+	var next_centre := cell_to_world(next_cell)
+	var next_entry: int = PipeDefs.OPPOSITE[exit]
+	var next_step: Vector2i = PipeDefs.DIR[next_entry]
+	var next_mouth := next_centre + Vector2(next_step.x, -next_step.y) * reach
+	ci.draw_line(next_mouth, next_mouth.lerp(next_centre, (cart_fill - 0.5) * 2.0),
+		used, width)
 
 
 func _draw_ghost(ci: CanvasItem) -> void:

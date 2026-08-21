@@ -19,6 +19,9 @@ const WORLD_REVEAL := 0.55
 const MENU_CAMERA_ANCHOR := 0.46
 ## Seconds the camera takes to push forward into the run.
 const CAMERA_PUSH := 0.7
+## Curtain timings for the trip back from a finished run.
+const CURTAIN_OUT := 0.26
+const CURTAIN_IN := 0.34
 ## Prototype shake, expressed against its 68 px cell so it scales with layout.
 const SHAKE_REFERENCE_CELL := 68.0
 
@@ -44,6 +47,7 @@ var _magnet_reach: int = 0
 @onready var _mode_banner: Label = %ModeBanner
 @onready var _background: TextureRect = $Background/Gradient
 @onready var _decor: MenuDecor = $World/Decor
+@onready var _curtain: ColorRect = $Curtain/Fill
 
 var state: State = State.MENU
 
@@ -109,7 +113,7 @@ func _ready() -> void:
 	_menu.start_pressed.connect(start_run.bind(false))
 	_menu.daily_pressed.connect(start_run.bind(true))
 	_overlay.retry_pressed.connect(func() -> void: start_run(daily_mode))
-	_overlay.menu_pressed.connect(_show_menu.bind(true))
+	_overlay.menu_pressed.connect(_curtain_to_menu)
 	GameState.best_changed.connect(_hud.set_best)
 	get_viewport().size_changed.connect(_apply_layout)
 
@@ -175,6 +179,20 @@ func abandon_run() -> void:
 	if state == State.PLAYING and started:
 		return
 	_show_menu(true)
+
+
+## Leaves a finished run behind a black curtain rather than by animating the
+## camera back. After a crash the player is done with that board — watching it
+## scroll away replays it. This lands them on the title screen as if they had
+## just opened the game.
+func _curtain_to_menu() -> void:
+	_curtain.color.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(_curtain, "color:a", 1.0, CURTAIN_OUT) \
+		.set_trans(Tween.TRANS_SINE)
+	tween.tween_callback(func() -> void: _show_menu())
+	tween.tween_property(_curtain, "color:a", 0.0, CURTAIN_IN) \
+		.set_trans(Tween.TRANS_SINE)
 
 
 func _set_camera_anchor(value: float) -> void:
