@@ -7,8 +7,6 @@ enum State { MENU, PLAYING, DEAD }
 const REASON_OUT_OF_FUEL := "Out of fuel"
 ## Beat before the game-over card slides in, so the crash is legible.
 const DEATH_PAUSE := 0.42
-## Seconds the daily banner stays up before fading out.
-const BANNER_TIME := 2.6
 ## Seconds for the menu to clear and for the generated world to arrive. The
 ## board is a touch slower so the two do not finish on the same frame.
 const MENU_FADE := 0.24
@@ -44,7 +42,6 @@ var _magnet_reach: int = 0
 @onready var _menu: MainMenu = $MainMenu
 @onready var _input: InputHandler = $InputHandler
 @onready var _start_hint: Label = %StartHint
-@onready var _mode_banner: Label = %ModeBanner
 @onready var _background: TextureRect = $Background/Gradient
 @onready var _decor: MenuDecor = $World/Decor
 @onready var _curtain: ColorRect = $Curtain/Fill
@@ -88,7 +85,6 @@ var _hint_pulse: float = 0.0
 ## Where the camera holds the cart right now. Animated on the way into a run
 ## instead of switching, which is what made the cart appear to teleport.
 var _camera_anchor: float = MENU_CAMERA_ANCHOR
-var _banner_left: float = 0.0
 
 
 func _ready() -> void:
@@ -201,7 +197,7 @@ func _curtain_to_menu() -> void:
 ## mode carrying its own button — that keeps one obvious way to start.
 func _select_mode(daily: bool) -> void:
 	selected_daily = daily
-	_menu.set_mode_name("TODAY" if daily else "CLASSIC")
+	_menu.set_mode_name("TODAY" if daily else "CLASSIC", daily)
 	# A daily is a different map, so lay it out now: the menu is showing the
 	# board the next run will be played on.
 	daily_mode = daily
@@ -251,7 +247,6 @@ func _show_menu(animated: bool = false) -> void:
 	# menu reached from any direction — title, back key, game over — is in the
 	# same state.
 	_death_pause = 0.0
-	_banner_left = 0.0
 	_input.enabled = false
 	_input.cancel()
 	_board.reveal = 1.0
@@ -259,7 +254,6 @@ func _show_menu(animated: bool = false) -> void:
 	_queue_bar.visible = false
 	_hud.visible = false
 	_start_hint.visible = false
-	_mode_banner.visible = false
 	_board.hide_ghost()
 	_board.hide_frontier()
 	# The title screen sits over a live but empty board.
@@ -378,9 +372,6 @@ func start_run(daily: bool = false) -> void:
 	_hud.set_fuel(1.0)
 	_hud.reset_back_key()
 	_hud.set_daily(daily_mode, GameState.today())
-	_mode_banner.visible = daily_mode
-	_mode_banner.modulate.a = 1.0
-	_banner_left = BANNER_TIME if daily_mode else 0.0
 
 
 func _process(delta: float) -> void:
@@ -407,12 +398,6 @@ func _run_frame(delta: float) -> void:
 	else:
 		_hint_pulse += delta
 		_start_hint.modulate.a = 0.72 + 0.20 * sin(_hint_pulse * 3.3)
-
-	if _banner_left > 0.0:
-		_banner_left -= delta
-		_mode_banner.modulate.a = clampf(_banner_left / 0.8, 0.0, 1.0)
-		if _banner_left <= 0.0:
-			_mode_banner.visible = false
 
 	_board.set_cart_incoming(_cart.incoming_cell(balance.place_lockout_progress))
 	_board.set_cart_fill(_cart.cell(), _cart.t, _cart.entry)

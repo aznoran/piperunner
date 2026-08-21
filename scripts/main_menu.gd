@@ -42,6 +42,8 @@ var _rows: Dictionary = {}
 var _face: Texture2D
 ## The fade in flight, if any. Kept so a new one can cancel it.
 var _fade_tween: Tween
+## Kept so a repaint can put the mode name back in the right colour.
+var _mode_is_daily: bool = false
 
 
 func _ready() -> void:
@@ -140,7 +142,8 @@ func paint(skin: LocationSkin) -> void:
 	_paint_key(%ModesButton, skin, skin.warn, false)
 	_paint_key(%QuestsButton, skin, skin.accent, false)
 	_paint_key(%SettingsButton, skin, skin.pipe_core, false)
-	%ModeLabel.add_theme_color_override("font_color", Color(skin.accent, 0.85))
+	%ModeLabel.add_theme_color_override("font_color",
+		Color(skin.warn if _mode_is_daily else skin.accent, 0.9))
 	(_modes_panel.get_node("Heading") as Label).add_theme_color_override(
 		"font_color", skin.accent)
 
@@ -376,9 +379,13 @@ func _buy(id: StringName) -> void:
 ## back to the menu with that mode selected, so the choice is one gesture in
 ## and one gesture out.
 ## The name shown under the title, so the menu always says what the run key
-## will launch.
-func set_mode_name(mode: String) -> void:
+## will launch. Today's map takes the warning colour it wears everywhere else,
+## so the mode is recognisable before the word is read.
+func set_mode_name(mode: String, daily: bool = false) -> void:
+	_mode_is_daily = daily
 	%ModeLabel.text = mode
+	%ModeLabel.add_theme_color_override("font_color",
+		Color(Skins.current().warn if daily else Skins.current().accent, 0.9))
 
 
 func _open_modes() -> void:
