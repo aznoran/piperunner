@@ -117,9 +117,9 @@ extends Resource
 @export_group("Continue")
 ## A death is worth offering a continue on when it lands near the record, near
 ## a station's goal, or after a long run.
-@export var continue_record_ratio: float = 0.80
+@export var continue_record_ratio: float = 0.65
 @export var continue_goal_ratio: float = 0.70
-@export var continue_min_distance: int = 25
+@export var continue_min_distance: int = 18
 ## Seconds between offers, and the first run that may see one.
 @export var continue_cooldown: float = 240.0
 @export var continue_first_run: int = 3

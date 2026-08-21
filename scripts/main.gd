@@ -46,6 +46,7 @@ var _magnet_reach: int = 0
 @onready var _menu: MainMenu = $MainMenu
 @onready var _input: InputHandler = $InputHandler
 @onready var _start_hint: Label = %StartHint
+@onready var _praise_slot: Control = %PraiseSlot
 @onready var _praise_label: Label = %PraiseLabel
 @onready var _background: TextureRect = $Background/Gradient
 @onready var _decor: MenuDecor = $World/Decor
@@ -535,21 +536,25 @@ func _praise_for(kind: Praise.Kind, combo_value: int = 0) -> void:
 		return
 
 	_praise_label.text = text
-	_praise_label.visible = true
-	_praise_label.modulate = Color(Skins.current().accent, 1.0)
+	# The label lives inside a slot so the rise can move it without fighting the
+	# anchors that place it — animating an anchored control's position drags it
+	# to the top of the screen, which is where this went the first time.
+	_praise_slot.visible = true
+	_praise_slot.modulate = Color(Skins.current().accent, 1.0)
 	if kind == Praise.Kind.RECORD:
-		_praise_label.modulate = Color(Skins.current().warn, 1.0)
+		_praise_slot.modulate = Color(Skins.current().warn, 1.0)
+	_praise_label.pivot_offset = _praise_label.size * 0.5
 	_praise_label.scale = Vector2(0.7, 0.7)
-	_praise_label.position.y = 0.0
+	_praise_label.position = Vector2.ZERO
 
 	var tween := create_tween()
 	tween.tween_property(_praise_label, "scale", Vector2.ONE, 0.16) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_interval(0.45)
 	tween.set_parallel(true)
-	tween.tween_property(_praise_label, "modulate:a", 0.0, 0.35)
-	tween.tween_property(_praise_label, "position:y", -46.0, 0.35)
-	tween.chain().tween_callback(func() -> void: _praise_label.visible = false)
+	tween.tween_property(_praise_slot, "modulate:a", 0.0, 0.35)
+	tween.tween_property(_praise_label, "position:y", -44.0, 0.35)
+	tween.chain().tween_callback(func() -> void: _praise_slot.visible = false)
 
 
 ## The side the cart will arrive from at the joint it still has to reach, or
