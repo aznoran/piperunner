@@ -71,6 +71,8 @@ var speed: float = 0.0
 var started: bool = false
 ## True while playing today's fixed-seed challenge (spec section 11, P1).
 var daily_mode: bool = false
+## The mode the run key will launch, picked in the modes carousel.
+var selected_daily: bool = false
 
 var _cell_size: float = 100.0
 var _camera_frozen: bool = false
@@ -110,8 +112,8 @@ func _ready() -> void:
 	_menu.cart_chosen.connect(func(variant: int) -> void:
 		_cart.variant = variant
 		_cart.queue_redraw())
-	_menu.start_pressed.connect(start_run.bind(false))
-	_menu.daily_pressed.connect(start_run.bind(true))
+	_menu.start_pressed.connect(func() -> void: start_run(selected_daily))
+	_menu.mode_chosen.connect(_select_mode)
 	_overlay.retry_pressed.connect(func() -> void: start_run(daily_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
 	GameState.best_changed.connect(_hud.set_best)
@@ -193,6 +195,18 @@ func _curtain_to_menu() -> void:
 	tween.tween_callback(func() -> void: _show_menu())
 	tween.tween_property(_curtain, "color:a", 0.0, CURTAIN_IN) \
 		.set_trans(Tween.TRANS_SINE)
+
+
+## A mode is chosen in the menu and launched by the run key, rather than each
+## mode carrying its own button — that keeps one obvious way to start.
+func _select_mode(daily: bool) -> void:
+	selected_daily = daily
+	_menu.set_mode_name("TODAY" if daily else "CLASSIC")
+	# A daily is a different map, so lay it out now: the menu is showing the
+	# board the next run will be played on.
+	daily_mode = daily
+	_prepare_board(true)
+	_snap_camera()
 
 
 func _set_camera_anchor(value: float) -> void:
@@ -322,15 +336,12 @@ func start_run(daily: bool = false) -> void:
 	_camera_frozen = false
 	_death_pause = 0.0
 
-	if daily:
-		# A daily is a different map, so it has to be laid out now; the banner
-		# covers the swap.
-		_prepare_board(true)
-	else:
-		_reset_cart()
-		# The board came from the menu, so the queue was built before this
-		# run's balance sheet existed; a preview upgrade has to be applied now.
-		_queue.resize(balance.queue_preview)
+	# The board on screen is already the one for this mode; just put the cart
+	# back on it.
+	_reset_cart()
+	# The board came from the menu, so the queue was built before this run's
+	# balance sheet existed; a preview upgrade has to be applied now.
+	_queue.resize(balance.queue_preview)
 	_queue_bar.visible = true
 	_hud.visible = true
 	_queue_bar.set_contents(_queue.upcoming, _queue.held)

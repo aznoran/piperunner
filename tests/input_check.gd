@@ -45,74 +45,90 @@ func _process(_delta: float) -> bool:
 			_ok(menu.get_node("%SettingsPanel").visible, "SETTINGS opens settings")
 			_click(menu.get_node("%CloseSettings"))
 		5:
-			_click(menu.get_node("%DailyButton"))
+			_click(menu.get_node("%ModesButton"))
 		6:
-			_ok(main.state == 1, "DAILY starts a run")
-			_ok(main.daily_mode, "...and it is the daily one")
+			_ok(menu.get_node("%ModesPanel").visible, "MODES opens the carousel")
+			# Second card is today's map.
+			var cards: Node = menu.get_node("%Cards")
+			_ok(cards.get_child_count() == 2, "both modes are offered")
+			_click(cards.get_child(1))
+		7:
+			_ok(not menu.get_node("%ModesPanel").visible,
+				"picking a mode drops back to the menu")
+			_ok(main.selected_daily, "and today's map is the one selected")
+			_click(menu.get_node("%StartButton"))
+		8:
+			_ok(main.state == 1, "the run key launches the chosen mode")
+			_ok(main.daily_mode, "...as the daily")
 			_eq(main._board.rng.seed, root.get_node("GameState").daily_seed(),
 				"...seeded from today's date")
 			main._show_menu()
-		7:
+			menu.get_node("%ModesButton").pressed.emit()
+		9:
+			_click(menu.get_node("%Cards").get_child(0))
+		10:
+			_ok(not main.selected_daily, "classic can be chosen back")
+		11:
 			_click(menu.get_node("%StartButton"))
-		8:
+		12:
 			_ok(main.state == 1, "START starts a run")
 			_ok(not main.daily_mode, "...and it is a normal one")
 			# Back out again, then check the menu still takes input — a layer
 			# left over from the run would swallow every tap silently.
 			_click(main._hud.get_node("%BackButton"))
-		9:
+		13:
 			_ok(main.state == 0, "the back key returns to the menu")
-		10:
+		14:
 			_click(menu.get_node("%UpgradesButton"))
-		11:
+		15:
 			_ok(menu.get_node("%UpgradesPanel").visible,
 				"menu buttons still respond after returning from a run")
 			_click(menu.get_node("%CloseUpgrades"))
-		12:
+		16:
 			_click(menu.get_node("%StartButton"))
-		13:
+		17:
 			_ok(main.state == 1, "and a run can be started again")
 			# Play it out: commit a pipe, crash, then leave through the
 			# game-over card — the path a real player takes every run.
 			main._try_place(Vector2i(3, 4))
 			main._die("Derailed")
-		14:
+		18:
 			main._death_pause = 0.0
 			main._overlay.show_game_over("Derailed", 12, 4, false, false)
-		15:
+		19:
 			_click(main._overlay.get_node("%MenuButton"))
-		16:
+		20:
 			_ok(main.state == 0, "the game-over card returns to the menu")
-		17:
+		21:
 			_click(menu.get_node("%SettingsButton"))
-		18:
+		22:
 			_ok(menu.get_node("%SettingsPanel").visible,
 				"the menu still responds after a finished run")
 			_click(menu.get_node("%CloseSettings"))
-		19:
+		23:
 			# Second lap, entirely through real clicks: retry from the card,
 			# crash again, then back to the menu.
 			_click(menu.get_node("%StartButton"))
-		20:
+		24:
 			main._try_place(Vector2i(3, 4))
 			main._die("Derailed")
-		21:
+		25:
 			main._death_pause = 0.0
 			main._overlay.show_game_over("Derailed", 7, 3, false, false)
-		22:
+		26:
 			_click(main._overlay.get_node("%RetryButton"))
-		23:
+		27:
 			_ok(main.state == 1, "retry starts another run")
 			main._try_place(Vector2i(3, 4))
 			main._die("Derailed")
-		24:
+		28:
 			main._death_pause = 0.0
 			main._overlay.show_game_over("Derailed", 9, 3, false, false)
-		25:
+		29:
 			_click(main._overlay.get_node("%MenuButton"))
-		26:
+		30:
 			_click(menu.get_node("%UpgradesButton"))
-		27:
+		31:
 			_ok(menu.get_node("%UpgradesPanel").visible,
 				"the menu still responds after two runs and a retry")
 			print("--- %d checks, %d failed ---" % [checks, failures])

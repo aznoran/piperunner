@@ -9,8 +9,9 @@ signal start_pressed
 signal location_chosen(skin: LocationSkin)
 ## Emitted when the player picks a different cart look.
 signal cart_chosen(variant: int)
-## Today's fixed-seed challenge (spec section 11, P1).
-signal daily_pressed
+## Emitted when a mode is picked in the carousel. True for today's fixed map.
+signal mode_chosen(daily: bool)
+
 
 ## Style for the buy buttons, built once rather than per row.
 const BUY_RADIUS := 20
@@ -29,6 +30,7 @@ const FADE_TIME := 0.24
 @onready var _settings_panel: Control = %SettingsPanel
 @onready var _upgrades_panel: Control = %UpgradesPanel
 @onready var _quests_panel: Control = %QuestsPanel
+@onready var _modes_panel: Control = %ModesPanel
 @onready var _quest_rows: VBoxContainer = %QuestRows
 @onready var _shop_rows: VBoxContainer = %ShopRows
 @onready var _wallet: Label = %Wallet
@@ -44,10 +46,11 @@ var _fade_tween: Tween
 
 func _ready() -> void:
 	%StartButton.pressed.connect(func() -> void: start_pressed.emit())
-	%DailyButton.pressed.connect(func() -> void: daily_pressed.emit())
 	%UpgradesButton.pressed.connect(_toggle.bind(_upgrades_panel))
 	%SettingsButton.pressed.connect(_toggle.bind(_settings_panel))
 	%QuestsButton.pressed.connect(_toggle.bind(_quests_panel))
+	%ModesButton.pressed.connect(_open_modes)
+	%CloseModes.pressed.connect(_close_panels)
 	%CloseQuests.pressed.connect(_close_panels)
 	%HowToButton.pressed.connect(_toggle.bind(_how_panel))
 	%LocationButton.pressed.connect(_cycle_location)
@@ -134,12 +137,15 @@ func paint(skin: LocationSkin) -> void:
 
 	_paint_key(%StartButton, skin, skin.accent, true)
 	_paint_key(%UpgradesButton, skin, skin.accent, false)
-	_paint_key(%DailyButton, skin, skin.warn, false)
+	_paint_key(%ModesButton, skin, skin.warn, false)
 	_paint_key(%QuestsButton, skin, skin.accent, false)
 	_paint_key(%SettingsButton, skin, skin.pipe_core, false)
 	%ModeLabel.add_theme_color_override("font_color", Color(skin.accent, 0.85))
+	(_modes_panel.get_node("Heading") as Label).add_theme_color_override(
+		"font_color", skin.accent)
 
 	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
+			"%CloseModes",
 			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton"]:
 		var button: Button = get_node_or_null(path)
 		if button != null:
@@ -241,14 +247,24 @@ func _toggle(panel: Control) -> void:
 
 
 func _close_panels() -> void:
+	_set_menu_chrome(true)
 	_how_panel.visible = false
 	_settings_panel.visible = false
 	_upgrades_panel.visible = false
 	_quests_panel.visible = false
+	_modes_panel.visible = false
+
+
+## Title, mode name and the bar — everything the mode picker replaces.
+func _set_menu_chrome(shown: bool) -> void:
+	for path in ["Title", "ModeLabel", "Bar"]:
+		var node: CanvasItem = get_node_or_null(path)
+		if node != null:
+			node.visible = shown
 
 
 func _refresh() -> void:
-	_set_badge(%DailyButton, 1 if GameState.daily_result() <= 0 else 0)
+	_set_badge(%ModesButton, 1 if GameState.daily_result() <= 0 else 0)
 	%LocationButton.text = "Location: %s" % Skins.current().display_name
 	var carts := Skins.current().cart_variant_count()
 	%CartButton.text = ("Cart: %d of %d" % [GameState.cart_variant % carts + 1, carts]
@@ -352,6 +368,103 @@ func _buy(id: StringName) -> void:
 	if Upgrades.buy(id, GameState):
 		GameState.vibrate(20)
 	_refresh_shop()
+
+
+# --- modes --------------------------------------------------------------
+
+## Darkens the screen and shows the mode cards. Picking one drops straight
+## back to the menu with that mode selected, so the choice is one gesture in
+## and one gesture out.
+## The name shown under the title, so the menu always says what the run key
+## will launch.
+func set_mode_name(mode: String) -> void:
+	%ModeLabel.text = mode
+
+
+func _open_modes() -> void:
+	_close_panels()
+	_build_modes()
+	_modes_panel.visible = true
+	# The picker is its own screen, not an overlay on the menu: the title and
+	# the bar go away rather than glowing through the shade.
+	_set_menu_chrome(false)
+
+
+func _build_modes() -> void:
+	var cards: HBoxContainer = %Cards
+	for child in cards.get_children():
+		child.queue_free()
+
+	var today: int = GameState.daily_result()
+	_add_mode_card(cards, "CLASSIC", false, Skins.current().accent,
+		"Endless. One life, one board, as far as you can take it.",
+		"FURTHEST", str(GameState.best_distance))
+	_add_mode_card(cards, "TODAY", true, Skins.current().warn,
+		"One map, the same for everyone. New one at midnight.",
+		"YOUR BEST", str(today) if today > 0 else "—")
+
+
+func _add_mode_card(into: HBoxContainer, title: String, daily: bool,
+		tint: Color, blurb: String, stat_name: String, stat: String) -> void:
+	var skin := Skins.current()
+	var card := Button.new()
+	card.custom_minimum_size = Vector2(292, 316)
+	# Otherwise the scroll container stretches them to its full height.
+	card.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	card.pressed.connect(_pick_mode.bind(daily))
+
+	for state in ["normal", "hover", "pressed"]:
+		var box := StyleBoxFlat.new()
+		box.bg_color = skin.bg_top.lightened(0.14).lerp(tint, 0.1)
+		box.border_color = Color(tint, 0.55)
+		box.set_border_width_all(2)
+		box.set_corner_radius_all(22)
+		box.border_width_bottom = 7
+		card.add_theme_stylebox_override(state, box)
+	into.add_child(card)
+
+	var column := VBoxContainer.new()
+	column.set_anchors_preset(Control.PRESET_FULL_RECT)
+	column.offset_left = 24.0
+	column.offset_right = -24.0
+	column.offset_top = 28.0
+	column.offset_bottom = -28.0
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_theme_constant_override("separation", 12)
+	card.add_child(column)
+
+	var heading := Label.new()
+	heading.text = title
+	heading.add_theme_font_size_override("font_size", 30)
+	heading.add_theme_color_override("font_color", tint)
+	column.add_child(heading)
+
+	var text := Label.new()
+	text.text = blurb
+	text.add_theme_font_size_override("font_size", 17)
+	text.modulate.a = 0.66
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(text)
+
+	var caption := Label.new()
+	caption.text = stat_name
+	caption.add_theme_font_size_override("font_size", 14)
+	caption.modulate.a = 0.45
+	column.add_child(caption)
+
+	var value := Label.new()
+	value.text = stat
+	value.add_theme_font_size_override("font_size", 36)
+	value.add_theme_color_override("font_color", tint)
+	column.add_child(value)
+
+
+func _pick_mode(daily: bool) -> void:
+	mode_chosen.emit(daily)
+	GameState.vibrate(20)
+	_close_panels()
+	_refresh()
 
 
 # --- daily goals --------------------------------------------------------

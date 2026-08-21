@@ -3,7 +3,7 @@
 class_name TabIcon
 extends Control
 
-enum Kind { DEPOT, TODAY, PLAY, GOALS, SETUP, PAUSE, BACK }
+enum Kind { DEPOT, TODAY, PLAY, GOALS, SETUP, PAUSE, BACK, MODES }
 
 @export var kind: Kind = Kind.PLAY
 
@@ -33,6 +33,8 @@ func _draw() -> void:
 			_draw_pause(unit, centre)
 		Kind.BACK:
 			_draw_back(unit, stroke, centre)
+		Kind.MODES:
+			_draw_modes(unit, stroke, centre)
 
 
 ## Sliders — the shorthand for "adjust your loadout" that a player already
@@ -87,6 +89,16 @@ func _draw_pause(unit: float, centre: Vector2) -> void:
 	for side in [-1.0, 1.0]:
 		draw_rect(Rect2(centre.x + side * unit * 0.19 - bar * 0.5, centre.y - high * 0.5,
 			bar, high), color)
+
+
+## Cards in a row: the shape of a mode picker.
+func _draw_modes(unit: float, stroke: float, centre: Vector2) -> void:
+	var card := Vector2(unit * 0.26, unit * 0.56)
+	for offset in [-1.0, 0.0, 1.0]:
+		var height: float = card.y * (0.74 if absf(offset) > 0.5 else 1.0)
+		var origin := Vector2(centre.x + offset * unit * 0.33 - card.x * 0.5,
+			centre.y - height * 0.5)
+		draw_rect(Rect2(origin, Vector2(card.x, height)), color, false, stroke)
 
 
 func _draw_back(unit: float, stroke: float, centre: Vector2) -> void:

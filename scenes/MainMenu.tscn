@@ -173,17 +173,17 @@ theme_override_font_sizes/font_size = 17
 text = "DEPOT"
 horizontal_alignment = 1
 
-[node name="TodayTab" type="VBoxContainer" parent="Bar/Tabs"]
+[node name="ModesTab" type="VBoxContainer" parent="Bar/Tabs"]
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_constants/separation = 9
 
-[node name="DailyButton" type="Button" parent="Bar/Tabs/TodayTab"]
+[node name="ModesButton" type="Button" parent="Bar/Tabs/ModesTab"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 
-[node name="Icon" type="Control" parent="Bar/Tabs/TodayTab/DailyButton"]
+[node name="Icon" type="Control" parent="Bar/Tabs/ModesTab/ModesButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -196,9 +196,9 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("2_icon")
-kind = 1
+kind = 7
 
-[node name="Badge" type="Label" parent="Bar/Tabs/TodayTab/DailyButton"]
+[node name="Badge" type="Label" parent="Bar/Tabs/ModesTab/ModesButton"]
 visible = false
 layout_mode = 1
 anchors_preset = 1
@@ -215,10 +215,10 @@ text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Caption" type="Label" parent="Bar/Tabs/TodayTab"]
+[node name="Caption" type="Label" parent="Bar/Tabs/ModesTab"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 17
-text = "TODAY"
+text = "MODES"
 horizontal_alignment = 1
 
 [node name="GoalsTab" type="VBoxContainer" parent="Bar/Tabs"]
@@ -536,3 +536,70 @@ theme_override_styles/normal = SubResource("Ghost_normal")
 theme_override_styles/hover = SubResource("Ghost_normal")
 theme_override_styles/pressed = SubResource("Ghost_normal")
 text = "Close"
+
+[node name="ModesPanel" type="Control" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Shade" type="ColorRect" parent="ModesPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.015686, 0.023529, 0.043137, 0.97)
+
+[node name="Heading" type="Label" parent="ModesPanel"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 150.0
+offset_bottom = 210.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 34
+text = "CHOOSE A MODE"
+horizontal_alignment = 1
+
+[node name="Carousel" type="ScrollContainer" parent="ModesPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_top = -180.0
+offset_bottom = 180.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 3
+vertical_scroll_mode = 0
+
+[node name="Cards" type="HBoxContainer" parent="ModesPanel/Carousel"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+alignment = 1
+theme_override_constants/separation = 22
+
+[node name="CloseModes" type="Button" parent="ModesPanel"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -110.0
+offset_top = -170.0
+offset_right = 110.0
+offset_bottom = -100.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 19
+text = "Back"
