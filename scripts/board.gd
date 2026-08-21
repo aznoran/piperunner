@@ -26,6 +26,7 @@ class PipeCell:
 @onready var _terrain: Node2D = $Terrain
 @onready var _live: Node2D = $Live
 
+var _skin: LocationSkin
 var balance: GameBalance
 var rng := RandomNumberGenerator.new()
 
@@ -78,7 +79,14 @@ var _time: float = 0.0
 
 
 func _ready() -> void:
+	set_skin(Skins.current())
+
+
+## Repaints with a new location skin.
+func set_skin(skin: LocationSkin) -> void:
+	_skin = skin
 	_build_styleboxes()
+	_terrain_dirty = true
 
 
 func setup(game_balance: GameBalance) -> void:
@@ -317,12 +325,12 @@ func _build_styleboxes() -> void:
 
 	_grid_box.bg_color = Color.TRANSPARENT
 	_grid_box.set_border_width_all(maxi(1, int(cell_size * 0.015)))
-	_grid_box.border_color = Palette.GRID
+	_grid_box.border_color = _skin.grid
 	_grid_box.set_corner_radius_all(radius)
 
-	_rock_box.bg_color = Palette.ROCK_FILL
+	_rock_box.bg_color = _skin.rock_fill
 	_rock_box.set_border_width_all(maxi(1, int(cell_size * 0.03)))
-	_rock_box.border_color = Palette.ROCK_EDGE
+	_rock_box.border_color = _skin.rock_edge
 	_rock_box.set_corner_radius_all(radius)
 
 	_ghost_box.bg_color = Color.TRANSPARENT
@@ -386,8 +394,8 @@ func draw_live(ci: CanvasItem) -> void:
 ## joint stand in for the canvas round line cap.
 func _draw_pipe(ci: CanvasItem, centre: Vector2, type: int, flooded: bool, alpha: float) -> void:
 	var sides: Array = PipeDefs.SIDES[type]
-	var shell: Color = Palette.PIPE_SHELL_FLOODED if flooded else Palette.PIPE_SHELL
-	var core: Color = Palette.PIPE_CORE_FLOODED if flooded else Palette.PIPE_CORE
+	var shell: Color = _skin.pipe_shell_used if flooded else _skin.pipe_shell
+	var core: Color = _skin.pipe_core_used if flooded else _skin.pipe_core
 	shell.a *= alpha
 	core.a *= alpha
 
@@ -413,7 +421,7 @@ func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:
 	var pulse := 1.0 + 0.12 * sin(_time * 4.5 + cell.x)
 
 	# Shaft of light rising out of the crystal, so it reads from a screen away.
-	var beam := Palette.CRYSTAL
+	var beam := _skin.pickup
 	beam.a = 0.07
 	var beam_height := cell_size * 6.0
 	ci.draw_rect(Rect2(centre.x - cell_size * 0.07, centre.y - beam_height,
@@ -421,21 +429,21 @@ func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:
 
 	var half := cell_size * 0.17 * pulse
 	var core_half := cell_size * 0.07 * pulse
-	var glow := Palette.CRYSTAL
+	var glow := _skin.pickup
 	glow.a = 0.28
 
 	# Diamond = a square turned 45 degrees.
 	ci.draw_set_transform(centre, PI * 0.25, Vector2.ONE)
 	ci.draw_rect(Rect2(-half * 1.5, -half * 1.5, half * 3.0, half * 3.0), glow)
-	ci.draw_rect(Rect2(-half, -half, half * 2.0, half * 2.0), Palette.CRYSTAL)
+	ci.draw_rect(Rect2(-half, -half, half * 2.0, half * 2.0), _skin.pickup)
 	ci.draw_rect(Rect2(-core_half, -core_half, core_half * 2.0, core_half * 2.0),
-		Palette.CRYSTAL_CORE)
+		_skin.pickup_core)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_ghost(ci: CanvasItem) -> void:
 	var ok := can_place(_ghost_cell)
-	var tint: Color = Palette.GHOST_OK if ok else Palette.GHOST_BAD
+	var tint: Color = _skin.ghost_ok if ok else _skin.ghost_bad
 	var rect := _cell_rect(_ghost_cell, 0.92)
 
 	var fill := tint
@@ -447,7 +455,7 @@ func _draw_ghost(ci: CanvasItem) -> void:
 	if not ok:
 		return
 	var centre := cell_to_world(_ghost_cell)
-	var silhouette: Color = Palette.GHOST_PIPE
+	var silhouette: Color = _skin.ghost_pipe
 	silhouette.a = 0.85
 	for side: int in PipeDefs.SIDES[_ghost_type]:
 		var step: Vector2i = PipeDefs.DIR[side]
@@ -459,7 +467,7 @@ func _draw_ghost(ci: CanvasItem) -> void:
 ## will arrive from. Teal when the piece in hand fits there.
 func _draw_frontier(ci: CanvasItem) -> void:
 	var centre := cell_to_world(_frontier_cell)
-	var tint: Color = Palette.GHOST_OK if _frontier_fits else Color.WHITE
+	var tint: Color = _skin.ghost_ok if _frontier_fits else Color.WHITE
 	tint.a = 0.55 + 0.35 * sin(_time * 7.0)
 
 	_ghost_box.border_color = tint

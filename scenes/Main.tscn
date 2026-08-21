@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Resource" path="res://resources/GameBalance.tres" id="2_balance"]
@@ -11,16 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/GameOver.tscn" id="9_over"]
 [ext_resource type="Script" path="res://scripts/input_handler.gd" id="10_input"]
 [ext_resource type="PackedScene" path="res://scenes/MainMenu.tscn" id="11_menu"]
-
-[sub_resource type="Gradient" id="Grad_bg"]
-offsets = PackedFloat32Array(0, 0.55, 1)
-colors = PackedColorArray(0.066667, 0.109804, 0.180392, 1, 0.043137, 0.070588, 0.12549, 1, 0.027451, 0.039216, 0.070588, 1)
-
-[sub_resource type="GradientTexture2D" id="GradTex_bg"]
-gradient = SubResource("Grad_bg")
-width = 4
-height = 1024
-fill_to = Vector2(0, 1)
+[ext_resource type="Script" path="res://scripts/background.gd" id="12_bg"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -36,9 +27,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture = SubResource("GradTex_bg")
 expand_mode = 1
 stretch_mode = 0
+script = ExtResource("12_bg")
 
 [node name="World" type="Node2D" parent="."]
 

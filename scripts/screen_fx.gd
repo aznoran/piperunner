@@ -10,6 +10,7 @@ const FLASH_TIME := 0.2
 @onready var _danger: ColorRect = $Danger
 
 ## Set by Main: fuel below a quarter of a tank.
+var _skin: LocationSkin
 var low_fuel: bool = false
 ## Set by Main: one cell of built track left, or none.
 var danger: bool = false
@@ -19,9 +20,18 @@ var _time: float = 0.0
 
 
 func _ready() -> void:
-	_flash.color = Color(Palette.TEAL, 0.0)
-	_low_fuel.color = Color(Palette.RED, 0.0)
-	_danger.color = Color(Palette.RED, 0.0)
+	set_skin(Skins.current())
+	_flash.color = Color(_skin.accent, 0.0)
+	_low_fuel.color = Color(_skin.danger, 0.0)
+	_danger.color = Color(_skin.danger, 0.0)
+
+
+## Repaints with a new location skin.
+func set_skin(skin: LocationSkin) -> void:
+	_skin = skin
+	_flash.color = Color(_skin.accent, _flash.color.a)
+	_low_fuel.color = Color(_skin.danger, _low_fuel.color.a)
+	_danger.color = Color(_skin.danger, _danger.color.a)
 
 
 func flash() -> void:

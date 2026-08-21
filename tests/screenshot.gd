@@ -26,10 +26,7 @@ func _initialize() -> void:
 	out_dir = OS.get_environment("SHOT_DIR")
 	if out_dir.is_empty():
 		out_dir = "/tmp"
-	if not root.has_node("GameState"):
-		var state: Node = load("res://scripts/game_state.gd").new()
-		state.name = "GameState"
-		root.add_child(state)
+	_stand_up_autoloads()
 	main = load("res://scenes/Main.tscn").instantiate()
 	root.add_child(main)
 	RenderingServer.frame_post_draw.connect(_on_post_draw)
@@ -93,3 +90,13 @@ func _bot_step() -> void:
 				main._try_place(spot)
 				cooldown = ACT_INTERVAL
 				return
+
+
+## --script skips project autoloads, so stand them up by hand.
+func _stand_up_autoloads() -> void:
+	for entry in [["GameState", "res://scripts/game_state.gd"]]:
+		if root.has_node(entry[0]):
+			continue
+		var node: Node = load(entry[1]).new()
+		node.name = entry[0]
+		root.add_child(node)

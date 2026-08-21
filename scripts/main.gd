@@ -23,6 +23,7 @@ const SHAKE_REFERENCE_CELL := 68.0
 @onready var _menu: MainMenu = $MainMenu
 @onready var _input: InputHandler = $InputHandler
 @onready var _start_hint: Label = %StartHint
+@onready var _background: TextureRect = $Background/Gradient
 
 var state: State = State.MENU
 
@@ -76,6 +77,20 @@ func _ready() -> void:
 	_hud.set_score(0)
 	_hud.set_fuel(1.0)
 	_show_menu()
+
+
+## Switches the location's look. Rules, generation and events are untouched —
+## a skin is purely visual, so any location plays identically.
+func apply_skin(skin: LocationSkin) -> void:
+	if skin == null:
+		return
+	Skins.set_current(skin)
+	_background.set_skin(skin)
+	_board.set_skin(skin)
+	_cart.set_skin(skin)
+	_queue_bar.set_skin(skin)
+	_hud.set_skin(skin)
+	_screen_fx.set_skin(skin)
 
 
 ## Cell size follows viewport width: the board is always exactly 7 columns wide
@@ -261,7 +276,7 @@ func _on_hold_tapped() -> void:
 	_queue.swap_hold()
 	_queue_bar.set_contents(_queue.upcoming, _queue.held)
 	_fx.burst(_screen_to_world(_queue_bar.hold_rect.get_center()),
-		Palette.AMBER, 10, _cell_size * 4.0)
+		Skins.current().warn, 10, _cell_size * 4.0)
 	GameState.vibrate(balance.haptics_place_ms)
 
 
@@ -299,7 +314,7 @@ func _try_place(cell: Vector2i) -> void:
 	if _board.get_pipe(cell) != null:
 		fuel -= balance.fuel_replace
 		_fx.floater(_board.cell_to_world(cell), "-%d" % int(balance.fuel_replace),
-			Palette.RED)
+			Skins.current().danger)
 		_hud.set_fuel(fuel / balance.fuel_max)
 		if fuel <= 0.0:
 			fuel = 0.0
@@ -338,8 +353,8 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 		score += points
 
 		var at := _board.cell_to_world(cell)
-		_fx.burst(at, Palette.TEAL, 20, _cell_size * 6.0)
-		_fx.floater(at, "+%d" % points, Palette.TEAL)
+		_fx.burst(at, Skins.current().accent, 20, _cell_size * 6.0)
+		_fx.floater(at, "+%d" % points, Skins.current().accent)
 		_screen_fx.flash()
 		_hud.set_combo(combo)
 		GameState.vibrate(balance.haptics_crystal_ms)
@@ -390,7 +405,7 @@ func _die(reason: String) -> void:
 	_start_hint.visible = false
 
 	_shake = 16.0 * (_cell_size / SHAKE_REFERENCE_CELL)
-	_fx.burst(_cart.position, Palette.RED, 28, _cell_size * 8.0)
+	_fx.burst(_cart.position, Skins.current().danger, 28, _cell_size * 8.0)
 	GameState.vibrate(balance.haptics_crystal_ms)
 	GameState.bank_crystals(crystals_collected)
 

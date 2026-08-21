@@ -23,10 +23,7 @@ var logic_us: Array[float] = []
 
 
 func _initialize() -> void:
-	if not root.has_node("GameState"):
-		var state: Node = load("res://scripts/game_state.gd").new()
-		state.name = "GameState"
-		root.add_child(state)
+	_stand_up_autoloads()
 	main = load("res://scenes/Main.tscn").instantiate()
 	root.add_child(main)
 
@@ -110,3 +107,13 @@ func _report() -> void:
 	var pass_draw: bool = draw_calls < DRAW_CALL_CEILING
 	print("verdict         : %s" % ("PASS" if pass_logic and pass_draw else "FAIL"))
 	print("note            : confirm the actual frame rate on a real Android device")
+
+
+## --script skips project autoloads, so stand them up by hand.
+func _stand_up_autoloads() -> void:
+	for entry in [["GameState", "res://scripts/game_state.gd"]]:
+		if root.has_node(entry[0]):
+			continue
+		var node: Node = load(entry[1]).new()
+		node.name = entry[0]
+		root.add_child(node)

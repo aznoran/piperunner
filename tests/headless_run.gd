@@ -23,10 +23,7 @@ var deaths: Dictionary = {}
 
 func _initialize() -> void:
 	# --script skips project autoloads, so stand GameState up by hand.
-	if not root.has_node("GameState"):
-		var state: Node = load("res://scripts/game_state.gd").new()
-		state.name = "GameState"
-		root.add_child(state)
+	_stand_up_autoloads()
 	main = load("res://scenes/Main.tscn").instantiate()
 	root.add_child(main)
 
@@ -126,3 +123,13 @@ func _summary() -> void:
 	for reason: String in deaths:
 		print("  %-13s x%d" % [reason, deaths[reason]])
 	print("  best saved   : %d" % root.get_node("GameState").best)
+
+
+## --script skips project autoloads, so stand them up by hand.
+func _stand_up_autoloads() -> void:
+	for entry in [["GameState", "res://scripts/game_state.gd"]]:
+		if root.has_node(entry[0]):
+			continue
+		var node: Node = load(entry[1]).new()
+		node.name = entry[0]
+		root.add_child(node)

@@ -12,6 +12,7 @@ signal derailed(reason: String)
 const REASON_DERAILED := "Derailed"
 const REASON_OFF_EDGE := "Off the edge"
 
+var _skin: LocationSkin
 var board: Board
 
 var col: int = 0
@@ -31,15 +32,21 @@ var _cell_size: float = 100.0
 
 
 func _ready() -> void:
+	set_skin(Skins.current())
+
+
+## Repaints with a new location skin.
+func set_skin(skin: LocationSkin) -> void:
+	_skin = skin
 	set_cell_size(_cell_size)
 
 
 func set_cell_size(size: float) -> void:
 	_cell_size = size
 	var unit := size * 0.26
-	_stylebox_body.bg_color = Palette.CART_BODY
+	_stylebox_body.bg_color = _skin.cart_body
 	_stylebox_body.set_corner_radius_all(maxi(2, int(unit * 0.2)))
-	_stylebox_window.bg_color = Palette.CART_WINDOW
+	_stylebox_window.bg_color = _skin.cart_window
 	_stylebox_window.set_corner_radius_all(maxi(1, int(unit * 0.12)))
 	queue_redraw()
 
@@ -163,7 +170,7 @@ func visual_row() -> float:
 func _draw() -> void:
 	var unit := _cell_size * 0.26
 	# Stand-in for the prototype's shadowBlur: a few fading rings.
-	var glow: Color = Palette.RED if low_fuel else Palette.TEAL
+	var glow: Color = _skin.danger if low_fuel else _skin.accent
 	for ring in range(4, 0, -1):
 		glow.a = 0.05 * (5 - ring)
 		draw_circle(Vector2.ZERO, unit * (0.7 + 0.3 * ring), glow)

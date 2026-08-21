@@ -1,8 +1,8 @@
 ## The bottom strip: HOLD pocket on the left, the piece in hand in the middle,
 ## and the next three behind it. Spec section 09.
 ##
-## Each shape carries its own colour (Palette.PIPE_TYPE) so the piece in hand
-## is recognisable without reading its outline.
+## Each shape carries its own colour (LocationSkin.shape_colors) so the piece
+## in hand is recognisable without reading its outline.
 class_name QueueBar
 extends Control
 
@@ -19,6 +19,7 @@ var hold_rect := Rect2()
 ## Screen y where the strip begins; touches below it are not board taps.
 var strip_top: float = 0.0
 
+var _skin: LocationSkin
 var _upcoming: Array[int] = []
 var _held: int = PipeQueue.NONE
 var _slot: float = 60.0
@@ -31,7 +32,14 @@ var _empty_box := StyleBoxFlat.new()
 
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
+	set_skin(Skins.current())
 	get_viewport().size_changed.connect(_relayout)
+	_relayout()
+
+
+## Repaints with a new location skin.
+func set_skin(skin: LocationSkin) -> void:
+	_skin = skin
 	_relayout()
 
 
@@ -57,13 +65,13 @@ func _relayout() -> void:
 
 	_label_size = maxi(11, int(_slot * 0.19))
 	var radius := int(_slot * 0.16)
-	_slot_box.bg_color = Palette.SLOT_FILL
+	_slot_box.bg_color = _skin.slot_fill
 	_slot_box.set_corner_radius_all(radius)
 	_slot_box.set_border_width_all(maxi(2, int(_slot * 0.04)))
 	_empty_box.bg_color = Color.TRANSPARENT
 	_empty_box.set_corner_radius_all(radius)
 	_empty_box.set_border_width_all(maxi(2, int(_slot * 0.04)))
-	_empty_box.border_color = Color(Palette.AMBER, 0.5)
+	_empty_box.border_color = Color(_skin.warn, 0.5)
 
 	strip_top = position.y
 	hold_rect = Rect2(position + _hold_centre() - Vector2(_slot, _slot) * 0.5,
@@ -92,7 +100,7 @@ func _draw() -> void:
 	else:
 		_draw_slot(hold_centre, _slot, _held, false)
 	_draw_label("HOLD", hold_centre - Vector2(0.0, _slot * 0.62),
-		Color(Palette.AMBER, 0.7))
+		Color(_skin.warn, 0.7))
 
 	if _upcoming.is_empty():
 		return
@@ -112,7 +120,7 @@ func _draw() -> void:
 
 
 func _draw_slot(centre: Vector2, slot_size: float, type: int, dim: bool) -> void:
-	var tint: Color = Palette.PIPE_TYPE[type]
+	var tint: Color = _skin.shape_color(type)
 	var rect := Rect2(centre - Vector2(slot_size, slot_size) * 0.5,
 		Vector2(slot_size, slot_size))
 
