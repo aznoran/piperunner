@@ -11,6 +11,8 @@ enum Mode { CLASSIC, DAILY, STORY }
 const REASON_OUT_OF_FUEL := "Out of fuel"
 ## Beat before the game-over card slides in, so the crash is legible.
 const DEATH_PAUSE := 0.42
+## Longer beat after a station is cleared: the win is worth watching.
+const CLEAR_CELEBRATION := 1.35
 ## Seconds for the menu to clear and for the generated world to arrive. The
 ## board is a touch slower so the two do not finish on the same frame.
 const MENU_FADE := 0.24
@@ -460,8 +462,7 @@ func _process(delta: float) -> void:
 			if _death_pause > 0.0:
 				_death_pause -= delta
 				if _death_pause <= 0.0:
-					_overlay.show_game_over(_death_reason, score, distance, _death_was_record,
-		_death_went_further)
+					_show_end_card()
 
 
 func _run_frame(delta: float) -> void:
@@ -847,8 +848,52 @@ func _check_station_goal() -> void:
 	active_level = Levels.current(GameState)
 	_refresh_mode_name()
 	_death_reason = ""
-	_death_pause = DEATH_PAUSE
 	_pending_clear = {"level": cleared, "reward": reward}
+	_celebrate(cleared)
+
+
+## The win itself, before the card. A station cleared is the only thing in the
+## game worth interrupting the flow for, so it gets its own beat: the board
+## flashes, the cart throws sparks, and the words land where praise lands.
+func _celebrate(level: Level) -> void:
+	_death_pause = CLEAR_CELEBRATION
+
+	_praise_label.text = "CLEARED"
+	_praise_slot.visible = true
+	_praise_slot.modulate = Color(Skins.current().accent, 1.0)
+	_praise_label.pivot_offset = _praise_label.size * 0.5
+	_praise_label.scale = Vector2(0.5, 0.5)
+	_praise_label.position = Vector2.ZERO
+
+	var tween := create_tween()
+	tween.tween_property(_praise_label, "scale", Vector2(1.15, 1.15), 0.22) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_praise_label, "scale", Vector2.ONE, 0.12)
+	tween.tween_interval(0.5)
+	tween.set_parallel(true)
+	tween.tween_property(_praise_slot, "modulate:a", 0.0, 0.3)
+	tween.tween_property(_praise_label, "position:y", -50.0, 0.3)
+	tween.chain().tween_callback(func() -> void: _praise_slot.visible = false)
+
+	# A second burst a beat after the first, so the celebration has a rhythm
+	# rather than a single pop.
+	var sparks := create_tween()
+	sparks.tween_interval(0.18)
+	sparks.tween_callback(func() -> void:
+		_fx.burst(_cart.position, Skins.current().warn, 26, _cell_size * 7.0)
+		_screen_fx.flash())
+
+
+## A run ends one of two ways, and they are not the same event: a station goal
+## met is a finish, a crash is a crash.
+func _show_end_card() -> void:
+	if _pending_clear.is_empty():
+		_overlay.show_game_over(_death_reason, score, distance, _death_was_record,
+			_death_went_further, _continue_is_worth_offering())
+		return
+	_overlay.show_station_cleared(_pending_clear["level"], _pending_clear["reward"],
+		Levels.all_cleared(GameState))
+	_pending_clear = {}
 
 
 ## Whether this death is the kind worth offering a way out of: close to the

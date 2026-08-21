@@ -54,6 +54,7 @@ func _process(_delta: float) -> bool:
 	_check_praise()
 	_check_dealer()
 	_check_continue()
+	_check_station_finish()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -855,6 +856,50 @@ func _check_continue() -> void:
 	state.runs_played = saved_runs
 	state.last_continue = saved_continue
 	state.best_distance = saved_distance
+	state.save_game()
+	main._show_menu()
+
+
+## Meeting a station goal has to end the run as a win, not as a crash. This
+## went wrong once already: the end-of-run branch showed the game-over card
+## unconditionally, so clearing a station looked exactly like dying on it.
+func _check_station_finish() -> void:
+	var state: Node = root.get_node("GameState")
+	var saved_cleared: int = state.levels_cleared
+	var saved_crystals: int = state.crystals
+	state.levels_cleared = 0
+	state.crystals = 0
+
+	main._select_level(1)
+	main.start_run(2)
+	main.started = true
+	var level: Level = main.active_level
+	_ok(level != null, "a station is loaded")
+
+	main.distance = level.goal_target - 1
+	main._board.max_row = main.distance
+	main._check_station_goal()
+	_eq(main.state, 1, "one short of the goal keeps the run going")
+
+	main.distance = level.goal_target
+	main._board.max_row = main.distance
+	main._check_station_goal()
+	_eq(main.state, 2, "meeting it ends the run")
+	_ok(not main._pending_clear.is_empty(), "and files it as a clear, not a crash")
+	_eq(state.levels_cleared, 1, "the line advances")
+	_eq(main._death_reason, "", "with no crash reason attached")
+	_ok(main._death_pause > main.DEATH_PAUSE,
+		"and a longer beat than a death, for the celebration")
+
+	# The card chosen from that state must be the cleared one.
+	main._show_end_card()
+	_eq((main._overlay.get_node("%RetryButton") as Button).text, "Next",
+		"the cleared card offers the next station")
+	_ok(not (main._overlay.get_node("%ContinueButton") as Button).visible,
+		"and never offers a continue on a win")
+
+	state.levels_cleared = saved_cleared
+	state.crystals = saved_crystals
 	state.save_game()
 	main._show_menu()
 
