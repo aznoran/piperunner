@@ -392,22 +392,23 @@ func _buy(id: StringName) -> void:
 # --- modes --------------------------------------------------------------
 
 ## Darkens the screen and shows the mode cards. Picking one drops straight
-## back to the menu with that mode selected, so the choice is one gesture in
-## and one gesture out.
 ## The name shown under the title, so the menu always says what the run key
 ## will launch. Today's map takes the warning colour it wears everywhere else,
 ## so the mode is recognisable before the word is read.
 func set_mode_name(mode: String, kind: int = MODE_CLASSIC, goal: String = "") -> void:
 	_mode_kind = kind
+	var tint := _mode_tint(Skins.current(), kind)
+
+	# The name is always repainted. Skipping it when there is no goal line left
+	# the previous mode's colour on the new mode's name — classic came out in
+	# the story colour after visiting a station.
 	%ModeLabel.text = mode
+	%ModeLabel.add_theme_color_override("font_color", Color(tint, 0.9))
+
 	%ModeGoal.text = goal
 	%ModeGoal.visible = not goal.is_empty()
-	if goal.is_empty():
-		return
-	%ModeGoal.add_theme_color_override("font_color",
-		Color(_mode_tint(Skins.current(), kind), 0.62))
-	%ModeLabel.add_theme_color_override("font_color",
-		Color(_mode_tint(Skins.current(), kind), 0.9))
+	if not goal.is_empty():
+		%ModeGoal.add_theme_color_override("font_color", Color(tint, 0.62))
 
 
 func _mode_tint(skin: LocationSkin, kind: int) -> Color:

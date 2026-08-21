@@ -76,6 +76,15 @@ func _process(delta: float) -> bool:
 			_click(menu.get_node("%Cards").get_child(0))
 		10:
 			_ok(main.selected_mode == 0, "classic can be chosen back")
+			# Colour follows the mode, not whatever was selected before it.
+			var label: Label = menu.get_node("%ModeLabel")
+			var classic_tint: Color = label.get_theme_color("font_color")
+			menu.set_mode_name("2 · Foraging", menu.MODE_STORY, "Collect 3 crystals")
+			var story_tint: Color = label.get_theme_color("font_color")
+			_ok(story_tint != classic_tint, "a station name is not classic's colour")
+			menu.set_mode_name("CLASSIC", menu.MODE_CLASSIC)
+			_eq(label.get_theme_color("font_color"), classic_tint,
+				"and classic goes back to its own")
 		11:
 			_click(menu.get_node("%StartButton"))
 		12:
