@@ -109,7 +109,7 @@ func _ready() -> void:
 	_menu.start_pressed.connect(start_run.bind(false))
 	_menu.daily_pressed.connect(start_run.bind(true))
 	_overlay.retry_pressed.connect(func() -> void: start_run(daily_mode))
-	_overlay.menu_pressed.connect(_show_menu)
+	_overlay.menu_pressed.connect(_show_menu.bind(true))
 	GameState.best_changed.connect(_hud.set_best)
 	get_viewport().size_changed.connect(_apply_layout)
 
@@ -174,7 +174,7 @@ func _apply_layout() -> void:
 func abandon_run() -> void:
 	if state == State.PLAYING and started:
 		return
-	_show_menu()
+	_show_menu(true)
 
 
 func _set_camera_anchor(value: float) -> void:
@@ -206,7 +206,10 @@ func _fade_in(item: CanvasItem, duration: float) -> void:
 	create_tween().tween_property(item, "modulate:a", 1.0, duration)
 
 
-func _show_menu() -> void:
+## `animated` pulls the camera back out to the title framing and fades the
+## menu in, for the trip a player takes with the back key. The first call at
+## boot has nothing to animate from, so it snaps.
+func _show_menu(animated: bool = false) -> void:
 	state = State.MENU
 	daily_mode = false
 	# Every transition-owned flag goes back to its resting value here, so a
@@ -225,13 +228,25 @@ func _show_menu() -> void:
 	_board.hide_ghost()
 	_board.hide_frontier()
 	# The title screen sits over a live but empty board.
-	_camera_anchor = MENU_CAMERA_ANCHOR
-	_decor.modulate.a = MenuDecor.RESTING_ALPHA
 	_decor.visible = true
 	_prepare_board(true)
-	_snap_camera()
 	_overlay.hide_overlay()
 	_menu.open()
+
+	if not animated:
+		_camera_anchor = MENU_CAMERA_ANCHOR
+		_decor.modulate.a = MenuDecor.RESTING_ALPHA
+		_snap_camera()
+		return
+
+	# Pull back out the way we pushed in, so leaving a run reads as a move
+	# rather than a cut.
+	create_tween().tween_method(_set_camera_anchor, _camera_anchor,
+		MENU_CAMERA_ANCHOR, CAMERA_PUSH).set_trans(Tween.TRANS_CUBIC) \
+		.set_ease(Tween.EASE_IN_OUT)
+	_decor.modulate.a = 0.0
+	create_tween().tween_property(_decor, "modulate:a", MenuDecor.RESTING_ALPHA,
+		MENU_FADE * 1.6)
 
 
 ## Lays out a fresh world and parks the cart on the runway. On the title screen

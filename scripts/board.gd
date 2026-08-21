@@ -134,6 +134,12 @@ func start_run(seed_value: int, with_resources: bool = true,
 	var start_col: int = balance.cols / 2
 	for row in balance.runway:
 		pipes[Vector2i(start_col, row)] = PipeCell.new(PipeDefs.Type.V)
+	# The track the cart arrived on, already flooded: without it the rail just
+	# stops under the cart and the screen looks unfinished.
+	for step in range(1, balance.approach + 1):
+		var behind := PipeCell.new(PipeDefs.Type.V)
+		behind.flooded = true
+		pipes[Vector2i(start_col, -step)] = behind
 
 	ensure_rows(balance.runway + balance.generate_ahead + 4)
 	_terrain_dirty = true
@@ -377,13 +383,15 @@ func draw_terrain(ci: CanvasItem) -> void:
 	_rock_box.bg_color = Color(_skin.rock_fill, _skin.rock_fill.a * reveal)
 	_rock_box.border_color = Color(_skin.rock_edge, _skin.rock_edge.a * reveal)
 
-	# Empty buildable cells, which also shows the player the placement window.
+	# The grid marks the placement window, so it is drawn for every cell in
+	# range — including the ones already occupied. Skipping those left holes
+	# in the pattern behind the starting track.
 	for row in range(row_min, row_max + 1):
+		if row > max_row + balance.place_above or row < max_row - balance.place_below:
+			continue
 		for col in balance.cols:
 			var cell := Vector2i(col, row)
-			if pipes.has(cell) or rocks.has(cell):
-				continue
-			if not can_place(cell):
+			if rocks.has(cell):
 				continue
 			ci.draw_style_box(_grid_box, _cell_rect(cell, 0.84))
 

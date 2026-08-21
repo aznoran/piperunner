@@ -9,6 +9,10 @@ extends Resource
 @export var cols: int = 7
 ## Starting vertical pipes the cart is parked on.
 @export var runway: int = 3
+## Track drawn behind the cart, already run through. Purely scenery — it sits
+## below the placement window, so it can never be built on — but it stops the
+## rail from ending in mid-air under the cart.
+@export var approach: int = 14
 ## Rows generated ahead of the cart.
 @export var generate_ahead: int = 18
 

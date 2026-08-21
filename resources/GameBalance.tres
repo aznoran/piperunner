@@ -6,6 +6,7 @@
 script = ExtResource("1")
 cols = 7
 runway = 3
+approach = 14
 generate_ahead = 18
 start_speed = 0.68
 speed_gain = 0.0032
