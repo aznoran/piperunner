@@ -11,6 +11,8 @@ signal location_chosen(skin: LocationSkin)
 signal cart_chosen(variant: int)
 ## Emitted when a mode is picked in the carousel, as one of MODE_*.
 signal mode_chosen(mode: int)
+## Debug only: hand a classic run to the autoplayer.
+signal autoplay_requested
 ## Emitted when a station is picked on the story map.
 signal level_chosen(number: int)
 
@@ -65,6 +67,10 @@ func _ready() -> void:
 	%HowToButton.pressed.connect(_toggle.bind(_how_panel))
 	%LocationButton.pressed.connect(_cycle_location)
 	%CartButton.pressed.connect(_cycle_cart)
+	%DebugAutoplayButton.pressed.connect(func() -> void:
+		_close_panels()
+		autoplay_requested.emit())
+	%DebugAutoplayButton.visible = OS.is_debug_build()
 	%DebugUnlockButton.pressed.connect(_debug_unlock)
 	# Never ships: hidden outside a debug build.
 	%DebugUnlockButton.visible = OS.is_debug_build()
@@ -159,7 +165,8 @@ func paint(skin: LocationSkin) -> void:
 
 	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
 			"%CloseModes", "%CloseLevels",
-			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton"]:
+			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton",
+			"%DebugAutoplayButton"]:
 		var button: Button = get_node_or_null(path)
 		if button != null:
 			_paint_ghost(button, skin, skin.accent)

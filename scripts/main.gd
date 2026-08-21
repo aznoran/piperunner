@@ -47,6 +47,7 @@ var _magnet_reach: int = 0
 @onready var _overlay: GameOverScreen = $GameOver
 @onready var _menu: MainMenu = $MainMenu
 @onready var _input: InputHandler = $InputHandler
+@onready var _autoplayer: Autoplayer = $Autoplayer
 @onready var _start_hint: Label = %StartHint
 @onready var _praise_slot: Control = %PraiseSlot
 @onready var _praise_label: Label = %PraiseLabel
@@ -138,6 +139,8 @@ func _ready() -> void:
 	_menu.start_pressed.connect(func() -> void: start_run(selected_mode))
 	_menu.mode_chosen.connect(_select_mode)
 	_menu.level_chosen.connect(_select_level)
+	_menu.autoplay_requested.connect(_start_autoplay)
+	_autoplayer.setup(self, _board, _cart, _queue)
 	_overlay.retry_pressed.connect(func() -> void: start_run(selected_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
 	_overlay.continue_pressed.connect(_take_continue)
@@ -170,6 +173,16 @@ func _rebuild_balance() -> void:
 	_praise.setup(balance)
 	_dealer.setup(balance)
 	_praise.setup(balance)
+
+
+## Hands a classic run to the autoplayer, for recording. The run itself is
+## ordinary — same scoring, same records, same everything — because the player
+## it runs through is the same one a finger drives.
+func _start_autoplay() -> void:
+	selected_mode = Mode.CLASSIC
+	_refresh_mode_name()
+	start_run(Mode.CLASSIC)
+	_autoplayer.start()
 
 
 ## Switches the location's look. Rules, generation and events are untouched —
@@ -232,6 +245,7 @@ func _curtain_to_menu() -> void:
 func _select_mode(mode: Mode) -> void:
 	selected_mode = mode
 	daily_mode = mode == Mode.DAILY
+	_autoplayer.stop()
 	if mode == Mode.STORY:
 		active_level = Levels.current(GameState)
 	_refresh_mode_name()
@@ -303,6 +317,7 @@ func _fade_in(item: CanvasItem, duration: float) -> void:
 ## boot has nothing to animate from, so it snaps.
 func _show_menu(animated: bool = false) -> void:
 	state = State.MENU
+	_autoplayer.stop()
 	# Purchases made in the depot take effect on the board the menu lays out.
 	_rebuild_balance()
 	daily_mode = false
@@ -381,6 +396,7 @@ func _first_resource_row() -> int:
 func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	selected_mode = mode
 	daily_mode = mode == Mode.DAILY
+	_autoplayer.stop()
 	_overlay.hide_overlay()
 	_menu.fade_out(MENU_FADE)
 	state = State.PLAYING
