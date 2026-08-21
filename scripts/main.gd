@@ -483,7 +483,7 @@ func _die(reason: String) -> void:
 
 	_shake = 16.0 * (_cell_size / SHAKE_REFERENCE_CELL)
 	_fx.burst(_cart.position, Skins.current().danger, 28, _cell_size * 8.0)
-	GameState.vibrate(balance.haptics_crystal_ms)
+	GameState.vibrate(balance.haptics_death_ms)
 	GameState.bank_crystals(crystals_collected)
 	Quests.report(GameState, {
 		"crystals": crystals_collected,

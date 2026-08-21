@@ -74,5 +74,6 @@ extends Resource
 @export var queue_preview: int = 4
 
 @export_group("Feel")
-@export var haptics_place_ms: int = 20
-@export var haptics_crystal_ms: int = 40
+@export var haptics_place_ms: int = 35
+@export var haptics_crystal_ms: int = 80
+@export var haptics_death_ms: int = 250

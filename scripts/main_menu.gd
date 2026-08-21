@@ -34,6 +34,7 @@ func _ready() -> void:
 	%QuestsButton.pressed.connect(_toggle.bind(_quests_panel))
 	%CloseQuests.pressed.connect(_close_panels)
 	%HowToButton.pressed.connect(_toggle.bind(_how_panel))
+	%TestHapticsButton.pressed.connect(_test_haptics)
 	%CloseHow.pressed.connect(_close_panels)
 	%CloseSettings.pressed.connect(_close_panels)
 	%CloseUpgrades.pressed.connect(_close_panels)
@@ -269,6 +270,12 @@ func _claim(id: String) -> void:
 
 
 # --- settings -----------------------------------------------------------
+
+## Fires a long, unmistakable pulse. If this is not felt, the problem is the
+## platform or the device settings, not the game's per-event timings.
+func _test_haptics() -> void:
+	Input.vibrate_handheld(400, 1.0)
+
 
 func _set_haptics(enabled: bool) -> void:
 	GameState.haptics_enabled = enabled

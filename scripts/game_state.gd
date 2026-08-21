@@ -115,8 +115,9 @@ func bank_crystals(count: int) -> void:
 
 
 ## Single funnel for haptics so a settings toggle can kill them all
-## (spec section 13).
+## (spec section 13). Amplitude is requested explicitly: the default leaves it
+## to the platform, which on iOS can come out too faint to notice.
 func vibrate(milliseconds: int) -> void:
 	if not haptics_enabled:
 		return
-	Input.vibrate_handheld(milliseconds)
+	Input.vibrate_handheld(milliseconds, 1.0)
