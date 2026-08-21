@@ -210,6 +210,7 @@ func start_run(daily: bool = false) -> void:
 	_hud.set_best(GameState.best)
 	_hud.set_combo(0)
 	_hud.set_fuel(1.0)
+	_hud.set_daily(daily_mode)
 
 
 func _process(delta: float) -> void:
@@ -460,7 +461,7 @@ func _die(reason: String) -> void:
 	GameState.vibrate(balance.haptics_crystal_ms)
 	GameState.bank_crystals(crystals_collected)
 
-	_death_reason = reason
+	_death_reason = ("%s  ·  daily" % reason) if daily_mode else reason
 	_death_was_record = GameState.submit_score(score, _route, _board.max_row)
 	if daily_mode:
 		GameState.submit_daily(score)

@@ -192,7 +192,8 @@ text = "[color=#4ce0b3]Place anywhere.[/color] Tap any empty cell to drop the cu
 [color=#4ce0b3]Crystals are fuel.[/color] Route the cart through them or you run dry.
 [color=#4ce0b3]The white ring[/color] is where the cart needs pipe next.
 [color=#4ce0b3]HOLD[/color] parks an awkward pipe for later — tap it to swap.
-[color=#4ce0b3]Press and drag[/color] to aim, release to place. The board freezes while you hold."
+[color=#4ce0b3]Press and drag[/color] to aim, release to place. The board freezes while you hold.
+[color=#ffd23f]DAILY RUN[/color] starts a run on today's map — the same board for everyone, changing at midnight. The button shows your best score on it so far."
 fit_content = true
 scroll_active = false
 theme_override_font_sizes/normal_font_size = 18

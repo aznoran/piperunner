@@ -8,6 +8,7 @@ const BAR_RADIUS := 7
 @onready var _safe: MarginContainer = $Safe
 @onready var _score_label: Label = %ScoreLabel
 @onready var _best_label: Label = %BestLabel
+@onready var _daily_label: Label = %DailyLabel
 @onready var _combo_label: Label = %ComboLabel
 @onready var _fuel_track: Panel = %FuelTrack
 @onready var _fuel_bar: Panel = %FuelBar
@@ -53,6 +54,12 @@ func set_score(value: int) -> void:
 
 func set_best(value: int) -> void:
 	_best_label.text = "Best: %d" % value
+
+
+## Marks the run as today's fixed-seed challenge, which otherwise looks
+## exactly like an ordinary one.
+func set_daily(is_daily: bool) -> void:
+	_daily_label.visible = is_daily
 
 
 func set_combo(value: int) -> void:

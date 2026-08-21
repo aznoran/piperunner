@@ -46,6 +46,14 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "Best: 0"
 
+[node name="DailyLabel" type="Label" parent="Safe/Rows/TopRow/Left"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
+theme_override_font_sizes/font_size = 16
+text = "DAILY CHALLENGE"
+
 [node name="ComboLabel" type="Label" parent="Safe/Rows/TopRow"]
 unique_name_in_owner = true
 modulate = Color(1, 1, 1, 0)

@@ -79,7 +79,7 @@ func _close_panels() -> void:
 
 func _refresh() -> void:
 	var today: int = GameState.daily_result()
-	%DailyButton.text = "DAILY  ·  %d" % today if today > 0 else "DAILY"
+	%DailyButton.text = "DAILY  ·  BEST %d" % today if today > 0 else "DAILY RUN"
 	_best_label.text = "Best run: %d" % GameState.best
 	_haptics_toggle.set_pressed_no_signal(GameState.haptics_enabled)
 	_refresh_shop()
