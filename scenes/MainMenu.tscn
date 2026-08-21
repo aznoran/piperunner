@@ -104,218 +104,205 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = 18.0
-offset_right = -12.0
-offset_bottom = -16.0
+offset_left = 10.0
+offset_top = 12.0
+offset_right = -10.0
+offset_bottom = -10.0
 grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 
-[node name="UpgradesButton" type="Button" parent="Bar/Tabs"]
+[node name="DepotTab" type="VBoxContainer" parent="Bar/Tabs"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 7
+
+[node name="UpgradesButton" type="Button" parent="Bar/Tabs/DepotTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(78, 88)
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 
-[node name="Content" type="VBoxContainer" parent="Bar/Tabs/UpgradesButton"]
+[node name="Icon" type="Control" parent="Bar/Tabs/DepotTab/UpgradesButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 12.0
-offset_bottom = -10.0
+offset_left = 17.0
+offset_top = 17.0
+offset_right = -17.0
+offset_bottom = -17.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
-alignment = 1
-theme_override_constants/separation = 5
-
-[node name="Icon" type="Control" parent="Bar/Tabs/UpgradesButton/Content"]
-custom_minimum_size = Vector2(0, 27)
-layout_mode = 2
 mouse_filter = 2
 script = ExtResource("2_icon")
 kind = 0
 
-[node name="Caption" type="Label" parent="Bar/Tabs/UpgradesButton/Content"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "DEPOT"
-horizontal_alignment = 1
-
-[node name="Badge" type="Label" parent="Bar/Tabs/UpgradesButton"]
+[node name="Badge" type="Label" parent="Bar/Tabs/DepotTab/UpgradesButton"]
 visible = false
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -30.0
-offset_top = 4.0
-offset_right = -4.0
-offset_bottom = 26.0
-grow_horizontal = 0
+offset_left = -13.0
+offset_top = -9.0
+offset_right = 13.0
+offset_bottom = 17.0
+grow_horizontal = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 13
 text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="DailyButton" type="Button" parent="Bar/Tabs"]
+[node name="Caption" type="Label" parent="Bar/Tabs/DepotTab"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "DEPOT"
+horizontal_alignment = 1
+
+[node name="TodayTab" type="VBoxContainer" parent="Bar/Tabs"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 7
+
+[node name="DailyButton" type="Button" parent="Bar/Tabs/TodayTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(78, 88)
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 
-[node name="Content" type="VBoxContainer" parent="Bar/Tabs/DailyButton"]
+[node name="Icon" type="Control" parent="Bar/Tabs/TodayTab/DailyButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 12.0
-offset_bottom = -10.0
+offset_left = 17.0
+offset_top = 17.0
+offset_right = -17.0
+offset_bottom = -17.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
-alignment = 1
-theme_override_constants/separation = 5
-
-[node name="Icon" type="Control" parent="Bar/Tabs/DailyButton/Content"]
-custom_minimum_size = Vector2(0, 27)
-layout_mode = 2
 mouse_filter = 2
 script = ExtResource("2_icon")
 kind = 1
 
-[node name="Caption" type="Label" parent="Bar/Tabs/DailyButton/Content"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "TODAY"
-horizontal_alignment = 1
-
-[node name="Badge" type="Label" parent="Bar/Tabs/DailyButton"]
+[node name="Badge" type="Label" parent="Bar/Tabs/TodayTab/DailyButton"]
 visible = false
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -30.0
-offset_top = 4.0
-offset_right = -4.0
-offset_bottom = 26.0
-grow_horizontal = 0
+offset_left = -13.0
+offset_top = -9.0
+offset_right = 13.0
+offset_bottom = 17.0
+grow_horizontal = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 13
 text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="StartButton" type="Button" parent="Bar/Tabs"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(132, 88)
+[node name="Caption" type="Label" parent="Bar/Tabs/TodayTab"]
 layout_mode = 2
-
-[node name="Content" type="VBoxContainer" parent="Bar/Tabs/StartButton"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_top = 12.0
-offset_bottom = -10.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-alignment = 1
-theme_override_constants/separation = 5
-
-[node name="Icon" type="Control" parent="Bar/Tabs/StartButton/Content"]
-custom_minimum_size = Vector2(0, 34)
-layout_mode = 2
-mouse_filter = 2
-script = ExtResource("2_icon")
-kind = 2
-
-[node name="Caption" type="Label" parent="Bar/Tabs/StartButton/Content"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 15
-text = "START"
+theme_override_font_sizes/font_size = 13
+text = "TODAY"
 horizontal_alignment = 1
 
-[node name="QuestsButton" type="Button" parent="Bar/Tabs"]
+[node name="StartTab" type="VBoxContainer" parent="Bar/Tabs"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 7
+
+[node name="StartButton" type="Button" parent="Bar/Tabs/StartTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(78, 88)
+custom_minimum_size = Vector2(136, 64)
+layout_mode = 2
+theme_override_font_sizes/font_size = 27
+text = "START"
+
+[node name="Caption" type="Label" parent="Bar/Tabs/StartTab"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "CLASSIC"
+horizontal_alignment = 1
+
+[node name="GoalsTab" type="VBoxContainer" parent="Bar/Tabs"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 7
+
+[node name="QuestsButton" type="Button" parent="Bar/Tabs/GoalsTab"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 
-[node name="Content" type="VBoxContainer" parent="Bar/Tabs/QuestsButton"]
+[node name="Icon" type="Control" parent="Bar/Tabs/GoalsTab/QuestsButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 12.0
-offset_bottom = -10.0
+offset_left = 17.0
+offset_top = 17.0
+offset_right = -17.0
+offset_bottom = -17.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
-alignment = 1
-theme_override_constants/separation = 5
-
-[node name="Icon" type="Control" parent="Bar/Tabs/QuestsButton/Content"]
-custom_minimum_size = Vector2(0, 27)
-layout_mode = 2
 mouse_filter = 2
 script = ExtResource("2_icon")
 kind = 3
 
-[node name="Caption" type="Label" parent="Bar/Tabs/QuestsButton/Content"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "GOALS"
-horizontal_alignment = 1
-
-[node name="Badge" type="Label" parent="Bar/Tabs/QuestsButton"]
+[node name="Badge" type="Label" parent="Bar/Tabs/GoalsTab/QuestsButton"]
 visible = false
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -30.0
-offset_top = 4.0
-offset_right = -4.0
-offset_bottom = 26.0
-grow_horizontal = 0
+offset_left = -13.0
+offset_top = -9.0
+offset_right = 13.0
+offset_bottom = 17.0
+grow_horizontal = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 13
 text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="SettingsButton" type="Button" parent="Bar/Tabs"]
+[node name="Caption" type="Label" parent="Bar/Tabs/GoalsTab"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "GOALS"
+horizontal_alignment = 1
+
+[node name="SetupTab" type="VBoxContainer" parent="Bar/Tabs"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 7
+
+[node name="SettingsButton" type="Button" parent="Bar/Tabs/SetupTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(78, 88)
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 
-[node name="Content" type="VBoxContainer" parent="Bar/Tabs/SettingsButton"]
+[node name="Icon" type="Control" parent="Bar/Tabs/SetupTab/SettingsButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 12.0
-offset_bottom = -10.0
+offset_left = 17.0
+offset_top = 17.0
+offset_right = -17.0
+offset_bottom = -17.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
-alignment = 1
-theme_override_constants/separation = 5
-
-[node name="Icon" type="Control" parent="Bar/Tabs/SettingsButton/Content"]
-custom_minimum_size = Vector2(0, 27)
-layout_mode = 2
 mouse_filter = 2
 script = ExtResource("2_icon")
 kind = 4
 
-[node name="Caption" type="Label" parent="Bar/Tabs/SettingsButton/Content"]
+[node name="Caption" type="Label" parent="Bar/Tabs/SetupTab"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 13
 text = "SETUP"
 horizontal_alignment = 1
 
@@ -484,7 +471,7 @@ theme_override_styles/panel = SubResource("Panel_box")
 
 [node name="Column" type="VBoxContainer" parent="UpgradesPanel/Box"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 12
 
 [node name="Heading" type="Label" parent="UpgradesPanel/Box/Column"]
 layout_mode = 2
@@ -528,7 +515,7 @@ theme_override_styles/panel = SubResource("Panel_box")
 
 [node name="Column" type="VBoxContainer" parent="QuestsPanel/Box"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 12
 
 [node name="Heading" type="Label" parent="QuestsPanel/Box/Column"]
 layout_mode = 2

@@ -19,7 +19,7 @@ const BUY_RADIUS := 20
 const TAB_RADIUS := 16
 ## The baked button face and the 9-patch inset that keeps its corners crisp.
 const TAB_FACE := "res://art/ui/tab_face.png"
-const TAB_MARGIN := 30
+const TAB_MARGIN := 18
 const TAB_LIP := 6
 ## Seconds the whole menu takes to fade in or out.
 const FADE_TIME := 0.24
@@ -38,6 +38,8 @@ const FADE_TIME := 0.24
 ## Buy button per upgrade id, so a purchase refreshes without rebuilding rows.
 var _rows: Dictionary = {}
 var _face: Texture2D
+## The fade in flight, if any. Kept so a new one can cancel it.
+var _fade_tween: Tween
 
 
 func _ready() -> void:
@@ -80,8 +82,14 @@ func fade_out(duration: float = FADE_TIME) -> void:
 	tween.chain().tween_callback(close)
 
 
+## Cancels any fade already running. Without this, backing out of a run while
+## the start fade is still in flight lets the old tween finish and hide the
+## menu underneath the new one — it looks open but swallows every tap.
 func _fade(alpha: float, duration: float) -> Tween:
+	if _fade_tween != null and _fade_tween.is_valid():
+		_fade_tween.kill()
 	var tween := create_tween().set_parallel(true)
+	_fade_tween = tween
 	for child in get_children():
 		if child is CanvasItem:
 			if alpha > 0.0 and not (child as CanvasItem).visible:
@@ -100,7 +108,7 @@ func close() -> void:
 func _relayout() -> void:
 	var viewport := get_viewport().get_visible_rect().size
 	var bottom_inset := SafeArea.insets(viewport).w
-	var height: float = maxf(viewport.y * 0.14, 118.0)
+	var height: float = maxf(viewport.y * 0.135, 122.0)
 	_bar.size = Vector2(viewport.x, height)
 	_bar.position = Vector2(0.0, viewport.y - height - bottom_inset)
 
@@ -155,12 +163,9 @@ func paint(skin: LocationSkin) -> void:
 	%Wallet.add_theme_color_override("font_color", skin.accent)
 
 
-## One bar tab. `primary` is the run button: filled with the accent rather than
-## sunk into the panel, and wider — it stands out by weight, not by height.
-##
-## The face is a baked greyscale gradient tinted per state. A StyleBoxFlat
-## cannot do that, and flat fills are what made the first version of this bar
-## look like a row of labels.
+## One bar tab: a square key with its caption underneath, outside the key
+## itself. The face is a baked greyscale gradient tinted per state — a flat
+## fill is what made the first version read as a row of labels.
 func _paint_tab(button: Button, skin: LocationSkin, tint: Color, primary: bool) -> void:
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		var box := StyleBoxTexture.new()
@@ -170,25 +175,51 @@ func _paint_tab(button: Button, skin: LocationSkin, tint: Color, primary: bool) 
 		box.content_margin_top = float(TAB_LIP if state == "pressed" else 0)
 		button.add_theme_stylebox_override(state, box)
 
-	var ink: Color = skin.bg_bottom.darkened(0.2) if primary else tint
-	var caption: Label = button.get_node("Content/Caption")
-	caption.add_theme_color_override("font_color", ink)
-	var icon: TabIcon = button.get_node("Content/Icon")
-	icon.color = ink
+	var tab: Control = button.get_parent()
+	var caption: Label = tab.get_node("Caption")
+	caption.add_theme_color_override("font_color",
+		Color(tint, 0.95) if primary or tint != skin.pipe_core else Color(tint, 0.7))
+
+	if primary:
+		# The one element allowed to glow: it is the thing the screen is for.
+		var glow := StyleBoxFlat.new()
+		glow.bg_color = Color(0, 0, 0, 0)
+		glow.set_corner_radius_all(16)
+		glow.shadow_color = Color(skin.accent, 0.5)
+		glow.shadow_size = 26
+		button.add_theme_stylebox_override("normal", _with_glow(skin, tint, glow))
+		for key in ["font_color", "font_hover_color", "font_pressed_color"]:
+			button.add_theme_color_override(key, skin.bg_bottom.darkened(0.25))
+	else:
+		var icon: TabIcon = button.get_node("Icon")
+		icon.color = tint
 
 	var badge: Label = button.get_node_or_null("Badge")
 	if badge != null:
 		var pill := StyleBoxFlat.new()
-		pill.bg_color = skin.warn
-		pill.set_corner_radius_all(11)
+		pill.bg_color = skin.danger
+		pill.set_corner_radius_all(13)
+		pill.border_color = Color(skin.bg_bottom, 0.85)
+		pill.set_border_width_all(2)
 		badge.add_theme_stylebox_override("normal", pill)
-		badge.add_theme_color_override("font_color", skin.bg_bottom)
+		badge.add_theme_color_override("font_color", Color.WHITE)
+
+
+## StyleBoxTexture carries no shadow, so the run key's glow is a flat box drawn
+## behind it through the button's own stylebox stack.
+func _with_glow(skin: LocationSkin, tint: Color, glow: StyleBoxFlat) -> StyleBoxFlat:
+	glow.bg_color = tint
+	glow.set_corner_radius_all(16)
+	glow.border_width_bottom = TAB_LIP
+	glow.border_color = tint.darkened(0.5)
+	return glow
 
 
 func _tab_tint(skin: LocationSkin, tint: Color, primary: bool, state: String) -> Color:
 	if primary:
 		return tint.darkened(0.16) if state == "pressed" else tint
-	var base := skin.bg_top.lightened(0.16)
+	# Each key takes a wash of its own colour, so the bar is not five grey slabs.
+	var base := skin.bg_top.lightened(0.16).lerp(tint, 0.12)
 	if state == "pressed":
 		return base.darkened(0.12)
 	if state == "hover":

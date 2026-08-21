@@ -3,7 +3,7 @@
 class_name TabIcon
 extends Control
 
-enum Kind { DEPOT, TODAY, PLAY, GOALS, SETUP }
+enum Kind { DEPOT, TODAY, PLAY, GOALS, SETUP, PAUSE, BACK }
 
 @export var kind: Kind = Kind.PLAY
 
@@ -29,20 +29,23 @@ func _draw() -> void:
 			_draw_goals(unit, stroke, centre)
 		Kind.SETUP:
 			_draw_setup(unit, stroke, centre)
+		Kind.PAUSE:
+			_draw_pause(unit, centre)
+		Kind.BACK:
+			_draw_back(unit, stroke, centre)
 
 
-## Three tracks with a junction on each — the game's own subject matter.
+## Sliders — the shorthand for "adjust your loadout" that a player already
+## knows, rather than a literal crate.
 func _draw_depot(unit: float, stroke: float, centre: Vector2) -> void:
-	var half := unit * 0.42
-	var gap := unit * 0.28
+	var half := unit * 0.4
+	var gap := unit * 0.3
+	var knobs := [-0.22, 0.28, -0.05]
 	for i in 3:
 		var y: float = centre.y + (i - 1) * gap
 		draw_line(Vector2(centre.x - half, y), Vector2(centre.x + half, y), color, stroke)
-	var knots := [Vector2(centre.x - half * 0.35, centre.y - gap),
-		Vector2(centre.x + half * 0.4, centre.y),
-		Vector2(centre.x - half * 0.15, centre.y + gap)]
-	for knot: Vector2 in knots:
-		draw_circle(knot, unit * 0.11, color)
+		var knob := Vector2(centre.x + half * knobs[i], y)
+		draw_circle(knob, unit * 0.115, color)
 
 
 func _draw_today(unit: float, stroke: float, centre: Vector2) -> void:
@@ -76,6 +79,22 @@ func _draw_goals(unit: float, stroke: float, centre: Vector2) -> void:
 		Vector2(pole + unit * 0.58, top + unit * 0.16),
 		Vector2(pole, top + unit * 0.34),
 	], color)
+
+
+func _draw_pause(unit: float, centre: Vector2) -> void:
+	var bar := unit * 0.16
+	var high := unit * 0.62
+	for side in [-1.0, 1.0]:
+		draw_rect(Rect2(centre.x + side * unit * 0.19 - bar * 0.5, centre.y - high * 0.5,
+			bar, high), color)
+
+
+func _draw_back(unit: float, stroke: float, centre: Vector2) -> void:
+	var reach := unit * 0.26
+	var tip := Vector2(centre.x - reach * 0.7, centre.y)
+	draw_line(tip, Vector2(centre.x + reach, centre.y), color, stroke)
+	draw_line(tip, tip + Vector2(reach * 0.8, -reach * 0.8), color, stroke)
+	draw_line(tip, tip + Vector2(reach * 0.8, reach * 0.8), color, stroke)
 
 
 func _draw_setup(unit: float, stroke: float, centre: Vector2) -> void:

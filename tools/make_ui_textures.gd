@@ -10,8 +10,10 @@
 extends SceneTree
 
 const SIZE := 128
-const RADIUS := 30
-const LIP := 16
+## Kept well under half the texture, or the 9-patch insets overlap on a
+## 56 px key and the corners round into a circle.
+const RADIUS := 18
+const LIP := 11
 const OUT := "res://art/ui/tab_face.png"
 
 

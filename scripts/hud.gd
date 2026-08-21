@@ -3,8 +3,8 @@
 class_name Hud
 extends CanvasLayer
 
-## Emitted by the back button: leave the run and return to the menu.
-signal exit_pressed
+## Emitted by the back key, which only exists before the first pipe.
+signal back_pressed
 
 const BAR_RADIUS := 7
 
@@ -34,7 +34,7 @@ func _ready() -> void:
 	_fuel_bar.add_theme_stylebox_override("panel", _bar_box)
 
 	_combo_label.modulate.a = 0.0
-	%ExitButton.pressed.connect(func() -> void: exit_pressed.emit())
+	%BackButton.pressed.connect(func() -> void: back_pressed.emit())
 	get_viewport().size_changed.connect(_apply_safe_area)
 	_apply_safe_area()
 
@@ -60,14 +60,30 @@ func set_best(value: int) -> void:
 func set_skin(skin: LocationSkin) -> void:
 	_skin = skin
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(skin.bg_top, 0.7)
-	box.border_color = Color(skin.accent, 0.3)
+	box.bg_color = Color(skin.bg_top, 0.72)
+	box.border_color = Color(skin.accent, 0.28)
 	box.set_border_width_all(1)
-	box.set_corner_radius_all(23)
+	box.set_corner_radius_all(26)
 	for state in ["normal", "hover", "pressed"]:
-		%ExitButton.add_theme_stylebox_override(state, box)
-	%ExitButton.add_theme_color_override("font_color", Color(skin.accent, 0.85))
+		%BackButton.add_theme_stylebox_override(state, box)
+	(%BackButton.get_node("Icon") as TabIcon).color = Color(skin.accent, 0.8)
 	set_fuel(_fuel_ratio)
+
+
+## Shows the back key again for a fresh run.
+func reset_back_key() -> void:
+	%BackButton.visible = true
+	%BackButton.modulate.a = 1.0
+	%BackButton.disabled = false
+
+
+## Retires it once the run commits: from here the way out is to finish. Fading
+## rather than vanishing, so the eye is not pulled to the corner mid-run.
+func fade_out_back_key() -> void:
+	%BackButton.disabled = true
+	var tween := create_tween()
+	tween.tween_property(%BackButton, "modulate:a", 0.0, 0.35)
+	tween.tween_callback(func() -> void: %BackButton.visible = false)
 
 
 func set_daily(is_daily: bool, date: String = "") -> void:

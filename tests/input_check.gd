@@ -55,6 +55,21 @@ func _process(_delta: float) -> bool:
 		8:
 			_ok(main.state == 1, "START starts a run")
 			_ok(not main.daily_mode, "...and it is a normal one")
+			# Back out again, then check the menu still takes input — a layer
+			# left over from the run would swallow every tap silently.
+			_click(main._hud.get_node("%BackButton"))
+		9:
+			_ok(main.state == 0, "the back key returns to the menu")
+		10:
+			_click(menu.get_node("%UpgradesButton"))
+		11:
+			_ok(menu.get_node("%UpgradesPanel").visible,
+				"menu buttons still respond after returning from a run")
+			_click(menu.get_node("%CloseUpgrades"))
+		12:
+			_click(menu.get_node("%StartButton"))
+		13:
+			_ok(main.state == 1, "and a run can be started again")
 			print("--- %d checks, %d failed ---" % [checks, failures])
 			quit(1 if failures > 0 else 0)
 			return true

@@ -48,7 +48,7 @@ func _process(_delta: float) -> bool:
 	_check_skin_swap()
 	_check_quests()
 	_check_locations()
-	_check_abandon_run()
+	_check_back_key()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -577,43 +577,32 @@ func _check_locations() -> void:
 	Skins.set_current(original)
 
 
-## Leaving a run through the back button banks it exactly as a crash would.
-func _check_abandon_run() -> void:
+## The back key is a way out of a run that has not started yet, and nothing
+## more: once a pipe is down the run has to be finished.
+func _check_back_key() -> void:
 	var state: Node = root.get_node("GameState")
 	var saved_best: int = state.best
-	var saved_distance: int = state.best_distance
 	var saved_crystals: int = state.crystals
 	state.best = 0
-	state.best_distance = 0
 	state.crystals = 0
+
+	main.start_run()
+	main.score = 40
+	main.crystals_collected = 3
+	main.abandon_run()
+	_eq(main.state, 0, "backing out before the first pipe returns to the menu")
+	_eq(state.best, 0, "a run that never started banks no score")
+	_eq(state.crystals, 0, "and no crystals")
 
 	main.start_run()
 	main.started = true
 	main.score = 88
-	main.distance = 26
-	main.crystals_collected = 5
-
 	main.abandon_run()
-	_eq(main.state, 0, "leaving a run returns to the menu")
-	_eq(state.best, 88, "the score still counts")
-	_eq(state.best_distance, 26, "so does the distance")
-	_eq(state.crystals, 5, "and the crystals are banked")
+	_eq(main.state, 1, "once the run has started the key does nothing")
+	_eq(state.best, 0, "and nothing is banked behind the player's back")
 
-	# Backing out before the first pipe banks nothing — there was no run.
-	state.best = 0
-	state.best_distance = 0
-	state.crystals = 0
-	main.start_run()
-	main.score = 40
-	main.distance = 12
-	main.crystals_collected = 3
-	main.abandon_run()
-	_eq(main.state, 0, "backing out early also returns to the menu")
-	_eq(state.best, 0, "an untouched run banks no score")
-	_eq(state.crystals, 0, "and no crystals")
-
+	main._show_menu()
 	state.best = saved_best
-	state.best_distance = saved_distance
 	state.crystals = saved_crystals
 	state.save_game()
 

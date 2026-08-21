@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/tab_icon.gd" id="2_icon"]
 
 [node name="Hud" type="CanvasLayer"]
 layer = 10
@@ -54,14 +55,6 @@ theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
 theme_override_font_sizes/font_size = 20
 text = "DAILY"
 
-[node name="ExitButton" type="Button" parent="Safe/Rows/TopRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(46, 46)
-layout_mode = 2
-size_flags_vertical = 0
-theme_override_font_sizes/font_size = 20
-text = "‹"
-
 [node name="ComboLabel" type="Label" parent="Safe/Rows/TopRow"]
 unique_name_in_owner = true
 modulate = Color(1, 1, 1, 0)
@@ -71,6 +64,23 @@ theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
 theme_override_font_sizes/font_size = 22
 text = "CHAIN x1"
 horizontal_alignment = 2
+
+[node name="BackButton" type="Button" parent="Safe/Rows/TopRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(52, 52)
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="Icon" type="Control" parent="Safe/Rows/TopRow/BackButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_icon")
+kind = 6
 
 [node name="FuelTrack" type="Panel" parent="Safe/Rows"]
 unique_name_in_owner = true

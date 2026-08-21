@@ -91,7 +91,7 @@ func _ready() -> void:
 	_input.aim_released.connect(_on_aim_released)
 	_input.aim_cancelled.connect(_on_aim_cancelled)
 
-	_hud.exit_pressed.connect(abandon_run)
+	_hud.back_pressed.connect(abandon_run)
 	_menu.location_chosen.connect(apply_skin)
 	_menu.cart_chosen.connect(func(variant: int) -> void:
 		_cart.variant = variant
@@ -156,13 +156,12 @@ func _apply_layout() -> void:
 	_camera.position.x = viewport.x * 0.5
 
 
-## Leaves a run for the menu. The run is banked exactly as if the cart had
-## derailed — score, distance, crystals and goal progress all count. Throwing
-## the run away instead would punish curiosity about the menu, and banking it
-## cannot be farmed: the numbers are the ones actually reached.
+## Back out to the menu. Only reachable before the first pipe is placed — once
+## the cart is rolling the way out is to finish the run — so there is nothing
+## to bank and nothing to lose by leaving.
 func abandon_run() -> void:
 	if state == State.PLAYING and started:
-		_bank_run()
+		return
 	_show_menu()
 
 
@@ -270,6 +269,7 @@ func start_run(daily: bool = false) -> void:
 	_hud.set_best(GameState.best)
 	_hud.set_combo(0)
 	_hud.set_fuel(1.0)
+	_hud.reset_back_key()
 	_hud.set_daily(daily_mode, GameState.today())
 	_mode_banner.visible = daily_mode
 	_mode_banner.modulate.a = 1.0
@@ -432,6 +432,8 @@ func _try_place(cell: Vector2i) -> void:
 
 	_queue.consume()
 	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+	if not started:
+		_hud.fade_out_back_key()
 	started = true
 	_start_hint.visible = false
 	GameState.vibrate(balance.haptics_place_ms)
