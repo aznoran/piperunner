@@ -64,24 +64,24 @@ script = ExtResource("1_menu")
 [node name="Title" type="Label" parent="."]
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 110.0
-offset_bottom = 190.0
+offset_top = 96.0
+offset_bottom = 168.0
 grow_horizontal = 2
 mouse_filter = 2
 theme_override_font_sizes/font_size = 44
 text = "PIPE RUNNER"
 horizontal_alignment = 1
 
-[node name="Tagline" type="Label" parent="."]
-modulate = Color(1, 1, 1, 0.6)
+[node name="ModeLabel" type="Label" parent="."]
+unique_name_in_owner = true
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 172.0
-offset_bottom = 210.0
+offset_top = 176.0
+offset_bottom = 232.0
 grow_horizontal = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 19
-text = "The cart never stops. Lay the track."
+theme_override_font_sizes/font_size = 34
+text = "CLASSIC"
 horizontal_alignment = 1
 
 [node name="Bar" type="Control" parent="."]
@@ -98,13 +98,6 @@ grow_vertical = 2
 mouse_filter = 2
 alignment = 2
 theme_override_constants/separation = 16
-
-[node name="ModeLabel" type="Label" parent="Bar/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "CLASSIC"
-horizontal_alignment = 1
 
 [node name="StartRow" type="CenterContainer" parent="Bar/Column"]
 layout_mode = 2

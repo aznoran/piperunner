@@ -70,6 +70,49 @@ func _process(_delta: float) -> bool:
 			_click(menu.get_node("%StartButton"))
 		13:
 			_ok(main.state == 1, "and a run can be started again")
+			# Play it out: commit a pipe, crash, then leave through the
+			# game-over card — the path a real player takes every run.
+			main._try_place(Vector2i(3, 4))
+			main._die("Derailed")
+		14:
+			main._death_pause = 0.0
+			main._overlay.show_game_over("Derailed", 12, 4, false, false)
+		15:
+			_click(main._overlay.get_node("%MenuButton"))
+		16:
+			_ok(main.state == 0, "the game-over card returns to the menu")
+		17:
+			_click(menu.get_node("%SettingsButton"))
+		18:
+			_ok(menu.get_node("%SettingsPanel").visible,
+				"the menu still responds after a finished run")
+			_click(menu.get_node("%CloseSettings"))
+		19:
+			# Second lap, entirely through real clicks: retry from the card,
+			# crash again, then back to the menu.
+			_click(menu.get_node("%StartButton"))
+		20:
+			main._try_place(Vector2i(3, 4))
+			main._die("Derailed")
+		21:
+			main._death_pause = 0.0
+			main._overlay.show_game_over("Derailed", 7, 3, false, false)
+		22:
+			_click(main._overlay.get_node("%RetryButton"))
+		23:
+			_ok(main.state == 1, "retry starts another run")
+			main._try_place(Vector2i(3, 4))
+			main._die("Derailed")
+		24:
+			main._death_pause = 0.0
+			main._overlay.show_game_over("Derailed", 9, 3, false, false)
+		25:
+			_click(main._overlay.get_node("%MenuButton"))
+		26:
+			_click(menu.get_node("%UpgradesButton"))
+		27:
+			_ok(menu.get_node("%UpgradesPanel").visible,
+				"the menu still responds after two runs and a retry")
 			print("--- %d checks, %d failed ---" % [checks, failures])
 			quit(1 if failures > 0 else 0)
 			return true

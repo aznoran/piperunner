@@ -13,6 +13,8 @@ const BANNER_TIME := 2.6
 ## board is a touch slower so the two do not finish on the same frame.
 const MENU_FADE := 0.24
 const WORLD_REVEAL := 0.55
+## Where the cart sits on the title screen, as a fraction of screen height.
+const MENU_CAMERA_ANCHOR := 0.46
 ## Prototype shake, expressed against its 68 px cell so it scales with layout.
 const SHAKE_REFERENCE_CELL := 68.0
 
@@ -178,6 +180,13 @@ func _fade_in(item: CanvasItem, duration: float) -> void:
 func _show_menu() -> void:
 	state = State.MENU
 	daily_mode = false
+	# Every transition-owned flag goes back to its resting value here, so a
+	# menu reached from any direction — title, back key, game over — is in the
+	# same state.
+	_death_pause = 0.0
+	_banner_left = 0.0
+	_input.enabled = false
+	_input.cancel()
 	_board.reveal = 1.0
 	_input.enabled = false
 	_queue_bar.visible = false
@@ -188,6 +197,7 @@ func _show_menu() -> void:
 	_board.hide_frontier()
 	# The title screen sits over a live but empty board.
 	_prepare_board(false)
+	_snap_camera()
 	_overlay.hide_overlay()
 	_menu.open()
 
@@ -316,7 +326,11 @@ func _run_frame(delta: float) -> void:
 ## No dead zone: it banks up drift and then snaps, which felt worse.
 func _camera_target() -> float:
 	var viewport_height := get_viewport_rect().size.y
-	return _cart.position.y - (balance.camera_anchor - 0.5) * viewport_height
+	# On the title screen the cart sits higher up: at the play anchor it lands
+	# right on top of the run key, which is both ugly and a mis-tap waiting to
+	# happen.
+	var anchor: float = MENU_CAMERA_ANCHOR if state == State.MENU else balance.camera_anchor
+	return _cart.position.y - (anchor - 0.5) * viewport_height
 
 
 func _snap_camera() -> void:

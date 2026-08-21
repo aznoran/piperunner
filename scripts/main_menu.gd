@@ -72,6 +72,15 @@ func open() -> void:
 	visible = true
 	_close_panels()
 	_refresh()
+	# Snap to fully visible before fading in. A transition left half-finished
+	# — an interrupted fade, a callback that fired late — could otherwise leave
+	# the menu drawn but transparent, or hidden underneath itself: it looks
+	# open and swallows every tap.
+	if _fade_tween != null and _fade_tween.is_valid():
+		_fade_tween.kill()
+	for child in get_children():
+		if child is CanvasItem:
+			(child as CanvasItem).modulate.a = 1.0
 	_fade(1.0, FADE_TIME)
 
 
@@ -128,7 +137,7 @@ func paint(skin: LocationSkin) -> void:
 	_paint_key(%DailyButton, skin, skin.warn, false)
 	_paint_key(%QuestsButton, skin, skin.accent, false)
 	_paint_key(%SettingsButton, skin, skin.pipe_core, false)
-	%ModeLabel.add_theme_color_override("font_color", Color(skin.accent, 0.65))
+	%ModeLabel.add_theme_color_override("font_color", Color(skin.accent, 0.85))
 
 	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
 			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton"]:
