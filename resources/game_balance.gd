@@ -27,6 +27,10 @@ extends Resource
 @export var fuel_max: float = 100.0
 ## Burned per cell travelled, once the grace period is over.
 @export var fuel_per_cell: float = 3.6
+## Burned per second the cart is rolling, from the first second — no grace.
+## Without it the gauge sits full for the whole of a short run and the player
+## never learns that fuel is a mechanic at all.
+@export var fuel_per_second: float = 0.6
 @export var fuel_crystal: float = 34.0
 ## Extra fuel per crystal, scaled by combo and capped.
 @export var fuel_combo_bonus: float = 2.0

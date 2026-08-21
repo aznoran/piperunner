@@ -13,6 +13,7 @@ speed_gain = 0.0032
 speed_cap = 2.3
 fuel_max = 100.0
 fuel_per_cell = 3.6
+fuel_per_second = 0.6
 fuel_crystal = 34.0
 fuel_combo_bonus = 2.0
 fuel_combo_bonus_cap = 14.0

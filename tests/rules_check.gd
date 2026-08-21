@@ -50,6 +50,7 @@ func _process(_delta: float) -> bool:
 	_check_locations()
 	_check_back_key()
 	_check_story()
+	_check_fuel_drain()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -665,6 +666,44 @@ func _check_story() -> void:
 	state.levels_cleared = saved_cleared
 	state.crystals = saved_crystals
 	state.save_game()
+
+
+## Fuel leaves the tank two ways: per cell travelled, after a grace period,
+## and per second the cart is rolling, from the first second.
+func _check_fuel_drain() -> void:
+	main.start_run()
+	main.started = true
+	var full: float = main.fuel
+
+	# Time alone burns fuel, with no grace and without the cart moving a cell.
+	main._burn_fuel(balance.fuel_per_second * 2.0)
+	_ok(main.fuel < full, "idling burns fuel")
+	_eq(main.fuel, full - balance.fuel_per_second * 2.0, "at the stated rate")
+	_eq(main.cells_run, 0, "without counting a cell")
+
+	# The per-cell drain still waits for the grace period.
+	main.start_run()
+	main.started = true
+	full = main.fuel
+	main.cells_run = balance.grace_cells - 1
+	var cell := Vector2i(balance.cols / 2, 1)
+	board.pipes[cell] = Board.PipeCell.new(PipeDefs.Type.V)
+	main._on_cart_stepped(cell)
+	_eq(main.fuel, full, "a cell inside the grace period is free")
+
+	main.cells_run = balance.grace_cells + 1
+	main._on_cart_stepped(cell)
+	_eq(main.fuel, full - balance.fuel_per_cell, "a cell past it is not")
+
+	# Either drain can end the run, through the same path.
+	main.start_run()
+	main.started = true
+	main.fuel = balance.fuel_per_second * 0.5
+	main._burn_fuel(balance.fuel_per_second)
+	_eq(main._death_reason, main.REASON_OUT_OF_FUEL, "running dry on time ends the run")
+	_eq(main.fuel, 0.0, "and the tank reads empty")
+
+	main._show_menu()
 
 
 ## --script skips project autoloads, so stand them up by hand.

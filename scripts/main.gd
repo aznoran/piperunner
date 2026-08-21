@@ -445,6 +445,9 @@ func _process(delta: float) -> void:
 func _run_frame(delta: float) -> void:
 	if started:
 		speed = minf(balance.start_speed + score * balance.speed_gain, balance.speed_cap)
+		_burn_fuel(balance.fuel_per_second * delta)
+		if state != State.PLAYING:
+			return
 		_cart.advance(delta, speed)
 		if state != State.PLAYING:
 			return  # the cart died mid-step
@@ -618,11 +621,8 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 		GameState.vibrate(balance.haptics_crystal_ms)
 
 	if cells_run > balance.grace_cells:
-		fuel -= balance.fuel_per_cell
-		if fuel <= 0.0:
-			fuel = 0.0
-			_hud.set_fuel(0.0)
-			_die(REASON_OUT_OF_FUEL)
+		_burn_fuel(balance.fuel_per_cell)
+		if state != State.PLAYING:
 			return
 
 	_board.ensure_rows(cell.y + balance.generate_ahead + 2)
@@ -632,6 +632,23 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 	_hud.set_score(score)
 	_hud.set_fuel(fuel / balance.fuel_max)
 
+	var low := fuel / balance.fuel_max < 0.25
+	_cart.low_fuel = low
+	_screen_fx.low_fuel = low
+
+
+## Single place fuel leaves the tank, so running dry always ends the run the
+## same way whichever drain emptied it.
+func _burn_fuel(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	fuel -= amount
+	if fuel <= 0.0:
+		fuel = 0.0
+		_hud.set_fuel(0.0)
+		_die(REASON_OUT_OF_FUEL)
+		return
+	_hud.set_fuel(fuel / balance.fuel_max)
 	var low := fuel / balance.fuel_max < 0.25
 	_cart.low_fuel = low
 	_screen_fx.low_fuel = low
