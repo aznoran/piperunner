@@ -358,6 +358,10 @@ func _process(delta: float) -> void:
 
 
 ## Inclusive row range covering the screen, with a cell of margin.
+func visible_rows() -> Vector2i:
+	return _visible_rows()
+
+
 func _visible_rows() -> Vector2i:
 	var camera := get_viewport().get_camera_2d()
 	var half_height: float = get_viewport_rect().size.y * 0.5

@@ -19,6 +19,12 @@ const HESITATE_CHANCE := 0.08
 const HESITATE_EXTRA := 0.55
 ## And every so often it simply plays the wrong cell.
 const MISTAKE_CHANCE := 0.03
+## How far ahead of the cart it will build. Beyond this the track leaves the
+## screen, which is no use to a player watching and no use on video either.
+const MAX_BUFFER := 5
+## Below this fraction of a tank it starts routing towards crystals rather
+## than straight up.
+const THIRSTY := 0.45
 
 var active: bool = false
 
@@ -86,7 +92,14 @@ func _act() -> void:
 	var piece: int = _queue.current()
 
 	var buffer: int = int(ahead["steps"])
-	if not blocked and _serves(piece, need) and _board.can_place(joint):
+	var rows := _board.visible_rows()
+
+	# Building past the top of the screen wastes pieces on track nobody can see
+	# — and on video it looks like the run is happening somewhere else.
+	var too_far: bool = buffer >= MAX_BUFFER or joint.y > rows.y - 1
+
+	if not blocked and not too_far and _serves(piece, need) \
+			and _board.can_place(joint):
 		if _worth_extending(joint, piece, need, buffer):
 			_place(joint)
 			return
@@ -135,14 +148,36 @@ func _worth_extending(cell: Vector2i, piece: int, entry: int, buffer: int) -> bo
 		return false  # gives back ground that has to be climbed again
 
 	if exit == PipeDefs.Side.L or exit == PipeDefs.Side.R:
-		# Sideways is a manoeuvre, not a habit: only when there is room to turn
-		# back up on the far side.
 		var beyond: Vector2i = next + PipeDefs.DIR[exit]
 		if beyond.x < 0 or beyond.x >= _main.balance.cols:
 			return false
-		return not _board.rocks.has(Vector2i(next.x, next.y + 1))
+		if _board.rocks.has(Vector2i(next.x, next.y + 1)):
+			return false
+		# Sideways is a manoeuvre, not a habit. It earns its place when it
+		# closes on fuel; on a full tank, keep climbing.
+		var crystal := _nearest_crystal()
+		if crystal == Board.NO_CELL:
+			return _main.fuel / _main.balance.fuel_max < THIRSTY
+		var closer: bool = absi(next.x - crystal.x) < absi(cell.x - crystal.x)
+		return closer
 
 	return true
+
+
+## The nearest crystal ahead that is actually on screen. Chasing one off the
+## top of the display would take the run out of frame.
+func _nearest_crystal() -> Vector2i:
+	var rows := _board.visible_rows()
+	var best := Board.NO_CELL
+	var best_cost := 999
+	for cell: Vector2i in _board.crystals:
+		if cell.y <= _cart.row or cell.y > rows.y:
+			continue
+		var cost: int = (cell.y - _cart.row) + absi(cell.x - _cart.col) * 2
+		if cost < best_cost:
+			best_cost = cost
+			best = cell
+	return best
 
 
 func _serves(piece: int, need: int) -> bool:
@@ -161,21 +196,25 @@ func _place(cell: Vector2i) -> void:
 
 
 ## Junk goes behind the cart, in the litter zone — the play the game is built
-## around. Furthest-behind first, so the mess never grows into the route.
+## around. It also has to go somewhere visible: a piece dropped off the bottom
+## of the screen looks to a viewer like the piece simply vanished.
 func _dump(joint: Vector2i) -> void:
+	var rows := _board.visible_rows()
+	var lowest: int = maxi(_board.max_row - _main.balance.place_below, rows.x + 1)
+	var highest: int = mini(_cart.row, rows.y)
+
 	var best := Board.NO_CELL
 	var best_score := -1000.0
-	var lowest: int = _board.max_row - _main.balance.place_below
-
-	for row in range(lowest, _cart.row):
+	for row in range(lowest, highest):
 		for col in _main.balance.cols:
 			var spot := Vector2i(col, row)
 			if spot == joint or _board.get_pipe(spot) != null:
 				continue
 			if not _board.can_place(spot):
 				continue
-			# Prefer far below and away from the column the cart is climbing.
-			var score := float(_cart.row - row) + absf(col - _cart.col) * 0.6
+			# Just behind the cart and off to one side: in shot, out of the way.
+			var score := 6.0 - absf(float(_cart.row - row) - 2.0) \
+				+ absf(col - _cart.col) * 0.5
 			if score > best_score:
 				best_score = score
 				best = spot
