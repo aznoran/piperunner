@@ -87,40 +87,59 @@ horizontal_alignment = 1
 [node name="Bar" type="Control" parent="."]
 mouse_filter = 2
 
-[node name="BarPanel" type="Panel" parent="Bar"]
+[node name="Column" type="VBoxContainer" parent="Bar"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_bottom = 40.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 16
+
+[node name="ModeLabel" type="Label" parent="Bar/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "CLASSIC"
+horizontal_alignment = 1
+
+[node name="StartRow" type="CenterContainer" parent="Bar/Column"]
+layout_mode = 2
+
+[node name="StartButton" type="Button" parent="Bar/Column/StartRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(456, 116)
+layout_mode = 2
+theme_override_font_sizes/font_size = 46
+text = "START"
 
 [node name="Tabs" type="HBoxContainer" parent="Bar"]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = 12
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 10.0
-offset_top = 12.0
-offset_right = -10.0
-offset_bottom = -10.0
+offset_left = 16.0
+offset_top = -150.0
+offset_right = -16.0
 grow_horizontal = 2
-grow_vertical = 2
+grow_vertical = 0
+mouse_filter = 2
 alignment = 1
-theme_override_constants/separation = 12
+theme_override_constants/separation = 34
 
 [node name="DepotTab" type="VBoxContainer" parent="Bar/Tabs"]
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 7
+theme_override_constants/separation = 9
 
 [node name="UpgradesButton" type="Button" parent="Bar/Tabs/DepotTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 
 [node name="Icon" type="Control" parent="Bar/Tabs/DepotTab/UpgradesButton"]
@@ -128,10 +147,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 17.0
-offset_top = 17.0
-offset_right = -17.0
-offset_bottom = -17.0
+offset_left = 26.0
+offset_top = 26.0
+offset_right = -26.0
+offset_bottom = -26.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -144,31 +163,31 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -13.0
-offset_top = -9.0
-offset_right = 13.0
-offset_bottom = 17.0
+offset_left = -20.0
+offset_top = -14.0
+offset_right = 20.0
+offset_bottom = 26.0
 grow_horizontal = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 20
 text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Caption" type="Label" parent="Bar/Tabs/DepotTab"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 17
 text = "DEPOT"
 horizontal_alignment = 1
 
 [node name="TodayTab" type="VBoxContainer" parent="Bar/Tabs"]
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 7
+theme_override_constants/separation = 9
 
 [node name="DailyButton" type="Button" parent="Bar/Tabs/TodayTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 
 [node name="Icon" type="Control" parent="Bar/Tabs/TodayTab/DailyButton"]
@@ -176,10 +195,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 17.0
-offset_top = 17.0
-offset_right = -17.0
-offset_bottom = -17.0
+offset_left = 26.0
+offset_top = 26.0
+offset_right = -26.0
+offset_bottom = -26.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -192,49 +211,31 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -13.0
-offset_top = -9.0
-offset_right = 13.0
-offset_bottom = 17.0
+offset_left = -20.0
+offset_top = -14.0
+offset_right = 20.0
+offset_bottom = 26.0
 grow_horizontal = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 20
 text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Caption" type="Label" parent="Bar/Tabs/TodayTab"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 17
 text = "TODAY"
-horizontal_alignment = 1
-
-[node name="StartTab" type="VBoxContainer" parent="Bar/Tabs"]
-layout_mode = 2
-size_flags_vertical = 4
-theme_override_constants/separation = 7
-
-[node name="StartButton" type="Button" parent="Bar/Tabs/StartTab"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(136, 64)
-layout_mode = 2
-theme_override_font_sizes/font_size = 27
-text = "START"
-
-[node name="Caption" type="Label" parent="Bar/Tabs/StartTab"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 13
-text = "CLASSIC"
 horizontal_alignment = 1
 
 [node name="GoalsTab" type="VBoxContainer" parent="Bar/Tabs"]
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 7
+theme_override_constants/separation = 9
 
 [node name="QuestsButton" type="Button" parent="Bar/Tabs/GoalsTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 
 [node name="Icon" type="Control" parent="Bar/Tabs/GoalsTab/QuestsButton"]
@@ -242,10 +243,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 17.0
-offset_top = 17.0
-offset_right = -17.0
-offset_bottom = -17.0
+offset_left = 26.0
+offset_top = 26.0
+offset_right = -26.0
+offset_bottom = -26.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -258,31 +259,31 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -13.0
-offset_top = -9.0
-offset_right = 13.0
-offset_bottom = 17.0
+offset_left = -20.0
+offset_top = -14.0
+offset_right = 20.0
+offset_bottom = 26.0
 grow_horizontal = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 20
 text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Caption" type="Label" parent="Bar/Tabs/GoalsTab"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 17
 text = "GOALS"
 horizontal_alignment = 1
 
 [node name="SetupTab" type="VBoxContainer" parent="Bar/Tabs"]
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 7
+theme_override_constants/separation = 9
 
 [node name="SettingsButton" type="Button" parent="Bar/Tabs/SetupTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 
 [node name="Icon" type="Control" parent="Bar/Tabs/SetupTab/SettingsButton"]
@@ -290,10 +291,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 17.0
-offset_top = 17.0
-offset_right = -17.0
-offset_bottom = -17.0
+offset_left = 26.0
+offset_top = 26.0
+offset_right = -26.0
+offset_bottom = -26.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -302,7 +303,7 @@ kind = 4
 
 [node name="Caption" type="Label" parent="Bar/Tabs/SetupTab"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 17
 text = "SETUP"
 horizontal_alignment = 1
 

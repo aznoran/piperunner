@@ -230,6 +230,10 @@ func _check_crystal_and_combo() -> void:
 		"crystal pays distance plus chain points")
 
 	# Climbing past a crystal that is still sitting there breaks the chain.
+	# Clear the generated ones first: a crystal that happens to sit in the cell
+	# being stepped into would be collected and start a new chain, which made
+	# this check pass or fail on the seed.
+	board.crystals.clear()
 	var missed := Vector2i(5, row + 1)
 	board.crystals[missed] = true
 	board.pipes[Vector2i(2, row + 2)] = Board.PipeCell.new(PipeDefs.Type.V)

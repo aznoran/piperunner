@@ -103,35 +103,32 @@ func close() -> void:
 	_close_panels()
 
 
-## Keeps the button bar where the queue strip would be, clear of the system
-## home gesture.
+## Lays the lower half out: mode label, run key, then a loose row of icons.
+## There is no panel behind them on purpose — the board is the backdrop, the
+## way the play object is the backdrop on a Knife Hit style menu.
 func _relayout() -> void:
 	var viewport := get_viewport().get_visible_rect().size
 	var bottom_inset := SafeArea.insets(viewport).w
-	var height: float = maxf(viewport.y * 0.135, 122.0)
+	var icons_height := 178.0
+	var height: float = icons_height + 270.0
 	_bar.size = Vector2(viewport.x, height)
-	_bar.position = Vector2(0.0, viewport.y - height - bottom_inset)
+	# Clear of the home gesture and of the screen edge: captions sitting on the
+	# bezel read as clipped even when they are not.
+	_bar.position = Vector2(0.0, viewport.y - height - bottom_inset - 52.0)
+	(%Column as Control).offset_bottom = -icons_height
 
 
-## Repaints the menu chrome in the location's colours. The scene file can only
-## carry one palette, so the whole bar is styled from the skin at runtime —
-## that is what lets a location change the look of the menu, not just the board.
+## Repaints the chrome in the location's colours. The scene file carries one
+## palette; everything that varies by location is set here.
 func paint(skin: LocationSkin) -> void:
 	_face = load(TAB_FACE)
 
-	var bar := StyleBoxFlat.new()
-	bar.bg_color = Color(skin.bg_top.darkened(0.35), 0.92)
-	bar.corner_radius_top_left = 26
-	bar.corner_radius_top_right = 26
-	bar.border_width_top = 2
-	bar.border_color = Color(skin.accent, 0.18)
-	%BarPanel.add_theme_stylebox_override("panel", bar)
-
-	_paint_tab(%UpgradesButton, skin, skin.accent, false)
-	_paint_tab(%DailyButton, skin, skin.warn, false)
-	_paint_tab(%StartButton, skin, skin.accent, true)
-	_paint_tab(%QuestsButton, skin, skin.accent, false)
-	_paint_tab(%SettingsButton, skin, skin.pipe_core, false)
+	_paint_key(%StartButton, skin, skin.accent, true)
+	_paint_key(%UpgradesButton, skin, skin.accent, false)
+	_paint_key(%DailyButton, skin, skin.warn, false)
+	_paint_key(%QuestsButton, skin, skin.accent, false)
+	_paint_key(%SettingsButton, skin, skin.pipe_core, false)
+	%ModeLabel.add_theme_color_override("font_color", Color(skin.accent, 0.65))
 
 	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
 			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton"]:
@@ -163,68 +160,36 @@ func paint(skin: LocationSkin) -> void:
 	%Wallet.add_theme_color_override("font_color", skin.accent)
 
 
-## One bar tab: a square key with its caption underneath, outside the key
-## itself. The face is a baked greyscale gradient tinted per state — a flat
-## fill is what made the first version read as a row of labels.
-func _paint_tab(button: Button, skin: LocationSkin, tint: Color, primary: bool) -> void:
+## A key: the baked gradient face, tinted per state. `primary` is the run key —
+## filled with the accent, everything else washed with a hint of its own colour
+## so the row is not four grey squares.
+func _paint_key(button: Button, skin: LocationSkin, tint: Color, primary: bool) -> void:
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		var box := StyleBoxTexture.new()
 		box.texture = _face
 		box.set_texture_margin_all(TAB_MARGIN)
-		box.modulate_color = _tab_tint(skin, tint, primary, state)
+		box.modulate_color = _key_tint(skin, tint, primary, state)
 		box.content_margin_top = float(TAB_LIP if state == "pressed" else 0)
 		button.add_theme_stylebox_override(state, box)
 
-	var tab: Control = button.get_parent()
-	var caption: Label = tab.get_node("Caption")
-	caption.add_theme_color_override("font_color",
-		Color(tint, 0.95) if primary or tint != skin.pipe_core else Color(tint, 0.7))
-
 	if primary:
-		# The one element allowed to glow: it is the thing the screen is for.
-		var glow := StyleBoxFlat.new()
-		glow.bg_color = Color(0, 0, 0, 0)
-		glow.set_corner_radius_all(16)
-		glow.shadow_color = Color(skin.accent, 0.5)
-		glow.shadow_size = 26
-		button.add_theme_stylebox_override("normal", _with_glow(skin, tint, glow))
 		for key in ["font_color", "font_hover_color", "font_pressed_color"]:
 			button.add_theme_color_override(key, skin.bg_bottom.darkened(0.25))
-	else:
-		var icon: TabIcon = button.get_node("Icon")
-		icon.color = tint
+		return
+
+	(button.get_node("Icon") as TabIcon).color = tint
+	var caption: Label = button.get_parent().get_node("Caption")
+	caption.add_theme_color_override("font_color", Color(tint, 0.72))
 
 	var badge: Label = button.get_node_or_null("Badge")
 	if badge != null:
 		var pill := StyleBoxFlat.new()
 		pill.bg_color = skin.danger
-		pill.set_corner_radius_all(13)
+		pill.set_corner_radius_all(20)
 		pill.border_color = Color(skin.bg_bottom, 0.85)
-		pill.set_border_width_all(2)
+		pill.set_border_width_all(3)
 		badge.add_theme_stylebox_override("normal", pill)
 		badge.add_theme_color_override("font_color", Color.WHITE)
-
-
-## StyleBoxTexture carries no shadow, so the run key's glow is a flat box drawn
-## behind it through the button's own stylebox stack.
-func _with_glow(skin: LocationSkin, tint: Color, glow: StyleBoxFlat) -> StyleBoxFlat:
-	glow.bg_color = tint
-	glow.set_corner_radius_all(16)
-	glow.border_width_bottom = TAB_LIP
-	glow.border_color = tint.darkened(0.5)
-	return glow
-
-
-func _tab_tint(skin: LocationSkin, tint: Color, primary: bool, state: String) -> Color:
-	if primary:
-		return tint.darkened(0.16) if state == "pressed" else tint
-	# Each key takes a wash of its own colour, so the bar is not five grey slabs.
-	var base := skin.bg_top.lightened(0.16).lerp(tint, 0.12)
-	if state == "pressed":
-		return base.darkened(0.12)
-	if state == "hover":
-		return base.lightened(0.06)
-	return base
 
 
 ## Outlined button, used inside the panels where a filled key would shout.
@@ -245,6 +210,17 @@ func _paint_ghost(button: Button, skin: LocationSkin, tint: Color) -> void:
 	button.add_theme_color_override("font_color", tint)
 	for state in ["normal", "hover", "pressed"]:
 		button.add_theme_stylebox_override(state, _ghost_style(skin, tint))
+
+
+func _key_tint(skin: LocationSkin, tint: Color, primary: bool, state: String) -> Color:
+	if primary:
+		return tint.darkened(0.16) if state == "pressed" else tint
+	var base := skin.bg_top.lightened(0.18).lerp(tint, 0.14)
+	if state == "pressed":
+		return base.darkened(0.12)
+	if state == "hover":
+		return base.lightened(0.06)
+	return base
 
 
 func _toggle(panel: Control) -> void:
