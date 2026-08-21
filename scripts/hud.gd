@@ -58,8 +58,9 @@ func set_best(value: int) -> void:
 
 ## Marks the run as today's fixed-seed challenge, which otherwise looks
 ## exactly like an ordinary one.
-func set_daily(is_daily: bool) -> void:
+func set_daily(is_daily: bool, date: String = "") -> void:
 	_daily_label.visible = is_daily
+	_daily_label.text = "DAILY  ·  %s" % date if not date.is_empty() else "DAILY"
 
 
 func set_combo(value: int) -> void:

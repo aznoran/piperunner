@@ -7,6 +7,8 @@ enum State { MENU, PLAYING, DEAD }
 const REASON_OUT_OF_FUEL := "Out of fuel"
 ## Beat before the game-over card slides in, so the crash is legible.
 const DEATH_PAUSE := 0.42
+## Seconds the daily banner stays up before fading out.
+const BANNER_TIME := 2.6
 ## Prototype shake, expressed against its 68 px cell so it scales with layout.
 const SHAKE_REFERENCE_CELL := 68.0
 
@@ -29,6 +31,7 @@ var _magnet_reach: int = 0
 @onready var _menu: MainMenu = $MainMenu
 @onready var _input: InputHandler = $InputHandler
 @onready var _start_hint: Label = %StartHint
+@onready var _mode_banner: Label = %ModeBanner
 @onready var _background: TextureRect = $Background/Gradient
 
 var state: State = State.MENU
@@ -57,6 +60,7 @@ var _death_pause: float = 0.0
 var _death_reason: String = ""
 var _death_was_record: bool = false
 var _hint_pulse: float = 0.0
+var _banner_left: float = 0.0
 ## Cells this run has driven through, flattened as col, row, col, row...
 ## Saved as the ghost when the run beats the record.
 var _route: PackedInt32Array = PackedInt32Array()
@@ -141,6 +145,7 @@ func _show_menu() -> void:
 	_queue_bar.visible = false
 	_hud.visible = false
 	_start_hint.visible = false
+	_mode_banner.visible = false
 	_board.hide_ghost()
 	_board.hide_frontier()
 	# The title screen sits over a live but empty board.
@@ -210,7 +215,10 @@ func start_run(daily: bool = false) -> void:
 	_hud.set_best(GameState.best)
 	_hud.set_combo(0)
 	_hud.set_fuel(1.0)
-	_hud.set_daily(daily_mode)
+	_hud.set_daily(daily_mode, GameState.today())
+	_mode_banner.visible = daily_mode
+	_mode_banner.modulate.a = 1.0
+	_banner_left = BANNER_TIME if daily_mode else 0.0
 
 
 func _process(delta: float) -> void:
@@ -234,6 +242,12 @@ func _run_frame(delta: float) -> void:
 	else:
 		_hint_pulse += delta
 		_start_hint.modulate.a = 0.72 + 0.20 * sin(_hint_pulse * 3.3)
+
+	if _banner_left > 0.0:
+		_banner_left -= delta
+		_mode_banner.modulate.a = clampf(_banner_left / 0.8, 0.0, 1.0)
+		if _banner_left <= 0.0:
+			_mode_banner.visible = false
 
 	_board.set_cart_incoming(_cart.incoming_cell(balance.place_lockout_progress))
 	_update_camera(delta)
