@@ -7,7 +7,23 @@
 class_name Levels
 extends RefCounted
 
-const FOLDER := "res://resources/levels"
+## Listed rather than scanned. An exported build stores resources under
+## .remap names, so DirAccess.get_files_at finds nothing there and the whole
+## line comes out empty on device while working fine in the editor.
+const PATHS := [
+	"res://resources/levels/level_01.tres",
+	"res://resources/levels/level_02.tres",
+	"res://resources/levels/level_03.tres",
+	"res://resources/levels/level_04.tres",
+	"res://resources/levels/level_05.tres",
+	"res://resources/levels/level_06.tres",
+	"res://resources/levels/level_07.tres",
+	"res://resources/levels/level_08.tres",
+	"res://resources/levels/level_09.tres",
+	"res://resources/levels/level_10.tres",
+	"res://resources/levels/level_11.tres",
+	"res://resources/levels/level_12.tres",
+]
 
 static var _catalogue: Array[Level] = []
 
@@ -15,12 +31,8 @@ static var _catalogue: Array[Level] = []
 static func catalogue() -> Array[Level]:
 	if not _catalogue.is_empty():
 		return _catalogue
-	var names := DirAccess.get_files_at(FOLDER)
-	names.sort()
-	for name: String in names:
-		if not name.ends_with(".tres"):
-			continue
-		var level: Level = load("%s/%s" % [FOLDER, name])
+	for path: String in PATHS:
+		var level: Level = load(path)
 		if level != null:
 			_catalogue.append(level)
 	_catalogue.sort_custom(func(a: Level, b: Level) -> bool: return a.number < b.number)

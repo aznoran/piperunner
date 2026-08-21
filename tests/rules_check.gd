@@ -620,6 +620,9 @@ func _check_story() -> void:
 	var saved_crystals: int = state.crystals
 
 	_ok(Levels.count() >= 12, "the line has stations on it")
+	# Every listed path must actually load: the list is hand-maintained, and a
+	# typo in it would silently shorten the line rather than fail loudly.
+	_eq(Levels.count(), Levels.PATHS.size(), "every listed station loads")
 	var numbers := {}
 	for level in Levels.catalogue():
 		numbers[level.number] = true
