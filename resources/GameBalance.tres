@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="GameBalance" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/game_balance.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+cols = 7
+runway = 3
+generate_ahead = 18
+start_speed = 0.68
+speed_gain = 0.0032
+speed_cap = 2.3
+fuel_max = 100.0
+fuel_per_cell = 3.6
+fuel_crystal = 34.0
+fuel_combo_bonus = 2.0
+fuel_combo_bonus_cap = 14.0
+fuel_replace = 7.0
+grace_cells = 16
+crystal_points = 10
+crystal_combo_cap = 5
+place_lockout_progress = 0.5
+place_above = 22
+place_below = 6
+rock_start_row = 16
+rock_density_base = 0.05
+rock_density_gain = 0.0012
+rock_density_cap = 0.14
+crystal_gap_min = 2
+crystal_gap_max = 4
+camera_anchor = 0.72
+camera_follow = 9.0
+camera_freeze_timeout = 1.6
+camera_freeze_ramp = 0.18
+queue_preview = 4
+haptics_place_ms = 20
+haptics_crystal_ms = 40

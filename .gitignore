@@ -1,0 +1,9 @@
+# Godot's import cache and generated files
+.godot/
+*.translation
+
+# Export output and signing material — never commit a keystore (spec 13)
+/build/
+/android/
+*.keystore
+*.jks

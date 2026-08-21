@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/board.gd" id="1_board"]
+[ext_resource type="Script" path="res://scripts/board_layer.gd" id="2_layer"]
+
+[node name="Board" type="Node2D"]
+script = ExtResource("1_board")
+
+[node name="Terrain" type="Node2D" parent="."]
+script = ExtResource("2_layer")
+draw_method = &"draw_terrain"
+
+[node name="Live" type="Node2D" parent="."]
+script = ExtResource("2_layer")
+draw_method = &"draw_live"

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipe Runner — техническое задание</title>
+<style>
+  :root{
+    --ink:#e8eef7;
+    --dim:#8ea0bd;
+    --line:#1e2d45;
+    --bg:#0a0f18;
+    --panel:#0e1524;
+    --teal:#4ce0b3;
+    --amber:#ffd23f;
+    --red:#ff5c5c;
+    --slate:#8fa6d6;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.65 "Iowan Old Style","Charter",Georgia,serif;
+    background-image:
+      linear-gradient(rgba(76,224,179,.028) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(76,224,179,.028) 1px,transparent 1px);
+    background-size:56px 56px;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:0 22px 100px;}
+
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line);}
+  .eyebrow{
+    font:600 11px/1 ui-monospace,"SF Mono",Menlo,monospace;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--teal);
+  }
+  h1{font-size:44px;line-height:1.06;margin:16px 0 10px;letter-spacing:-.02em;font-weight:600;}
+  .sub{color:var(--dim);font-size:17px;max-width:56ch;margin:0;}
+  .meta{
+    margin-top:26px;display:flex;flex-wrap:wrap;gap:10px;
+    font:500 11.5px/1 ui-monospace,Menlo,monospace;letter-spacing:.08em;
+  }
+  .meta span{border:1px solid var(--line);padding:7px 11px;border-radius:3px;color:var(--dim);}
+
+  h2{
+    font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
+    font-family:ui-monospace,Menlo,monospace;color:var(--teal);
+    margin:56px 0 6px;padding-top:22px;border-top:1px solid var(--line);
+  }
+  h2 .n{color:var(--line);margin-right:12px;}
+  h3{font-size:19px;margin:30px 0 8px;font-weight:600;letter-spacing:-.01em;}
+  h4{font-size:15px;margin:20px 0 4px;font-weight:600;color:var(--slate);}
+  p{margin:10px 0;}
+  ul,ol{margin:10px 0;padding-left:22px;}
+  li{margin:5px 0;}
+  code{
+    font:13px/1.5 ui-monospace,Menlo,monospace;
+    background:var(--panel);border:1px solid var(--line);
+    padding:1px 5px;border-radius:3px;color:var(--teal);
+  }
+  pre{
+    background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--teal);
+    padding:16px 18px;overflow-x:auto;border-radius:3px;
+    font:12.5px/1.6 ui-monospace,Menlo,monospace;color:#c6d4e8;
+  }
+  pre code{background:none;border:none;padding:0;color:inherit;}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{
+    font:600 10.5px/1 ui-monospace,Menlo,monospace;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--dim);
+  }
+  td code{font-size:12.5px;}
+  .num{font-family:ui-monospace,Menlo,monospace;color:var(--amber);white-space:nowrap;}
+
+  .callout{
+    border:1px solid var(--line);border-left:2px solid var(--amber);
+    background:var(--panel);padding:14px 18px;margin:20px 0;border-radius:3px;
+  }
+  .callout strong{color:var(--amber);}
+  .danger{border-left-color:var(--red);}
+  .danger strong{color:var(--red);}
+
+  .prio{display:flex;gap:12px;align-items:baseline;border-bottom:1px solid var(--line);padding:14px 0;}
+  .prio .tag{
+    font:600 10px/1 ui-monospace,Menlo,monospace;letter-spacing:.1em;
+    border:1px solid var(--line);padding:5px 8px;border-radius:3px;white-space:nowrap;
+  }
+  .p0{color:var(--red);border-color:var(--red)!important;}
+  .p1{color:var(--amber);border-color:var(--amber)!important;}
+  .p2{color:var(--slate);border-color:var(--slate)!important;}
+  .prio div:last-child{flex:1;}
+  .prio b{display:block;margin-bottom:2px;}
+  .prio span{color:var(--dim);font-size:14px;}
+
+  .check{list-style:none;padding-left:0;}
+  .check li{padding-left:26px;position:relative;}
+  .check li::before{
+    content:"";position:absolute;left:0;top:7px;width:11px;height:11px;
+    border:1px solid var(--teal);border-radius:2px;
+  }
+
+  footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);font-size:13px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Техническое задание · v1.0</div>
+  <h1>Pipe Runner</h1>
+  <p class="sub">Мобильная аркада: вагонетка едет по трубам, которые игрок выкладывает на ходу. Механика построения пути из Pipe Dream, скрещённая с бесконечным раннером.</p>
+  <div class="meta">
+    <span>ДВИЖОК: GODOT 4.x</span>
+    <span>ЯЗЫК: GDSCRIPT</span>
+    <span>ПЛАТФОРМА: ANDROID + IOS</span>
+    <span>ОРИЕНТАЦИЯ: PORTRAIT</span>
+    <span>РЕФЕРЕНС: pipe-runner-v6.html</span>
+  </div>
+</header>
+
+<h2><span class="n">01</span>Что нужно сделать</h2>
+<p>Портировать рабочий HTML5-прототип (<code>pipe-runner-v6.html</code>) на Godot 4 с сохранением всей игровой логики и добавлением функционала из раздела 10. Прототип приложен и является <strong>источником истины по механике</strong> — при расхождении текста и кода прототипа побеждает прототип.</p>
+
+<div class="callout">
+  <strong>Почему Godot и GDScript.</strong> Нет обязательной заставки движка при запуске: лицензия MIT, boot splash отключается или заменяется на свой в <code>Project Settings → Application → Boot Splash</code>. Лёгкий билд для 2D, нет Runtime Fee.
+  <br><br>
+  <strong>Почему не C#.</strong> В Godot 4 поддержка C# на мобильных платформах до сих пор помечена как экспериментальная: на Android только архитектуры arm64 и x64, требуется .NET 9+, во вкладке экспорта висит предупреждение. GDScript такого ограничения не имеет и экспортируется на iOS и Android без оговорок. Для этой игры язык не является узким местом — вся логика простая и не упирается в производительность скриптов.
+  <br><br>
+  <strong>Если проект всё же переедет на Unity</strong> — только версия <strong>Unity 6 LTS или новее</strong>, там «Made with Unity» отключается на бесплатной Personal-лицензии. На более старых версиях с Personal сплэш убрать нельзя.
+</div>
+
+<h2><span class="n">02</span>Игровой цикл</h2>
+<ol>
+  <li>Вагонетка стоит на стартовом отрезке труб и <strong>не двигается</strong>, пока игрок не поставит первую трубу.</li>
+  <li>Игрок получает трубу из очереди и ставит её в <strong>любую</strong> свободную клетку поля.</li>
+  <li>Вагонетка едет по построенным трубам, поворачивая по коленам.</li>
+  <li>Топливо тратится за каждую пройденную клетку. Кристаллы на поле пополняют его.</li>
+  <li>Забег заканчивается, когда вагонетка приезжает в клетку без подходящей трубы либо кончается топливо.</li>
+</ol>
+<p>Ключевой конфликт: <em>какая</em> труба выпадет — не твой выбор, <em>куда</em> её положить — полностью твой.</p>
+
+<h2><span class="n">03</span>Поле и координаты</h2>
+<ul>
+  <li>Сетка <strong>7 колонок</strong> (<code>COLS = 7</code>), бесконечная вверх.</li>
+  <li><code>col</code> растёт вправо (0…6), <code>row</code> растёт <strong>вверх</strong>.</li>
+  <li>Размер клетки <code>CELL = ширина_экрана / 7</code>. Клетки квадратные.</li>
+  <li>Хранить занятые клетки в словаре по ключу <code>Vector2i(col, row)</code> — плотный массив не подойдёт, поле бесконечное.</li>
+</ul>
+<div class="callout">
+  <strong>Если игрок жалуется на промахи</strong> — предусмотреть переключение на 6 колонок константой. Клетки станут крупнее на 17%.
+</div>
+
+<h2><span class="n">04</span>Типы труб</h2>
+<p>Труба описывается набором сторон, на которые она открыта. Направления: <code>U</code> вверх, <code>D</code> вниз, <code>L</code> влево, <code>R</code> вправо.</p>
+<table>
+  <tr><th>Тип</th><th>Открытые стороны</th><th>Вес выпадения</th><th>Описание</th></tr>
+  <tr><td><code>v</code></td><td><code>U, D</code></td><td class="num">24</td><td>вертикальная</td></tr>
+  <tr><td><code>h</code></td><td><code>L, R</code></td><td class="num">12</td><td>горизонтальная</td></tr>
+  <tr><td><code>ur</code></td><td><code>U, R</code></td><td class="num">13</td><td>колено</td></tr>
+  <tr><td><code>ul</code></td><td><code>U, L</code></td><td class="num">13</td><td>колено</td></tr>
+  <tr><td><code>dr</code></td><td><code>D, R</code></td><td class="num">10</td><td>колено</td></tr>
+  <tr><td><code>dl</code></td><td><code>D, L</code></td><td class="num">10</td><td>колено</td></tr>
+  <tr><td><code>x</code></td><td><code>U, D, L, R</code></td><td class="num">8</td><td>перекрёсток, проезд насквозь</td></tr>
+</table>
+
+<h4>Правило проезда</h4>
+<pre><code>public enum Side { U, D, L, R }
+
+static readonly Dictionary&lt;PipeType, Side[]&gt; Pipe = new() {
+    { PipeType.V,  new[]{ Side.U, Side.D } },
+    { PipeType.H,  new[]{ Side.L, Side.R } },
+    { PipeType.UR, new[]{ Side.U, Side.R } },
+    { PipeType.UL, new[]{ Side.U, Side.L } },
+    { PipeType.DR, new[]{ Side.D, Side.R } },
+    { PipeType.DL, new[]{ Side.D, Side.L } },
+    { PipeType.X,  new[]{ Side.U, Side.D, Side.L, Side.R } },
+};
+
+// null означает, что труба не принимает вагонетку с этой стороны
+public static Side? ExitSide(PipeType type, Side entry)
+{
+    var sides = Pipe[type];
+    if (Array.IndexOf(sides, entry) &lt; 0) return null;
+    if (type == PipeType.X) return Opposite(entry);   // перекрёсток — насквозь
+    return sides[0] == entry ? sides[1] : sides[0];
+}</code></pre>
+<p><code>entry</code> — сторона клетки, <em>через которую вагонетка въехала</em>. Если вагонетка едет вверх, она въезжает в следующую клетку через её нижнюю сторону, то есть <code>entry = "D"</code>.</p>
+
+<h2><span class="n">05</span>Движение вагонетки</h2>
+<p>Состояние: <code>col</code>, <code>row</code>, <code>entry</code>, <code>t</code> (прогресс 0…1 до следующей клетки).</p>
+<pre><code>t += speed * delta
+while t >= 1.0:
+    t -= 1.0
+    step_cart()</code></pre>
+
+<h4>Шаг вагонетки — <code>step_cart()</code></h4>
+<ol>
+  <li>Взять трубу в текущей клетке. Нет трубы → смерть «Derailed».</li>
+  <li>Вычислить <code>exit_side</code>. Null → смерть «Derailed».</li>
+  <li>Посчитать следующую клетку. Вышли за края поля по колонке → смерть «Off the edge».</li>
+  <li>В следующей клетке нет трубы или она не открыта нужной стороной → смерть «Derailed».</li>
+  <li>Иначе: перейти в клетку, пометить трубу как <code>flooded</code> (пройденная), начислить очки, проверить кристалл, списать топливо.</li>
+</ol>
+
+<div class="callout danger">
+  <strong>Критично для ощущения игры.</strong> Позиция вагонетки на экране должна считаться как <em>дробная</em> интерполяция между текущей и следующей клеткой по <code>t</code>. В ранней версии прототипа она хранилась целыми клетками — вагонетка телепортировалась, камера дёргалась рывками, и игрок систематически промахивался мимо клеток. Замер разницы: рывки камеры упали с 6.5 px за кадр до 0.63 px, разброс — в 34 раза.
+</div>
+
+<h2><span class="n">06</span>Камера</h2>
+<ul>
+  <li>Следит за <strong>дробной</strong> позицией вагонетки, держит её на <strong>72% высоты экрана</strong>.</li>
+  <li>Сглаживание: <code>cam_y += (target - cam_y) * min(delta * 9, 1)</code>.</li>
+  <li><strong>Мёртвой зоны быть не должно.</strong> Она копит расхождение и сбрасывает его рывком — проверено, стало хуже.</li>
+  <li><strong>Заморозка при касании:</strong> пока палец на экране, камера стоит. Вагонетка при этом продолжает ехать.</li>
+  <li>Страховка: разморозить принудительно через <strong>1.6 секунды</strong>, чтобы вагонетка не ушла за кадр.</li>
+</ul>
+
+<h2><span class="n">07</span>Управление</h2>
+<p>Схема «нажал — потянул — отпустил». Мгновенная установка по тапу не подходит: между «увидел клетку» и «коснулся» проходит около 200 мс, за которые поле уезжает.</p>
+<table>
+  <tr><th>Событие</th><th>Поведение</th></tr>
+  <tr><td>нажатие на слот HOLD</td><td>обмен трубы, палец дальше не обрабатывается</td></tr>
+  <tr><td>нажатие на нижнюю полосу очереди</td><td>игнорируется (не поле)</td></tr>
+  <tr><td>нажатие на поле</td><td>заморозить камеру, запомнить клетку под пальцем, показать призрак трубы</td></tr>
+  <tr><td>движение пальца</td><td>пересчитать клетку, обновить призрак</td></tr>
+  <tr><td>отпускание</td><td>поставить трубу, если можно; разморозить камеру</td></tr>
+  <tr><td>отмена жеста</td><td>сбросить призрак, разморозить камеру</td></tr>
+</table>
+<p>Призрак трубы: зелёная подсветка клетки плюс силуэт трубы, если поставить можно; красная подсветка, если нельзя.</p>
+
+<h2><span class="n">08</span>Установка труб</h2>
+<h4>Куда ставить нельзя</h4>
+<ul>
+  <li>За пределы колонок 0…6.</li>
+  <li>В камень.</li>
+  <li>В трубу с флагом <code>flooded</code> — вагонетка по ней уже проехала.</li>
+  <li>В клетку, где сейчас вагонетка.</li>
+  <li>Выше <code>max_row + 22</code> и ниже <code>max_row - 6</code>, где <code>max_row</code> — максимальный достигнутый ряд.</li>
+</ul>
+<h4>Перезапись</h4>
+<p>Поставить трубу поверх непройденной трубы <strong>можно</strong>, но это стоит <span class="num">7</span> топлива. Показать всплывающий текст <code>-7</code> над клеткой.</p>
+
+<div class="callout">
+  <strong>Это ядро скилла, не мелочь.</strong> Примерно 45% труб не подходят к текущему стыку. Их нельзя пропустить — надо куда-то положить, чтобы добраться до следующей. Кто сбрасывает мусор <em>позади</em> вагонетки, живёт вдвое дольше того, кто кидает вперёд и врезается в собственный хлам. В симуляции: 13 клеток против 27. Ограничение «не ниже <code>max_row - 6</code>» задаёт размер этой мусорной зоны — не убирать.
+</div>
+
+<h2><span class="n">09</span>Слот HOLD</h2>
+<ul>
+  <li>Пустой слот: тап кладёт туда текущую трубу и подаёт следующую из очереди.</li>
+  <li>Занятый слот: тап меняет местами трубу в руке и трубу в кармане.</li>
+  <li><strong>Обмен не прокручивает очередь</strong> — иначе игрок бесконечно перебирал бы трубы. Бесплатный пропуск ровно один, самый первый.</li>
+</ul>
+
+<h2><span class="n">10</span>Экономика и генерация</h2>
+<table>
+  <tr><th>Константа</th><th>Значение</th><th>Смысл</th></tr>
+  <tr><td><code>START_SPEED</code></td><td class="num">0.68</td><td>клеток в секунду на старте</td></tr>
+  <tr><td><code>SPEED_GAIN</code></td><td class="num">0.0032</td><td>прирост скорости за очко</td></tr>
+  <tr><td><code>SPEED_CAP</code></td><td class="num">2.3</td><td>потолок скорости</td></tr>
+  <tr><td><code>FUEL_MAX</code></td><td class="num">100</td><td>объём бака</td></tr>
+  <tr><td><code>FUEL_PER_CELL</code></td><td class="num">3.6</td><td>расход за клетку</td></tr>
+  <tr><td><code>FUEL_CRYSTAL</code></td><td class="num">34</td><td>кристалл, плюс <code>min(combo*2, 14)</code></td></tr>
+  <tr><td><code>FUEL_REPLACE</code></td><td class="num">7</td><td>штраф за перезапись трубы</td></tr>
+  <tr><td><code>GRACE_CELLS</code></td><td class="num">16</td><td>клеток без расхода топлива в начале</td></tr>
+  <tr><td><code>RUNWAY</code></td><td class="num">3</td><td>стартовых вертикальных труб</td></tr>
+</table>
+
+<h4>Генерация мира</h4>
+<ul>
+  <li>Ряды создаются лениво, на 18–20 рядов вперёд от вагонетки.</li>
+  <li><strong>Камни:</strong> не появляются до ряда 16. Дальше плотность <code>min(0.05 + (row-16)*0.0012, 0.14)</code>.</li>
+  <li><strong>Кристаллы:</strong> по одному через каждые 2–4 ряда, в свободной клетке ряда.</li>
+  <li><strong>Комбо:</strong> растёт за каждый подряд собранный кристалл, даёт <code>10 * min(combo, 5)</code> очков. Обнуляется при промахе.</li>
+</ul>
+
+<div class="callout danger">
+  <strong>Баланс не финальный.</strong> Цифры выше проверены только ботами, а боты умеют лишь продлевать путь и не умеют строить маршрут заранее. Реальный потолок игры не измерен. Все константы вынести в один ресурс <code>GameBalance.tres</code>, чтобы правились без пересборки.
+</div>
+
+<h2><span class="n">11</span>Что добавить сверх прототипа</h2>
+
+<div class="prio">
+  <div class="tag p0">P0</div>
+  <div><b>Мета-прокачка за кристаллы</b><span>Постоянные апгрейды между забегами: объём бака, пятая ячейка превью очереди, стартовый запас труб, радиус притяжения кристаллов. Главный рычаг удержания — игрок проигрывает, но становится сильнее.</span></div>
+</div>
+<div class="prio">
+  <div class="tag p0">P0</div>
+  <div><b>Призрак рекорда</b><span>Полупрозрачная линия лучшего маршрута плюс метка «Best: N» прямо на поле. Эффект near-miss: умереть на клетку раньше рекорда невыносимо.</span></div>
+</div>
+<div class="prio">
+  <div class="tag p1">P1</div>
+  <div><b>Биомы каждые 50 клеток</b><span>Смена палитры и новая помеха. Лёд — вагонетка проскакивает клетку. Туман — превью очереди сокращается до двух. Даёт цель «дожить до следующей зоны».</span></div>
+</div>
+<div class="prio">
+  <div class="tag p1">P1</div>
+  <div><b>Ежедневный челлендж с фиксированным сидом</b><span>Одна карта для всех, таблица результатов. Требует детерминированного генератора: <code>RandomNumberGenerator</code> с явным seed, никаких вызовов глобального <code>randi()</code>.</span></div>
+</div>
+<div class="prio">
+  <div class="tag p2">P2</div>
+  <div><b>Continue за рекламу</b><span>Одно продление за забег. Удлиняет сессию и монетизирует.</span></div>
+</div>
+<div class="prio">
+  <div class="tag p2">P2</div>
+  <div><b>Три задания с ротацией</b><span>«Собери 20 кристаллов», «сбрось 30 труб позади себя», «проживи 60 клеток».</span></div>
+</div>
+
+<h2><span class="n">12</span>Структура проекта</h2>
+<pre><code>res://
+├── scenes/
+│   ├── Main.tscn            # корень, переключение состояний
+│   ├── Board.tscn           # сетка, трубы, камни, кристаллы
+│   ├── Cart.tscn            # вагонетка
+│   ├── HUD.tscn             # очки, топливо, комбо
+│   ├── QueueBar.tscn        # HOLD + NEXT + превью
+│   └── GameOver.tscn
+├── scripts/
+│   ├── game_state.gd        # автозагрузка: рекорд, валюта, апгрейды
+│   ├── board.gd             # словарь труб, генерация, проверки установки
+│   ├── cart.gd              # движение и обход труб
+│   ├── pipe_defs.gd         # типы труб, веса, таблица сторон
+│   └── input_handler.gd     # жест нажал-потянул-отпустил
+├── resources/
+│   └── GameBalance.tres     # все константы из раздела 10
+└── art/</code></pre>
+
+<h4>Технические требования</h4>
+<ul>
+  <li>Рендер трубы — <code>Line2D</code> или спрайт-атлас; для поля подойдёт <code>TileMapLayer</code> с 7 тайлами труб.</li>
+  <li>Сохранение через <code>ConfigFile</code> или <code>FileAccess</code> в <code>user://</code>: рекорд, валюта, купленные апгрейды.</li>
+  <li>Целевая частота — 60 FPS на бюджетном Android. Не создавать узлы в цикле кадра; частицы через пул.</li>
+  <li>Тактильный отклик на постановку трубы и на сбор кристалла (<code>Input.vibrate_handheld(20)</code>).</li>
+  <li>Boot splash отключить или заменить на свой: <code>Project Settings → Application → Boot Splash → Image</code>.</li>
+  <li>Поддержка вырезов и «чёлки»: HUD в <code>SafeArea</code>, нижняя полоса очереди выше системного жеста «домой».</li>
+</ul>
+
+<h2><span class="n">13</span>Сборка под iOS и Android</h2>
+
+<h4>Общее</h4>
+<ul>
+  <li>Godot <strong>стандартной сборки</strong> (не .NET) — экспорт на обе платформы без оговорок.</li>
+  <li>Ориентация: <code>portrait</code>, поворот экрана запрещён.</li>
+  <li>Рендер: <code>Mobile</code>. <code>Forward+</code> для 2D-игры избыточен и жрёт батарею.</li>
+  <li>Разрешение: <code>Stretch Mode = canvas_items</code>, <code>Aspect = expand</code> — поле по ширине, длина экрана добирается по высоте.</li>
+  <li>Boot splash заменить на свой или отключить целиком.</li>
+</ul>
+
+<h4>Android</h4>
+<ul>
+  <li>JDK 17, Android SDK, включить <code>Use Gradle Build</code> для подключения рекламы и сервисов.</li>
+  <li>Архитектуры: <code>arm64-v8a</code> обязательно, <code>armeabi-v7a</code> опционально. <code>x86_64</code> — только для эмулятора.</li>
+  <li>Формат публикации — <code>.aab</code>, подписанный релизным keystore. Keystore не хранить в репозитории.</li>
+  <li>Минимальная версия API — 24 и выше.</li>
+  <li>Нижняя полоса очереди должна быть выше зоны системного жеста «домой».</li>
+</ul>
+
+<h4>iOS</h4>
+<ul>
+  <li>Требуется macOS с Xcode; Godot экспортирует Xcode-проект, финальная сборка идёт в нём.</li>
+  <li>Apple Developer Program обязателен для публикации и для теста на устройстве через TestFlight.</li>
+  <li>Bundle ID, иконки всех размеров, launch screen.</li>
+  <li>Минимальная версия iOS — 13.</li>
+  <li>HUD размещать внутри безопасной зоны — учесть «чёлку» и Dynamic Island.</li>
+  <li>Если будет реклама или аналитика — заполнить App Tracking Transparency и Privacy Manifest, иначе ревью завернёт.</li>
+</ul>
+
+<h4>Тактильный отклик</h4>
+<p><code>Input.vibrate_handheld(20)</code> на постановку трубы и <code>(40)</code> на сбор кристалла. На Android работает из коробки; на iOS короткая вибрация поддерживается начиная с Godot 4.2. Вынести в один метод, чтобы легко отключить в настройках.</p>
+
+<h2><span class="n">14</span>Приёмка</h2>
+<ul class="check">
+  <li>Вагонетка стоит на месте до первой поставленной трубы, топливо не тратится.</li>
+  <li>Прокрутка поля равномерная, без рывков при переходе между клетками.</li>
+  <li>Пока палец на экране, поле не двигается; через 1.6 с камера освобождается сама.</li>
+  <li>Призрак трубы следует за пальцем и корректно краснеет над недоступной клеткой.</li>
+  <li>Труба ставится в ту клетку, где палец был <em>в момент отпускания</em>.</li>
+  <li>HOLD меняет трубы местами и не позволяет прокручивать очередь бесконечно.</li>
+  <li>Перезапись непройденной трубы снимает 7 топлива и показывает это на экране.</li>
+  <li>Проезд по кристаллу пополняет бак и наращивает комбо; промах комбо обнуляет.</li>
+  <li>Три причины смерти отрабатывают раздельно: Derailed, Off the edge, Out of fuel.</li>
+  <li>Рекорд переживает перезапуск приложения.</li>
+  <li>При запуске нет заставки движка (проверено на релизной сборке, не в редакторе).</li>
+  <li>Сборка ставится и запускается на реальном Android-устройстве и на iPhone.</li>
+  <li>HUD не залезает под «чёлку» и Dynamic Island; очередь не конфликтует с системным жестом.</li>
+  <li>60 FPS удерживаются на 300+ труб на поле.</li>
+</ul>
+
+<footer>
+  Прототип-референс: <code>pipe-runner-v6.html</code> — открывается в любом браузере, вся логика в одном файле, константы в блоке <code>tuning</code> сверху.
+</footer>
+
+</div>
+</body>
+</html>

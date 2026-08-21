@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pipe Runner</title>
+<style>
+  html,body{margin:0;padding:0;overflow:hidden;height:100%;background:#07090f;
+    font-family:'Segoe UI',system-ui,sans-serif;touch-action:manipulation;
+    -webkit-user-select:none;user-select:none;}
+  #wrap{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+  canvas{display:block;background:linear-gradient(180deg,#111c2e 0%,#0b1220 55%,#070a12 100%);touch-action:manipulation;}
+  #hud{position:absolute;top:0;left:0;right:0;padding:12px 16px 0;box-sizing:border-box;
+    color:#fff;pointer-events:none;text-shadow:0 2px 8px rgba(0,0,0,.6);}
+  #topRow{display:flex;justify-content:space-between;align-items:flex-start;font-weight:600;font-size:18px;}
+  #best{font-size:12px;opacity:.5;font-weight:400;}
+  #combo{font-size:15px;color:#ffd23f;opacity:0;transition:opacity .2s;}
+  #fuelWrap{margin-top:7px;height:9px;border-radius:5px;background:rgba(255,255,255,.10);overflow:hidden;}
+  #fuelBar{height:100%;width:100%;border-radius:5px;background:#4ce0b3;}
+  #fuelLabel{font-size:10.5px;opacity:.45;letter-spacing:1.2px;margin-top:3px;}
+  #overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:11px;color:#fff;text-align:center;background:rgba(6,8,14,.88);
+    padding:24px;box-sizing:border-box;}
+  #overlay h1{font-size:28px;margin:0;letter-spacing:.5px;}
+  #overlay p{margin:0;opacity:.8;font-size:14.5px;max-width:310px;line-height:1.5;}
+  #overlay .score-big{font-size:44px;font-weight:700;margin:0;}
+  #rules{font-size:13px;opacity:.75;max-width:310px;line-height:1.6;text-align:left;}
+  #rules span{color:#4ce0b3;font-weight:600;}
+  #startBtn{margin-top:4px;padding:14px 36px;border-radius:30px;border:none;background:#4ce0b3;
+    color:#062018;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 6px 22px rgba(76,224,179,.3);}
+  #startBtn:active{transform:scale(.96);}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div id="topRow">
+      <div>
+        <div>Score: <span id="score">0</span></div>
+        <div id="best">Best: <span id="bestVal">0</span></div>
+      </div>
+      <div style="text-align:right"><div id="combo">CHAIN x1</div></div>
+    </div>
+    <div id="fuelWrap"><div id="fuelBar"></div></div>
+    <div id="fuelLabel">FUEL</div>
+  </div>
+  <div id="overlay">
+    <h1 id="overlayTitle">Pipe Runner</h1>
+    <p id="overlaySub">The cart follows your pipes and never stops.</p>
+    <div id="rules">
+      <span>Place anywhere.</span> Tap any empty cell to drop the current pipe — not just in front of the cart.<br>
+      <span>The piece is forced.</span> You get what the queue hands you. Four are shown ahead.<br>
+      <span>Crystals are fuel.</span> Route the cart through them or you run dry.<br>
+      <span>The white ring</span> is where the cart needs pipe next.<br>
+      <span>HOLD</span> parks an awkward pipe for later — tap it to swap.<br>
+      <span>Press and drag</span> to aim, release to place. The board freezes while you hold.
+    </div>
+    <div class="score-big hidden" id="finalScore"></div>
+    <button id="startBtn">Play</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  const canvas=document.getElementById('game');
+  const ctx=canvas.getContext('2d');
+  const overlay=document.getElementById('overlay');
+  const overlayTitle=document.getElementById('overlayTitle');
+  const overlaySub=document.getElementById('overlaySub');
+  const rulesEl=document.getElementById('rules');
+  const finalScoreEl=document.getElementById('finalScore');
+  const startBtn=document.getElementById('startBtn');
+  const scoreEl=document.getElementById('score');
+  const bestValEl=document.getElementById('bestVal');
+  const fuelBar=document.getElementById('fuelBar');
+  const comboEl=document.getElementById('combo');
+
+  // ---------- tuning ----------
+  const COLS=7, RUNWAY=3;
+  const START_SPEED=0.68, SPEED_GAIN=0.0032, SPEED_CAP=2.3;
+  const FUEL_MAX=100, FUEL_PER_CELL=3.6, FUEL_CRYSTAL=34, FUEL_REPLACE=7;
+  const GRACE_CELLS=16;
+
+  // pipe types: which sides they open onto
+  const PIPE={
+    v:  ['U','D'],
+    h:  ['L','R'],
+    ur: ['U','R'],
+    ul: ['U','L'],
+    dr: ['D','R'],
+    dl: ['D','L'],
+    x:  ['U','D','L','R']
+  };
+  const WEIGHTS=[['v',24],['h',12],['ur',13],['ul',13],['dr',10],['dl',10],['x',8]];
+  const WTOT=WEIGHTS.reduce((s,p)=>s+p[1],0);
+
+  const DIR={U:{dc:0,dr:1},D:{dc:0,dr:-1},L:{dc:-1,dr:0},R:{dc:1,dr:0}};
+  const OPP={U:'D',D:'U',L:'R',R:'L'};
+
+  // ---------- layout ----------
+  let W=0,H=0,DPR=1,CELL=50,originY=0;
+  function resize(){
+    DPR=Math.min(window.devicePixelRatio||1,2);
+    W=Math.min(window.innerWidth,480);
+    H=window.innerHeight;
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    canvas.width=W*DPR; canvas.height=H*DPR;
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    CELL=W/COLS; originY=H-CELL*2.6;
+  }
+
+  // ---------- state ----------
+  let state='menu';
+  let pipes=new Map();      // "c,r" -> {type, flooded}
+  let rocks=new Set(), crystals=new Set();
+  let rowsBuilt=-1, nextCrystalRow=0;
+  let queue=[];
+  let held=null;            // the Hold slot
+  let started=false;        // cart waits for your first pipe
+  let holdRect=null;
+  let pending=null;         // cell under the finger, committed on release
+  let camFrozen=false, freezeAt=0;
+  let cart=null;            // {col,row,entry,t}
+  let camY=0, speed=START_SPEED;
+  let score=0,best=0,combo=0,cellsRun=0,fuel=FUEL_MAX;
+  let particles=[],floaters=[];
+  let shake=0,flash=0,lowPulse=0,lastTime=0;
+  let maxRowReached=0;
+
+  try{best=parseInt(localStorage.getItem('piperunner3_best')||'0',10)||0;}catch(e){best=0;}
+
+  const key=(c,r)=>c+','+r;
+  const colX=c=>c*CELL+CELL/2;
+  const rowY=r=>originY-r*CELL+camY;
+
+  function randPipe(){
+    let x=Math.random()*WTOT;
+    for(const p of WEIGHTS){x-=p[1];if(x<=0)return p[0];}
+    return 'v';
+  }
+  function fillQueue(){while(queue.length<4)queue.push(randPipe());}
+
+  // ---------- generation ----------
+  function ensureRows(upTo){
+    while(rowsBuilt<upTo){
+      rowsBuilt++;
+      const r=rowsBuilt;
+      if(r<RUNWAY+2) continue;
+      if(r>16){
+        const d=Math.min(0.05+(r-16)*0.0012,0.14);
+        for(let c=0;c<COLS;c++){
+          if(pipes.has(key(c,r))) continue;
+          if(Math.random()<d) rocks.add(key(c,r));
+        }
+      }
+      if(r>=nextCrystalRow){
+        const free=[];
+        for(let c=0;c<COLS;c++)
+          if(!rocks.has(key(c,r))&&!pipes.has(key(c,r))) free.push(c);
+        if(free.length){
+          crystals.add(key(free[(Math.random()*free.length)|0],r));
+          nextCrystalRow=r+2+((Math.random()*3)|0);
+        }
+      }
+    }
+  }
+
+  // ---------- pipe traversal ----------
+  function exitSide(type,entry){
+    const sides=PIPE[type];
+    if(!sides.includes(entry)) return null;
+    if(type==='x') return OPP[entry];
+    return sides[0]===entry?sides[1]:sides[0];
+  }
+
+  // Walk the built pipes from the cart to find where track runs out.
+  function frontier(){
+    if(!cart) return null;
+    let c=cart.col,r=cart.row,entry=cart.entry,steps=0;
+    while(steps<80){
+      const p=pipes.get(key(c,r));
+      if(!p) return {col:c,row:r,need:entry,steps};
+      const ex=exitSide(p.type,entry);
+      if(!ex) return {col:c,row:r,need:entry,steps,blocked:true};
+      const d=DIR[ex];
+      c+=d.dc; r+=d.dr; entry=OPP[ex]; steps++;
+    }
+    return null;
+  }
+
+  function bufferAhead(){
+    const f=frontier();
+    return f?f.steps:0;
+  }
+
+  // ---------- placement ----------
+  function canPlace(c,r){
+    if(c<0||c>=COLS) return false;
+    if(rocks.has(key(c,r))) return false;
+    const p=pipes.get(key(c,r));
+    if(p&&p.flooded) return false;          // can't touch pipe the cart already used
+    if(cart&&cart.col===c&&cart.row===r) return false;
+    if(r>maxRowReached+22||r<maxRowReached-6) return false;
+    return true;
+  }
+
+  function place(c,r){
+    if(!canPlace(c,r)) return false;
+    const existing=pipes.get(key(c,r));
+    if(existing){
+      fuel-=FUEL_REPLACE;                    // overwriting costs — a real trade
+      floaters.push({x:colX(c),y:rowY(r),text:'-'+FUEL_REPLACE,life:38,color:'#ff8080'});
+      if(fuel<=0){fuel=0;updateFuel();die('Out of fuel');return true;}
+    }
+    pipes.set(key(c,r),{type:queue[0],flooded:false});
+    queue.shift(); fillQueue();
+    started=true;
+    ensureRows(r+18);
+    updateFuel();
+    return true;
+  }
+
+  function doHold(){
+    if(state!=='playing') return;
+    if(held===null){
+      held=queue[0];
+      queue.shift(); fillQueue();
+    } else {
+      const t=queue[0];
+      queue[0]=held;
+      held=t;
+    }
+    burst(holdRect.x+holdRect.w/2,holdRect.y+holdRect.h/2,'#ffd23f',10);
+  }
+
+  // ---------- lifecycle ----------
+  function reset(){
+    pipes=new Map(); rocks=new Set(); crystals=new Set();
+    rowsBuilt=-1; nextCrystalRow=RUNWAY+3;
+    queue=[]; particles=[]; floaters=[];
+    held=null; started=false;
+    score=0; combo=0; cellsRun=0; fuel=FUEL_MAX; speed=START_SPEED;
+    shake=0; flash=0; lowPulse=0; maxRowReached=0;
+
+    for(let r=0;r<RUNWAY;r++) pipes.set(key(3,r),{type:'v',flooded:false});
+    cart={col:3,row:0,entry:'D',t:0};
+    pipes.get(key(3,0)).flooded=true;
+
+    ensureRows(RUNWAY+22);
+    fillQueue();
+    camY=H*0.72-originY;
+    scoreEl.textContent='0';
+    bestValEl.textContent=best;
+    comboEl.style.opacity='0';
+    updateFuel();
+  }
+
+  function updateFuel(){
+    const p=Math.max(0,Math.min(1,fuel/FUEL_MAX));
+    fuelBar.style.width=(p*100)+'%';
+    fuelBar.style.background=p>.5?'#4ce0b3':p>.25?'#ffd23f':'#ff4d4d';
+  }
+
+  function die(reason){
+    if(state!=='playing') return;
+    state='dead'; shake=16;
+    burst(colX(cart.col),rowY(cart.row),'#ff4d4d',28);
+    if(score>best){best=score;try{localStorage.setItem('piperunner3_best',String(best));}catch(e){}}
+    bestValEl.textContent=best;
+    overlayTitle.textContent=reason;
+    overlaySub.classList.add('hidden');
+    rulesEl.classList.add('hidden');
+    finalScoreEl.classList.remove('hidden');
+    finalScoreEl.textContent=score;
+    startBtn.textContent='Try Again';
+    setTimeout(()=>{overlay.style.display='flex';},420);
+  }
+
+  function burst(x,y,color,n){
+    for(let i=0;i<n;i++)
+      particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6-1.5,
+        life:24+Math.random()*18,color});
+  }
+
+  // ---------- advance ----------
+  function stepCart(){
+    const p=pipes.get(key(cart.col,cart.row));
+    if(!p){die('Derailed');return false;}
+    const ex=exitSide(p.type,cart.entry);
+    if(!ex){die('Derailed');return false;}
+    const d=DIR[ex];
+    const nc=cart.col+d.dc, nr=cart.row+d.dr;
+    if(nc<0||nc>=COLS){die('Off the edge');return false;}
+    const np=pipes.get(key(nc,nr));
+    const nEntry=OPP[ex];
+    if(!np||!PIPE[np.type].includes(nEntry)){
+      cart.col=nc;cart.row=nr;cart.entry=nEntry;
+      die('Derailed');return false;
+    }
+    cart.col=nc; cart.row=nr; cart.entry=nEntry;
+    np.flooded=true;
+    cellsRun++;
+    if(nr>maxRowReached){score+=(nr-maxRowReached);maxRowReached=nr;}
+    else score+=0;
+    scoreEl.textContent=score;
+
+    if(crystals.has(key(nc,nr))){
+      crystals.delete(key(nc,nr));
+      combo++;
+      fuel=Math.min(FUEL_MAX,fuel+FUEL_CRYSTAL+Math.min(combo*2,14));
+      const pts=10*Math.min(combo,5);
+      score+=pts; scoreEl.textContent=score;
+      flash=12;
+      burst(colX(nc),rowY(nr),'#4ce0b3',20);
+      floaters.push({x:colX(nc),y:rowY(nr),text:'+'+pts,life:45,color:'#4ce0b3'});
+      comboEl.textContent='CHAIN x'+combo;
+      comboEl.style.opacity='1';
+    }
+    if(cellsRun>GRACE_CELLS){
+      fuel-=FUEL_PER_CELL;
+      if(fuel<=0){fuel=0;updateFuel();die('Out of fuel');return false;}
+    }
+    updateFuel();
+    ensureRows(nr+20);
+    return true;
+  }
+
+  function updateCamera(dt){
+    if(camFrozen){
+      if(Date.now()-freezeAt<1600) return;   // safety release so the cart can't vanish
+      camFrozen=false;
+    }
+    // follow the cart's continuous position, so scrolling is constant-velocity
+    const fr=cart?cartVisual().fr:0;
+    const target=H*0.72-(originY-fr*CELL);
+    const d=target-camY;
+    if(Math.abs(d)<0.05){ camY=target; return; }
+    camY+=d*Math.min(dt*9,1);
+  }
+
+  function update(dt){
+    if(!started){
+      updateCamera(dt);
+      for(let i=particles.length-1;i>=0;i--){
+        const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=.18;p.life--;
+        if(p.life<=0)particles.splice(i,1);
+      }
+      return;
+    }
+    speed=Math.min(START_SPEED+score*SPEED_GAIN,SPEED_CAP);
+    cart.t+=speed*dt;
+    while(cart.t>=1){
+      cart.t-=1;
+      if(!stepCart()) return;
+    }
+    updateCamera(dt);
+    if(shake>0)shake*=.86;
+    if(flash>0)flash--;
+    lowPulse=fuel/FUEL_MAX<.25?lowPulse+dt*6:0;
+    for(let i=particles.length-1;i>=0;i--){
+      const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=.18;p.life--;
+      if(p.life<=0)particles.splice(i,1);
+    }
+    for(let i=floaters.length-1;i>=0;i--){
+      const f=floaters[i];f.y-=.9;f.life--;
+      if(f.life<=0)floaters.splice(i,1);
+    }
+  }
+
+  // ---------- drawing ----------
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  }
+  function visibleRows(){
+    return {top:Math.ceil((originY+camY)/CELL)+2, bot:Math.floor((originY+camY-H)/CELL)-2};
+  }
+
+  function drawGrid(){
+    const {top,bot}=visibleRows();
+    for(let r=bot;r<=top;r++){
+      for(let c=0;c<COLS;c++){
+        const y=rowY(r);
+        if(y<-CELL||y>H+CELL) continue;
+        if(rocks.has(key(c,r))) continue;
+        if(pipes.has(key(c,r))) continue;
+        if(!canPlace(c,r)) continue;
+        ctx.strokeStyle='rgba(255,255,255,0.05)';
+        ctx.lineWidth=1;
+        roundRect(colX(c)-CELL*.42,y-CELL*.42,CELL*.84,CELL*.84,6);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawTerrain(){
+    const {top,bot}=visibleRows();
+    for(let r=bot;r<=top;r++){
+      for(let c=0;c<COLS;c++){
+        const y=rowY(r),x=colX(c);
+        if(y<-CELL||y>H+CELL) continue;
+        if(rocks.has(key(c,r))){
+          ctx.fillStyle='#222d45';
+          roundRect(x-CELL*.36,y-CELL*.36,CELL*.72,CELL*.72,6);ctx.fill();
+          ctx.strokeStyle='#354464';
+          ctx.lineWidth=2;ctx.stroke();
+        }
+        if(crystals.has(key(c,r))){
+          const p=1+.12*Math.sin(Date.now()/220+c);
+          ctx.globalAlpha=.07;ctx.fillStyle='#4ce0b3';
+          ctx.fillRect(x-CELL*.07,0,CELL*.14,y);ctx.globalAlpha=1;
+          ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.scale(p,p);
+          ctx.fillStyle='#4ce0b3';ctx.shadowColor='#4ce0b3';ctx.shadowBlur=16;
+          roundRect(-CELL*.17,-CELL*.17,CELL*.34,CELL*.34,4);ctx.fill();
+          ctx.shadowBlur=0;ctx.fillStyle='#d5fff3';
+          roundRect(-CELL*.07,-CELL*.07,CELL*.14,CELL*.14,2);ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  function drawPipeAt(c,r,type,flooded,alpha){
+    const x=colX(c),y=rowY(r);
+    if(y<-CELL||y>H+CELL) return;
+    ctx.globalAlpha=alpha;
+    ctx.strokeStyle=flooded?'#2b3854':'#33456a';
+    ctx.lineWidth=CELL*.34;ctx.lineCap='round';
+    PIPE[type].forEach(s=>{
+      const d=DIR[s];
+      ctx.beginPath();ctx.moveTo(x,y);
+      ctx.lineTo(x+d.dc*CELL*.5,y-d.dr*CELL*.5);
+      ctx.stroke();
+    });
+    ctx.strokeStyle=flooded?'#4ce0b3':'#7d93bd';
+    ctx.lineWidth=CELL*.09;
+    PIPE[type].forEach(s=>{
+      const d=DIR[s];
+      ctx.beginPath();ctx.moveTo(x,y);
+      ctx.lineTo(x+d.dc*CELL*.5,y-d.dr*CELL*.5);
+      ctx.stroke();
+    });
+    ctx.globalAlpha=1;
+  }
+
+  function drawPipes(){
+    const {top,bot}=visibleRows();
+    pipes.forEach((p,k)=>{
+      const [c,r]=k.split(',').map(Number);
+      if(r<bot-1||r>top+1) return;
+      drawPipeAt(c,r,p.type,p.flooded,1);
+    });
+  }
+
+  function drawFrontier(){
+    if(state!=='playing') return;
+    const f=frontier();
+    if(!f) return;
+    const x=colX(f.col),y=rowY(f.row);
+    const t=Date.now()/140;
+    const fits=!f.blocked&&PIPE[queue[0]]&&PIPE[queue[0]].includes(f.need)&&canPlace(f.col,f.row);
+    ctx.globalAlpha=.55+.35*Math.sin(t);
+    ctx.strokeStyle=fits?'#4ce0b3':'#ffffff';
+    ctx.lineWidth=3.5;
+    roundRect(x-CELL*.44,y-CELL*.44,CELL*.88,CELL*.88,8);
+    ctx.stroke();
+    ctx.globalAlpha=1;
+    // show which side the cart will arrive from
+    const d=DIR[f.need];
+    ctx.fillStyle=fits?'#4ce0b3':'#fff';
+    ctx.beginPath();
+    ctx.arc(x+d.dc*CELL*.42,y-d.dr*CELL*.42,4.5,0,Math.PI*2);
+    ctx.fill();
+    if(bufferAhead()<=1){
+      ctx.globalAlpha=.13+.10*Math.sin(Date.now()/70);
+      ctx.fillStyle='#ff4d4d';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;
+    }
+  }
+
+  // Continuous position of the cart between two cells — the basis for smooth motion.
+  function cartVisual(){
+    let nc=cart.col, nr=cart.row, ang=Math.PI/2;
+    const p=pipes.get(key(cart.col,cart.row));
+    if(p){
+      const ex=exitSide(p.type,cart.entry);
+      if(ex){
+        const d=DIR[ex];
+        nc=cart.col+d.dc; nr=cart.row+d.dr;
+        ang=Math.atan2(-d.dr,d.dc);
+      }
+    }
+    const t=Math.max(0,Math.min(1,cart.t));
+    return {
+      fc: cart.col+(nc-cart.col)*t,
+      fr: cart.row+(nr-cart.row)*t,
+      ang
+    };
+  }
+
+  function drawCart(){
+    if(!cart) return;
+    const v=cartVisual();
+    const x=v.fc*CELL+CELL/2;
+    const y=originY-v.fr*CELL+camY;
+    ctx.save();ctx.translate(x,y);ctx.rotate(v.ang);
+    const s=CELL*.26;
+    ctx.fillStyle='#fff';
+    ctx.shadowColor=fuel/FUEL_MAX<.25?'#ff4d4d':'#4ce0b3';ctx.shadowBlur=18;
+    roundRect(-s,-s*.76,s*2,s*1.52,5);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle='#0d1524';
+    roundRect(-s*.45,-s*.36,s*.9,s*.72,3);ctx.fill();
+    ctx.restore();
+  }
+
+  function pipeIcon(x,y,size,type,dim){
+    ctx.save();ctx.translate(x,y);
+    ctx.globalAlpha=dim?.5:1;
+    ctx.fillStyle='#15203a';
+    roundRect(-size/2,-size/2,size,size,8);ctx.fill();
+    ctx.strokeStyle=dim?'#2a3450':'#4ce0b3';ctx.lineWidth=2;
+    roundRect(-size/2,-size/2,size,size,8);ctx.stroke();
+    ctx.strokeStyle=dim?'#5a6b90':'#4ce0b3';
+    ctx.lineWidth=size*.13;ctx.lineCap='round';
+    PIPE[type].forEach(s=>{
+      const d=DIR[s];
+      ctx.beginPath();ctx.moveTo(0,0);
+      ctx.lineTo(d.dc*size*.34,-d.dr*size*.34);ctx.stroke();
+    });
+    ctx.globalAlpha=1;ctx.restore();
+  }
+
+  function drawQueue(){
+    const size=Math.min(CELL*.80,50);
+    const y=H-size*.85;
+
+    // HOLD slot on the left
+    const hx=size*.72;
+    holdRect={x:hx-size/2,y:y-size/2,w:size,h:size};
+    if(held){
+      pipeIcon(hx,y,size,held,false);
+    } else {
+      ctx.save();
+      ctx.globalAlpha=.5;
+      ctx.strokeStyle='#ffd23f';ctx.lineWidth=2;
+      ctx.setLineDash([4,4]);
+      roundRect(hx-size/2,y-size/2,size,size,8);ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    ctx.fillStyle='rgba(255,210,63,.7)';
+    ctx.font='10.5px system-ui,sans-serif';ctx.textAlign='center';
+    ctx.fillText('HOLD',hx,y-size*.62);
+
+    const cx=W/2+size*.15;
+    pipeIcon(cx,y,size,queue[0]||'v',false);
+    ctx.fillStyle='rgba(255,255,255,.34)';
+    ctx.fillText('NEXT',cx,y-size*.62);
+    for(let i=1;i<4;i++){
+      if(!queue[i]) break;
+      pipeIcon(cx+size*(0.62+i*0.66),y,size*.5,queue[i],true);
+    }
+    ctx.textAlign='left';
+  }
+
+  function drawFx(){
+    particles.forEach(p=>{
+      ctx.globalAlpha=Math.max(p.life/42,0);
+      ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);
+      ctx.fillStyle=p.color;ctx.fill();
+    });
+    ctx.globalAlpha=1;
+    ctx.font='bold 16px system-ui,sans-serif';ctx.textAlign='center';
+    floaters.forEach(f=>{
+      ctx.globalAlpha=Math.max(f.life/45,0);
+      ctx.fillStyle=f.color;ctx.fillText(f.text,f.x,f.y);
+    });
+    ctx.globalAlpha=1;ctx.textAlign='left';
+  }
+
+  function drawPending(){
+    if(!pending||state!=='playing')return;
+    const {col,row}=pending;
+    const x=colX(col),y=rowY(row);
+    const ok=canPlace(col,row);
+    if(y<-CELL||y>H+CELL) return;
+    ctx.save();
+    ctx.globalAlpha=.30;
+    ctx.fillStyle=ok?'#4ce0b3':'#ff4d4d';
+    roundRect(x-CELL*.46,y-CELL*.46,CELL*.92,CELL*.92,8);ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.strokeStyle=ok?'#4ce0b3':'#ff4d4d';
+    ctx.lineWidth=3.5;
+    roundRect(x-CELL*.46,y-CELL*.46,CELL*.92,CELL*.92,8);ctx.stroke();
+    if(ok){
+      ctx.globalAlpha=.85;
+      ctx.strokeStyle='#eafff8';
+      ctx.lineWidth=CELL*.12;ctx.lineCap='round';
+      PIPE[queue[0]].forEach(s=>{
+        const d=DIR[s];
+        ctx.beginPath();ctx.moveTo(x,y);
+        ctx.lineTo(x+d.dc*CELL*.42,y-d.dr*CELL*.42);ctx.stroke();
+      });
+      ctx.globalAlpha=1;
+    }
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.save();
+    if(shake>.3)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+    drawGrid();
+    drawTerrain();
+    drawPipes();
+    drawPending();
+    drawFrontier();
+    drawCart();
+    drawFx();
+    ctx.restore();
+    if(state==='playing')drawQueue();
+    if(state==='playing'&&!started){
+      ctx.globalAlpha=.72+.20*Math.sin(Date.now()/300);
+      ctx.fillStyle='#fff';
+      ctx.font='bold 16px system-ui,sans-serif';
+      ctx.textAlign='center';
+      ctx.fillText('Place a pipe to start',W/2,H*0.30);
+      ctx.globalAlpha=.5;
+      ctx.font='13px system-ui,sans-serif';
+      ctx.fillText('the cart waits for you',W/2,H*0.30+22);
+      ctx.globalAlpha=1;ctx.textAlign='left';
+    }
+    if(flash>0){
+      ctx.globalAlpha=flash/12*.22;ctx.fillStyle='#4ce0b3';
+      ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;
+    }
+    if(state==='playing'&&fuel/FUEL_MAX<.25){
+      ctx.globalAlpha=.09+.06*Math.sin(lowPulse);
+      ctx.fillStyle='#ff4d4d';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;
+    }
+  }
+
+  function loop(now){
+    const dt=Math.min((now-lastTime)/1000||0,.05);
+    lastTime=now;
+    if(state==='playing')update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- input ----------
+  function cellAt(x,y){
+    return { col:Math.floor(x/CELL), row:Math.round((originY+camY-y)/CELL) };
+  }
+
+  canvas.addEventListener('pointerdown',e=>{
+    if(state!=='playing')return;
+    const rect=canvas.getBoundingClientRect();
+    const x=e.clientX-rect.left, y=e.clientY-rect.top;
+    if(holdRect&&x>=holdRect.x&&x<=holdRect.x+holdRect.w&&
+       y>=holdRect.y&&y<=holdRect.y+holdRect.h){ doHold(); return; }
+    if(y>H-CELL*1.5) return;                 // queue strip, not the board
+    // freeze the camera so the board can't slide out from under the finger
+    camFrozen=true; freezeAt=Date.now();
+    pending=cellAt(x,y);
+    if(canvas.setPointerCapture) { try{ canvas.setPointerCapture(e.pointerId); }catch(err){} }
+  });
+
+  canvas.addEventListener('pointermove',e=>{
+    if(state!=='playing'||!pending)return;
+    const rect=canvas.getBoundingClientRect();
+    pending=cellAt(e.clientX-rect.left,e.clientY-rect.top);
+  });
+
+  function commit(){
+    if(pending){ place(pending.col,pending.row); }
+    pending=null; camFrozen=false;
+  }
+  canvas.addEventListener('pointerup',commit);
+  canvas.addEventListener('pointercancel',()=>{pending=null;camFrozen=false;});
+
+  startBtn.addEventListener('click',()=>{
+    overlay.style.display='none';
+    overlaySub.classList.remove('hidden');
+    rulesEl.classList.remove('hidden');
+    finalScoreEl.classList.add('hidden');
+    reset();
+    state='playing';
+    lastTime=(window.performance&&performance.now)?performance.now():Date.now();
+  });
+
+  window.addEventListener('resize',resize);
+
+  resize(); reset(); state='menu'; draw();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

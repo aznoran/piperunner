@@ -1,0 +1,404 @@
+## Run orchestration: state machine, score, fuel, camera and the wiring between
+## board, cart, queue and UI. Spec sections 02, 05, 06, 07 and 10.
+extends Node2D
+
+enum State { MENU, PLAYING, DEAD }
+
+const REASON_OUT_OF_FUEL := "Out of fuel"
+## Beat before the game-over card slides in, so the crash is legible.
+const DEATH_PAUSE := 0.42
+## Prototype shake, expressed against its 68 px cell so it scales with layout.
+const SHAKE_REFERENCE_CELL := 68.0
+
+@export var balance: GameBalance
+
+@onready var _board: Board = $World/Board
+@onready var _cart: Cart = $World/Cart
+@onready var _fx: Fx = $World/Fx
+@onready var _camera: Camera2D = $Camera
+@onready var _hud: Hud = $Hud
+@onready var _queue_bar: QueueBar = $Ui/QueueBar
+@onready var _screen_fx: ScreenFx = $ScreenFx
+@onready var _overlay: GameOverScreen = $GameOver
+@onready var _menu: MainMenu = $MainMenu
+@onready var _input: InputHandler = $InputHandler
+@onready var _start_hint: Label = %StartHint
+
+var state: State = State.MENU
+
+var _queue := PipeQueue.new()
+var _queue_rng := RandomNumberGenerator.new()
+
+var score: int = 0
+var combo: int = 0
+var cells_run: int = 0
+var crystals_collected: int = 0
+var fuel: float = 0.0
+var speed: float = 0.0
+## The cart waits for the player's first pipe. Spec section 02.
+var started: bool = false
+
+var _cell_size: float = 100.0
+var _camera_frozen: bool = false
+var _freeze_timer: float = 0.0
+## 0 = camera follows freely, 1 = fully parked under a finger.
+var _freeze_blend: float = 0.0
+var _shake: float = 0.0
+var _death_pause: float = 0.0
+var _death_reason: String = ""
+var _death_was_record: bool = false
+var _hint_pulse: float = 0.0
+
+
+func _ready() -> void:
+	if balance == null:
+		balance = load("res://resources/GameBalance.tres")
+
+	_board.setup(balance)
+	_cart.board = _board
+	_cart.stepped.connect(_on_cart_stepped)
+	_cart.derailed.connect(_on_cart_derailed)
+
+	_input.hold_tapped.connect(_on_hold_tapped)
+	_input.aim_started.connect(_on_aim_moved)
+	_input.aim_moved.connect(_on_aim_moved)
+	_input.aim_released.connect(_on_aim_released)
+	_input.aim_cancelled.connect(_on_aim_cancelled)
+
+	_menu.start_pressed.connect(start_run)
+	_overlay.retry_pressed.connect(start_run)
+	_overlay.menu_pressed.connect(_show_menu)
+	GameState.best_changed.connect(_hud.set_best)
+	get_viewport().size_changed.connect(_apply_layout)
+
+	_apply_layout()
+	_hud.set_best(GameState.best)
+	_hud.set_score(0)
+	_hud.set_fuel(1.0)
+	_show_menu()
+
+
+## Cell size follows viewport width: the board is always exactly 7 columns wide
+## (spec section 03).
+func _apply_layout() -> void:
+	var viewport := get_viewport_rect().size
+	_cell_size = viewport.x / float(balance.cols)
+
+	_board.set_cell_size(_cell_size)
+	_cart.set_cell_size(_cell_size)
+	_fx.set_cell_size(_cell_size)
+	_queue_bar.set_cell_size(_cell_size)
+
+	_input.hold_rect = _queue_bar.hold_rect
+	_input.queue_strip_top = _queue_bar.strip_top
+	_camera.position.x = viewport.x * 0.5
+
+
+func _show_menu() -> void:
+	state = State.MENU
+	_input.enabled = false
+	_queue_bar.visible = false
+	_hud.visible = false
+	_start_hint.visible = false
+	_board.hide_ghost()
+	_board.hide_frontier()
+	# The title screen sits over a live but empty board.
+	_prepare_board(false)
+	_overlay.hide_overlay()
+	_menu.open()
+
+
+## Lays out a fresh world and parks the cart on the runway. On the title screen
+## the board stays bare — just the cart and the runway ahead of it.
+func _prepare_board(with_resources: bool) -> void:
+	# One seed drives the whole run; the queue gets its own stream so tuning the
+	# preview length cannot reshuffle the map (spec section 11, daily runs).
+	var run_seed := randi()
+	_board.start_run(run_seed, with_resources, _first_resource_row())
+	_queue_rng.seed = run_seed + 1
+	_queue.start(_queue_rng, balance.queue_preview)
+
+	var start_col: int = balance.cols / 2
+	_cart.place_at(start_col, 0, PipeDefs.Side.D)
+	_board.flood(Vector2i(start_col, 0))
+	_board.set_cart_cell(_cart.cell())
+
+	_fx.clear()
+	_screen_fx.clear()
+	_snap_camera()
+
+
+## First row that may hold a rock or a crystal: just past what the player can
+## see when a run starts, so the opening screen is always clean.
+func _first_resource_row() -> int:
+	var ahead: float = balance.camera_anchor * get_viewport_rect().size.y / _cell_size
+	return int(ceil(ahead)) + 2
+
+
+func start_run() -> void:
+	_overlay.hide_overlay()
+	_menu.close()
+	state = State.PLAYING
+
+	score = 0
+	combo = 0
+	cells_run = 0
+	crystals_collected = 0
+	fuel = balance.fuel_max
+	speed = balance.start_speed
+	started = false
+	_shake = 0.0
+	_camera_frozen = false
+	_death_pause = 0.0
+
+	_prepare_board(true)
+	_queue_bar.visible = true
+	_hud.visible = true
+	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+	_start_hint.visible = true
+	_hint_pulse = 0.0
+	_input.enabled = true
+
+	_hud.set_score(0)
+	_hud.set_best(GameState.best)
+	_hud.set_combo(0)
+	_hud.set_fuel(1.0)
+
+
+func _process(delta: float) -> void:
+	match state:
+		State.PLAYING:
+			_run_frame(delta)
+		State.DEAD:
+			_update_camera(delta)
+			if _death_pause > 0.0:
+				_death_pause -= delta
+				if _death_pause <= 0.0:
+					_overlay.show_game_over(_death_reason, score, _death_was_record)
+
+
+func _run_frame(delta: float) -> void:
+	if started:
+		speed = minf(balance.start_speed + score * balance.speed_gain, balance.speed_cap)
+		_cart.advance(delta, speed)
+		if state != State.PLAYING:
+			return  # the cart died mid-step
+	else:
+		_hint_pulse += delta
+		_start_hint.modulate.a = 0.72 + 0.20 * sin(_hint_pulse * 3.3)
+
+	_board.set_cart_incoming(_cart.incoming_cell(balance.place_lockout_progress))
+	_update_camera(delta)
+	_update_frontier()
+
+
+# --- camera -------------------------------------------------------------
+
+## Follows the cart's fractional row and holds it at 72% of screen height.
+## No dead zone: it banks up drift and then snaps, which felt worse.
+func _camera_target() -> float:
+	var viewport_height := get_viewport_rect().size.y
+	return _cart.position.y - (balance.camera_anchor - 0.5) * viewport_height
+
+
+func _snap_camera() -> void:
+	_camera.position.y = _camera_target()
+	_camera.offset = Vector2.ZERO
+	_freeze_blend = 0.0
+
+
+func _update_camera(delta: float) -> void:
+	_shake *= pow(0.86, delta * 60.0)
+	_camera.offset = (Vector2(randf() - 0.5, randf() - 0.5) * _shake
+		if _shake > 0.3 else Vector2.ZERO)
+
+	if _camera_frozen:
+		# Safety release, so the cart can never slide out of frame under a
+		# resting finger (spec section 06).
+		_freeze_timer += delta
+		if _freeze_timer >= balance.camera_freeze_timeout:
+			_camera_frozen = false
+
+	# The freeze eases in and out rather than snapping. A quick tap only dips
+	# the follow rate for a few frames, which reads as smooth; holding still
+	# brings the board to a complete stop within the ramp.
+	_freeze_blend = move_toward(_freeze_blend, 1.0 if _camera_frozen else 0.0,
+		delta / maxf(balance.camera_freeze_ramp, 0.001))
+
+	var follow: float = balance.camera_follow * (1.0 - _freeze_blend)
+	if follow <= 0.0:
+		return
+
+	var target := _camera_target()
+	_camera.position.y += (target - _camera.position.y) * minf(delta * follow, 1.0)
+
+
+# --- lookahead ----------------------------------------------------------
+
+## Marks the cell where the cart needs pipe next, and warns when the track is
+## about to run out.
+func _update_frontier() -> void:
+	var ahead := _board.frontier(_cart.cell(), _cart.entry)
+	if ahead.is_empty():
+		_board.hide_frontier()
+		_screen_fx.danger = false
+		return
+
+	var cell: Vector2i = ahead["cell"]
+	var need: int = ahead["need"]
+	var fits: bool = (not ahead["blocked"]
+		and PipeDefs.SIDES[_queue.current()].has(need)
+		and _board.can_place(cell))
+	_board.show_frontier(cell, need, fits)
+	_screen_fx.danger = started and int(ahead["steps"]) <= 1
+
+
+# --- input --------------------------------------------------------------
+
+func _on_hold_tapped() -> void:
+	if state != State.PLAYING:
+		return
+	_queue.swap_hold()
+	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+	_fx.burst(_screen_to_world(_queue_bar.hold_rect.get_center()),
+		Palette.AMBER, 10, _cell_size * 4.0)
+	GameState.vibrate(balance.haptics_place_ms)
+
+
+func _on_aim_moved(world_position: Vector2) -> void:
+	if state != State.PLAYING:
+		return
+	# Freeze the board so it cannot slide out from under the finger.
+	if not _camera_frozen:
+		_camera_frozen = true
+		_freeze_timer = 0.0
+	_board.show_ghost(_board.world_to_cell(world_position), _queue.current())
+
+
+func _on_aim_released(world_position: Vector2) -> void:
+	_camera_frozen = false
+	_board.hide_ghost()
+	if state != State.PLAYING:
+		return
+	_try_place(_board.world_to_cell(world_position))
+
+
+func _on_aim_cancelled() -> void:
+	_camera_frozen = false
+	_board.hide_ghost()
+
+
+# --- placement ----------------------------------------------------------
+
+func _try_place(cell: Vector2i) -> void:
+	if not _board.can_place(cell):
+		return
+
+	# Building over an unused pipe is allowed, but it costs fuel — a real trade
+	# rather than a free undo (spec section 08).
+	if _board.get_pipe(cell) != null:
+		fuel -= balance.fuel_replace
+		_fx.floater(_board.cell_to_world(cell), "-%d" % int(balance.fuel_replace),
+			Palette.RED)
+		_hud.set_fuel(fuel / balance.fuel_max)
+		if fuel <= 0.0:
+			fuel = 0.0
+			_die(REASON_OUT_OF_FUEL)
+			return
+
+	if _board.place(cell, _queue.current()) == Board.Placement.REJECTED:
+		return
+
+	_queue.consume()
+	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+	started = true
+	_start_hint.visible = false
+	GameState.vibrate(balance.haptics_place_ms)
+
+
+# --- run events ---------------------------------------------------------
+
+func _on_cart_stepped(cell: Vector2i) -> void:
+	_board.set_cart_cell(cell)
+
+	var previous_max := _board.max_row
+	_board.note_row_reached(cell.y)
+	if cell.y > previous_max:
+		score += cell.y - previous_max
+		_note_crystals_passed(previous_max, cell.y)
+
+	cells_run += 1
+
+	if _board.take_crystal(cell):
+		combo += 1
+		crystals_collected += 1
+		fuel = minf(balance.fuel_max, fuel + balance.fuel_crystal + minf(
+			combo * balance.fuel_combo_bonus, balance.fuel_combo_bonus_cap))
+		var points: int = balance.crystal_points * mini(combo, balance.crystal_combo_cap)
+		score += points
+
+		var at := _board.cell_to_world(cell)
+		_fx.burst(at, Palette.TEAL, 20, _cell_size * 6.0)
+		_fx.floater(at, "+%d" % points, Palette.TEAL)
+		_screen_fx.flash()
+		_hud.set_combo(combo)
+		GameState.vibrate(balance.haptics_crystal_ms)
+
+	if cells_run > balance.grace_cells:
+		fuel -= balance.fuel_per_cell
+		if fuel <= 0.0:
+			fuel = 0.0
+			_hud.set_fuel(0.0)
+			_die(REASON_OUT_OF_FUEL)
+			return
+
+	_board.ensure_rows(cell.y + balance.generate_ahead + 2)
+	_hud.set_score(score)
+	_hud.set_fuel(fuel / balance.fuel_max)
+
+	var low := fuel / balance.fuel_max < 0.25
+	_cart.low_fuel = low
+	_screen_fx.low_fuel = low
+
+
+## A crystal left behind in a row the cart has climbed past breaks the chain.
+## The prototype never resets combo; the spec's acceptance list (section 14)
+## requires it, so this is the missing rule made explicit.
+func _note_crystals_passed(from_row: int, to_row: int) -> void:
+	for row in range(from_row, to_row):
+		for col in balance.cols:
+			if _board.crystals.has(Vector2i(col, row)):
+				combo = 0
+				_hud.set_combo(0)
+				return
+
+
+func _on_cart_derailed(reason: String) -> void:
+	_die(reason)
+
+
+func _die(reason: String) -> void:
+	if state != State.PLAYING:
+		return
+	state = State.DEAD
+	_cart.alive = false
+	_input.enabled = false
+	_input.cancel()
+	_board.hide_ghost()
+	_board.hide_frontier()
+	_screen_fx.danger = false
+	_start_hint.visible = false
+
+	_shake = 16.0 * (_cell_size / SHAKE_REFERENCE_CELL)
+	_fx.burst(_cart.position, Palette.RED, 28, _cell_size * 8.0)
+	GameState.vibrate(balance.haptics_crystal_ms)
+	GameState.bank_crystals(crystals_collected)
+
+	_death_reason = reason
+	_death_was_record = GameState.submit_score(score)
+	_hud.set_best(GameState.best)
+	_death_pause = DEATH_PAUSE
+
+
+func _screen_to_world(screen_position: Vector2) -> Vector2:
+	return get_viewport().get_canvas_transform().affine_inverse() * screen_position

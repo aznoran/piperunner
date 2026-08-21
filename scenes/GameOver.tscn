@@ -1,0 +1,126 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/game_over.gd" id="1_over"]
+
+[sub_resource type="StyleBoxFlat" id="Btn_normal"]
+bg_color = Color(0.298039, 0.878431, 0.701961, 1)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+content_margin_left = 54.0
+content_margin_top = 21.0
+content_margin_right = 54.0
+content_margin_bottom = 21.0
+
+[sub_resource type="StyleBoxFlat" id="Btn_hover"]
+bg_color = Color(0.372549, 0.929412, 0.760784, 1)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+content_margin_left = 54.0
+content_margin_top = 21.0
+content_margin_right = 54.0
+content_margin_bottom = 21.0
+
+[sub_resource type="StyleBoxFlat" id="Btn_pressed"]
+bg_color = Color(0.239216, 0.729412, 0.580392, 1)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+content_margin_left = 54.0
+content_margin_top = 21.0
+content_margin_right = 54.0
+content_margin_bottom = 21.0
+
+[sub_resource type="StyleBoxFlat" id="Menu_ghost"]
+bg_color = Color(0.082353, 0.125490, 0.227451, 0.85)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.298039, 0.878431, 0.701961, 0.45)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+content_margin_left = 30.0
+content_margin_top = 21.0
+content_margin_right = 30.0
+content_margin_bottom = 21.0
+
+[node name="GameOver" type="CanvasLayer"]
+layer = 20
+script = ExtResource("1_over")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.023529, 0.031373, 0.054902, 0.88)
+
+[node name="Center" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Column" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(470, 0)
+layout_mode = 2
+theme_override_constants/separation = 17
+
+[node name="Title" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 42
+text = "Derailed"
+horizontal_alignment = 1
+
+[node name="FinalScore" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 66
+text = "0"
+horizontal_alignment = 1
+
+[node name="Record" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
+theme_override_font_sizes/font_size = 22
+text = "NEW BEST"
+horizontal_alignment = 1
+
+[node name="ButtonRow" type="HBoxContainer" parent="Center/Column"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 14
+
+[node name="RetryButton" type="Button" parent="Center/Column/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.023529, 0.125490, 0.094118, 1)
+theme_override_colors/font_hover_color = Color(0.023529, 0.125490, 0.094118, 1)
+theme_override_colors/font_pressed_color = Color(0.023529, 0.125490, 0.094118, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("Btn_normal")
+theme_override_styles/hover = SubResource("Btn_hover")
+theme_override_styles/pressed = SubResource("Btn_pressed")
+text = "Try Again"
+
+[node name="MenuButton" type="Button" parent="Center/Column/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("Menu_ghost")
+theme_override_styles/hover = SubResource("Menu_ghost")
+theme_override_styles/pressed = SubResource("Menu_ghost")
+text = "Menu"

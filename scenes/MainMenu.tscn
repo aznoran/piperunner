@@ -1,0 +1,253 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_menu"]
+
+[sub_resource type="StyleBoxFlat" id="Start_normal"]
+bg_color = Color(0.298039, 0.878431, 0.701961, 1)
+corner_radius_top_left = 44
+corner_radius_top_right = 44
+corner_radius_bottom_right = 44
+corner_radius_bottom_left = 44
+content_margin_left = 58.0
+content_margin_top = 26.0
+content_margin_right = 58.0
+content_margin_bottom = 26.0
+
+[sub_resource type="StyleBoxFlat" id="Start_pressed"]
+bg_color = Color(0.239216, 0.729412, 0.580392, 1)
+corner_radius_top_left = 44
+corner_radius_top_right = 44
+corner_radius_bottom_right = 44
+corner_radius_bottom_left = 44
+content_margin_left = 58.0
+content_margin_top = 26.0
+content_margin_right = 58.0
+content_margin_bottom = 26.0
+
+[sub_resource type="StyleBoxFlat" id="Ghost_normal"]
+bg_color = Color(0.082353, 0.125490, 0.227451, 0.85)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.298039, 0.878431, 0.701961, 0.45)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+content_margin_left = 26.0
+content_margin_top = 20.0
+content_margin_right = 26.0
+content_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxFlat" id="Panel_box"]
+bg_color = Color(0.043137, 0.070588, 0.125490, 0.97)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.298039, 0.878431, 0.701961, 0.35)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+content_margin_left = 24.0
+content_margin_top = 22.0
+content_margin_right = 24.0
+content_margin_bottom = 22.0
+
+[node name="MainMenu" type="CanvasLayer"]
+layer = 15
+script = ExtResource("1_menu")
+
+[node name="Title" type="Label" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 110.0
+offset_bottom = 190.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 44
+text = "PIPE RUNNER"
+horizontal_alignment = 1
+
+[node name="Tagline" type="Label" parent="."]
+modulate = Color(1, 1, 1, 0.6)
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 172.0
+offset_bottom = 210.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 19
+text = "The cart never stops. Lay the track."
+horizontal_alignment = 1
+
+[node name="Bar" type="Control" parent="."]
+mouse_filter = 2
+
+[node name="HowButton" type="Button" parent="Bar"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 14.0
+offset_top = -36.0
+offset_bottom = 36.0
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "HOW TO"
+
+[node name="StartButton" type="Button" parent="Bar"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.023529, 0.125490, 0.094118, 1)
+theme_override_colors/font_hover_color = Color(0.023529, 0.125490, 0.094118, 1)
+theme_override_colors/font_pressed_color = Color(0.023529, 0.125490, 0.094118, 1)
+theme_override_font_sizes/font_size = 36
+theme_override_styles/normal = SubResource("Start_normal")
+theme_override_styles/hover = SubResource("Start_normal")
+theme_override_styles/pressed = SubResource("Start_pressed")
+text = "START"
+
+[node name="SettingsButton" type="Button" parent="Bar"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -14.0
+offset_top = -36.0
+offset_right = -14.0
+offset_bottom = 36.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "SETTINGS"
+
+[node name="HowPanel" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="PanelContainer" parent="HowPanel"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel_box")
+
+[node name="Column" type="VBoxContainer" parent="HowPanel/Box"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Heading" type="Label" parent="HowPanel/Box/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "How to play"
+
+[node name="Rules" type="RichTextLabel" parent="HowPanel/Box/Column"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+bbcode_enabled = true
+text = "[color=#4ce0b3]Place anywhere.[/color] Tap any empty cell to drop the current pipe — not just in front of the cart.
+[color=#4ce0b3]The piece is forced.[/color] You get what the queue hands you. Four are shown ahead.
+[color=#4ce0b3]Crystals are fuel.[/color] Route the cart through them or you run dry.
+[color=#4ce0b3]The white ring[/color] is where the cart needs pipe next.
+[color=#4ce0b3]HOLD[/color] parks an awkward pipe for later — tap it to swap.
+[color=#4ce0b3]Press and drag[/color] to aim, release to place. The board freezes while you hold."
+fit_content = true
+scroll_active = false
+theme_override_font_sizes/normal_font_size = 18
+
+[node name="CloseHow" type="Button" parent="HowPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "Got it"
+
+[node name="SettingsPanel" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="PanelContainer" parent="SettingsPanel"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel_box")
+
+[node name="Column" type="VBoxContainer" parent="SettingsPanel/Box"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Heading" type="Label" parent="SettingsPanel/Box/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Settings"
+
+[node name="BestLabel" type="Label" parent="SettingsPanel/Box/Column"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Best run: 0"
+
+[node name="HapticsRow" type="HBoxContainer" parent="SettingsPanel/Box/Column"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="SettingsPanel/Box/Column/HapticsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Vibration"
+
+[node name="HapticsToggle" type="CheckButton" parent="SettingsPanel/Box/Column/HapticsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+
+[node name="ResetBestButton" type="Button" parent="SettingsPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.301961, 0.301961, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "Reset progress"
+
+[node name="CloseSettings" type="Button" parent="SettingsPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("Ghost_normal")
+theme_override_styles/hover = SubResource("Ghost_normal")
+theme_override_styles/pressed = SubResource("Ghost_normal")
+text = "Close"

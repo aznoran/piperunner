@@ -1,0 +1,111 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Resource" path="res://resources/GameBalance.tres" id="2_balance"]
+[ext_resource type="PackedScene" path="res://scenes/Board.tscn" id="3_board"]
+[ext_resource type="PackedScene" path="res://scenes/Cart.tscn" id="4_cart"]
+[ext_resource type="Script" path="res://scripts/fx.gd" id="5_fx"]
+[ext_resource type="Script" path="res://scripts/screen_fx.gd" id="6_screenfx"]
+[ext_resource type="PackedScene" path="res://scenes/QueueBar.tscn" id="7_queue"]
+[ext_resource type="PackedScene" path="res://scenes/HUD.tscn" id="8_hud"]
+[ext_resource type="PackedScene" path="res://scenes/GameOver.tscn" id="9_over"]
+[ext_resource type="Script" path="res://scripts/input_handler.gd" id="10_input"]
+[ext_resource type="PackedScene" path="res://scenes/MainMenu.tscn" id="11_menu"]
+
+[sub_resource type="Gradient" id="Grad_bg"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(0.066667, 0.109804, 0.180392, 1, 0.043137, 0.070588, 0.12549, 1, 0.027451, 0.039216, 0.070588, 1)
+
+[sub_resource type="GradientTexture2D" id="GradTex_bg"]
+gradient = SubResource("Grad_bg")
+width = 4
+height = 1024
+fill_to = Vector2(0, 1)
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main")
+balance = ExtResource("2_balance")
+
+[node name="Background" type="CanvasLayer" parent="."]
+layer = -100
+
+[node name="Gradient" type="TextureRect" parent="Background"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("GradTex_bg")
+expand_mode = 1
+stretch_mode = 0
+
+[node name="World" type="Node2D" parent="."]
+
+[node name="Board" parent="World" instance=ExtResource("3_board")]
+
+[node name="Cart" parent="World" instance=ExtResource("4_cart")]
+
+[node name="Fx" type="Node2D" parent="World"]
+z_index = 20
+script = ExtResource("5_fx")
+
+[node name="Camera" type="Camera2D" parent="."]
+
+[node name="ScreenFx" type="CanvasLayer" parent="."]
+layer = 5
+script = ExtResource("6_screenfx")
+
+[node name="Flash" type="ColorRect" parent="ScreenFx"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.298039, 0.878431, 0.701961, 0)
+
+[node name="LowFuel" type="ColorRect" parent="ScreenFx"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 0.301961, 0.301961, 0)
+
+[node name="Danger" type="ColorRect" parent="ScreenFx"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 0.301961, 0.301961, 0)
+
+[node name="Ui" type="CanvasLayer" parent="."]
+layer = 9
+
+[node name="QueueBar" parent="Ui" instance=ExtResource("7_queue")]
+
+[node name="StartHint" type="Label" parent="Ui"]
+unique_name_in_owner = true
+anchor_top = 0.18
+anchor_right = 1.0
+anchor_bottom = 0.29
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.85)
+theme_override_font_sizes/font_size = 24
+text = "Place a pipe to start
+the cart waits for you"
+horizontal_alignment = 1
+
+[node name="Hud" parent="." instance=ExtResource("8_hud")]
+
+[node name="MainMenu" parent="." instance=ExtResource("11_menu")]
+
+[node name="GameOver" parent="." instance=ExtResource("9_over")]
+
+[node name="InputHandler" type="Node" parent="."]
+script = ExtResource("10_input")
