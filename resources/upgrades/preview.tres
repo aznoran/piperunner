@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1")
 id = &"preview"
-display_name = "Queue sight"
-description = "See one more piece ahead. Planning beats reacting."
+display_name = "Wider choice"
+description = "One more shape to choose between, every turn."
 costs = PackedInt32Array(180)
 step = 1.0
-unit = "piece"
+unit = "shape"

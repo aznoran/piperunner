@@ -21,6 +21,9 @@ const SIDES := {
 	Type.X:  [Side.U, Side.D, Side.L, Side.R],
 }
 
+## Every shape, in enum order — the pool a dealer draws an offer from.
+const ALL: Array[int] = [Type.V, Type.H, Type.UR, Type.UL, Type.DR, Type.DL, Type.X]
+
 const OPPOSITE := {
 	Side.U: Side.D,
 	Side.D: Side.U,

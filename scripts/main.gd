@@ -1,5 +1,5 @@
 ## Run orchestration: state machine, score, fuel, camera and the wiring between
-## board, cart, queue and UI. Spec sections 02, 05, 06, 07 and 10.
+## board, cart, offer and UI. Spec sections 02, 05, 06, 07 and 10.
 extends Node2D
 
 enum State { MENU, PLAYING, DEAD }
@@ -45,7 +45,7 @@ var forced_seed: int = -1
 @onready var _fx: Fx = $World/Fx
 @onready var _camera: Camera2D = $Camera
 @onready var _hud: Hud = $Hud
-@onready var _queue_bar: QueueBar = $Ui/QueueBar
+@onready var _offer_bar: OfferBar = $Ui/OfferBar
 @onready var _screen_fx: ScreenFx = $ScreenFx
 @onready var _overlay: GameOverScreen = $GameOver
 @onready var _menu: MainMenu = $MainMenu
@@ -60,8 +60,10 @@ var forced_seed: int = -1
 
 var state: State = State.MENU
 
-var _queue := PipeQueue.new()
-var _dealer := Dealer.new()
+var _offer := PipeOffer.new()
+## Which rule fills the offer. This line is the whole extension point: anything
+## deriving from PipeDealer plugs in here and nothing else has to move.
+var _dealer: PipeDealer = RandomDealer.new()
 var _praise := Praise.new()
 ## Pipes placed since the last overwrite, for the clean-run praise.
 var _clean_streak: int = 0
@@ -69,7 +71,7 @@ var _clean_streak: int = 0
 var overwrites: int = 0
 ## True once this run has spent its one continue.
 var continued: bool = false
-var _queue_rng := RandomNumberGenerator.new()
+var _offer_rng := RandomNumberGenerator.new()
 
 var score: int = 0
 var combo: int = 0
@@ -128,7 +130,7 @@ func _ready() -> void:
 	_cart.stepped.connect(_on_cart_stepped)
 	_cart.derailed.connect(_on_cart_derailed)
 
-	_input.hold_tapped.connect(_on_hold_tapped)
+	_input.offer_chosen.connect(_on_offer_chosen)
 	_input.aim_started.connect(_on_aim_moved)
 	_input.aim_moved.connect(_on_aim_moved)
 	_input.aim_released.connect(_on_aim_released)
@@ -143,7 +145,7 @@ func _ready() -> void:
 	_menu.mode_chosen.connect(_select_mode)
 	_menu.level_chosen.connect(_select_level)
 	_menu.autoplay_requested.connect(_launch_autoplay)
-	_autoplayer.setup(self, _board, _cart, _queue)
+	_autoplayer.setup(self, _board, _cart, _offer)
 	_overlay.retry_pressed.connect(func() -> void: start_run(selected_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
 	_overlay.continue_pressed.connect(_take_continue)
@@ -167,13 +169,11 @@ func _ready() -> void:
 func _rebuild_balance() -> void:
 	balance = base_balance.duplicate()
 	balance.fuel_max += Upgrades.bonus(&"tank", GameState)
-	balance.queue_preview += int(Upgrades.bonus(&"preview", GameState))
+	balance.offer_size += int(Upgrades.bonus(&"preview", GameState))
 	balance.runway += int(Upgrades.bonus(&"runway", GameState))
 	_magnet_reach = int(Upgrades.bonus(&"magnet", GameState))
 	if _board != null:
 		_board.setup(balance)
-	_dealer.setup(balance)
-	_praise.setup(balance)
 	_dealer.setup(balance)
 	_praise.setup(balance)
 
@@ -217,15 +217,15 @@ func _equip_for_the_long_run() -> void:
 			"tank":
 				balance.fuel_max += maxed
 			"preview":
-				balance.queue_preview += int(maxed)
+				balance.offer_size += int(maxed)
 			"runway":
 				balance.runway += int(maxed)
 			"magnet":
 				_magnet_reach = int(maxed)
 	fuel = balance.fuel_max
 	_hud.set_fuel(1.0)
-	_queue.resize(balance.queue_preview)
-	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+	_offer.resize(balance.offer_size, _deal_context())
+	_refresh_offer_bar()
 
 
 ## Switches the location's look. Rules, generation and events are untouched —
@@ -238,7 +238,7 @@ func apply_skin(skin: LocationSkin) -> void:
 	_decor.setup(skin, _cell_size, balance.cols)
 	_board.set_skin(skin)
 	_cart.set_skin(skin)
-	_queue_bar.set_skin(skin)
+	_offer_bar.set_skin(skin)
 	_hud.set_skin(skin)
 	_screen_fx.set_skin(skin)
 
@@ -253,10 +253,10 @@ func _apply_layout() -> void:
 	_decor.setup(Skins.current(), _cell_size, balance.cols)
 	_cart.set_cell_size(_cell_size)
 	_fx.set_cell_size(_cell_size)
-	_queue_bar.set_cell_size(_cell_size)
+	_offer_bar.set_cell_size(_cell_size)
 
-	_input.hold_rect = _queue_bar.hold_rect
-	_input.queue_strip_top = _queue_bar.strip_top
+	_input.offer_rects = _offer_bar.slot_rects
+	_input.offer_strip_top = _offer_bar.strip_top
 	_camera.position.x = viewport.x * 0.5
 
 
@@ -372,7 +372,7 @@ func _show_menu(animated: bool = false) -> void:
 	_input.cancel()
 	_board.reveal = 1.0
 	_input.enabled = false
-	_queue_bar.visible = false
+	_offer_bar.visible = false
 	_hud.visible = false
 	_start_hint.visible = false
 	_board.hide_ghost()
@@ -402,9 +402,9 @@ func _show_menu(animated: bool = false) -> void:
 ## Lays out a fresh world and parks the cart on the runway. On the title screen
 ## the board stays bare — just the cart and the runway ahead of it.
 func _prepare_board(with_resources: bool) -> void:
-	# One seed drives the whole run; the queue gets its own stream so tuning the
-	# preview length cannot reshuffle the map. On a daily the seed comes from
-	# the date, so every player gets the same board (spec section 11, P1).
+	# One seed drives the whole run; the offer gets its own stream so changing
+	# how many shapes are dealt cannot reshuffle the map. On a daily the seed
+	# comes from the date, so every player gets the same board (spec 11, P1).
 	# A daily and a story station are fixed maps; classic rolls a fresh one.
 	var run_seed: int = forced_seed if forced_seed >= 0 else randi()
 	if daily_mode:
@@ -412,13 +412,16 @@ func _prepare_board(with_resources: bool) -> void:
 	elif selected_mode == Mode.STORY and active_level != null:
 		run_seed = Levels.seed_for(active_level)
 	_board.start_run(run_seed, with_resources, _first_resource_row())
-	_queue_rng.seed = run_seed + 1
-	_queue.start(_queue_rng, balance.queue_preview, _dealer)
+	_offer_rng.seed = run_seed + 1
 
 	var start_col: int = balance.cols / 2
 	_cart.place_at(start_col, 0, PipeDefs.Side.D)
 	_board.flood(Vector2i(start_col, 0))
 	_board.set_cart_cell(_cart.cell())
+
+	# Dealt once the cart is parked, so the rule is asked about the joint this
+	# run opens on rather than about whatever the last one ended on.
+	_offer.start(_offer_rng, balance.offer_size, _dealer, _deal_context())
 
 	_board.show_record(GameState.best_distance)
 
@@ -472,12 +475,12 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 		_prepare_board(true)
 	_board_fresh = false
 	_decor.visible = false
-	# The board came from the menu, so the queue was built before this run's
-	# balance sheet existed; a preview upgrade has to be applied now.
-	_queue.resize(balance.queue_preview)
-	_queue_bar.visible = true
+	# The board came from the menu, so the offer was dealt before this run's
+	# balance sheet existed; an upgrade that widens it has to be applied now.
+	_offer.resize(balance.offer_size, _deal_context())
+	_offer_bar.visible = true
 	_hud.visible = true
-	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+	_refresh_offer_bar()
 	_start_hint.visible = true
 	_hint_pulse = 0.0
 
@@ -494,7 +497,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	push.tween_method(_set_camera_anchor, _camera_anchor, balance.camera_anchor,
 		CAMERA_PUSH).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	_fade_in(_hud_root(), MENU_FADE)
-	_fade_in(_queue_bar, MENU_FADE)
+	_fade_in(_offer_bar, MENU_FADE)
 	var gate := create_tween()
 	gate.tween_interval(MENU_FADE)
 	gate.tween_callback(func() -> void:
@@ -632,12 +635,26 @@ func _buffer() -> int:
 	return int(ahead["steps"]) if not ahead.is_empty() else 0
 
 
-## How hard the dealer may lean, right now.
-func _assist_now() -> float:
-	var ceiling := _dealer.assist_ceiling(GameState.runs_played, GameState.in_slump())
-	var pressure := _dealer.pressure(fuel, balance.fuel_max, _buffer(),
-		balance.queue_preview)
-	return _dealer.assist(pressure, ceiling)
+## Everything a dealing rule may look at, gathered in one place so that a rule
+## which starts caring about something new does not mean touching every site
+## that deals an offer.
+func _deal_context() -> Dictionary:
+	return {
+		"need": _joint_need(),
+		"buffer": _buffer(),
+		"fuel": fuel,
+		"fuel_max": balance.fuel_max,
+		"runs_played": GameState.runs_played,
+		"in_slump": GameState.in_slump(),
+	}
+
+
+## Repaints the strip and re-points the input handler at it. Both the number of
+## slots and where they sit move when the offer is re-dealt, so the two have to
+## travel together or a tap lands on the shape next door.
+func _refresh_offer_bar() -> void:
+	_offer_bar.set_contents(_offer.choices, _offer.selected)
+	_input.offer_rects = _offer_bar.slot_rects
 
 
 ## Marks the cell where the cart needs pipe next, and warns when the track is
@@ -652,7 +669,7 @@ func _update_frontier() -> void:
 	var cell: Vector2i = ahead["cell"]
 	var need: int = ahead["need"]
 	var fits: bool = (not ahead["blocked"]
-		and PipeDefs.SIDES[_queue.current()].has(need)
+		and PipeDefs.SIDES[_offer.current()].has(need)
 		and _board.can_place(cell))
 	_board.show_frontier(cell, need, fits)
 	_screen_fx.danger = started and int(ahead["steps"]) <= 1
@@ -660,13 +677,17 @@ func _update_frontier() -> void:
 
 # --- input --------------------------------------------------------------
 
-func _on_hold_tapped() -> void:
+## Points the next placement at one of the shapes on offer. It costs nothing
+## and may be done as often as the player likes: the turn is spent by placing,
+## not by choosing.
+func _on_offer_chosen(index: int) -> void:
 	if state != State.PLAYING:
 		return
-	_queue.swap_hold()
-	_queue_bar.set_contents(_queue.upcoming, _queue.held)
-	_fx.burst(_screen_to_world(_queue_bar.hold_rect.get_center()),
-		Skins.current().warn, 10, _cell_size * 4.0)
+	if not _offer.select(index):
+		return
+	_refresh_offer_bar()
+	# The ghost is still holding up the shape chosen a moment ago.
+	_board.hide_ghost()
 	GameState.vibrate(balance.haptics_place_ms)
 
 
@@ -677,7 +698,7 @@ func _on_aim_moved(world_position: Vector2) -> void:
 	if not _camera_frozen:
 		_camera_frozen = true
 		_freeze_timer = 0.0
-	_board.show_ghost(_board.world_to_cell(world_position), _queue.current())
+	_board.show_ghost(_board.world_to_cell(world_position), _offer.current())
 
 
 func _on_aim_released(world_position: Vector2) -> void:
@@ -719,14 +740,14 @@ func _try_place(cell: Vector2i) -> void:
 			_die(REASON_OUT_OF_FUEL)
 			return
 
-	if _board.place(cell, _queue.current()) == Board.Placement.REJECTED:
+	if _board.place(cell, _offer.current()) == Board.Placement.REJECTED:
 		return
 
 	if cell.y < _cart.row:
 		pipes_dumped += 1
 
-	_queue.consume(_joint_need(), _assist_now())
-	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+	_offer.take(_deal_context())
+	_refresh_offer_bar()
 	if not started:
 		_hud.fade_out_back_key()
 	started = true
@@ -1011,9 +1032,9 @@ func _take_continue() -> void:
 	combo = 0
 	_hud.set_combo(0)
 
-	# A fresh queue: the one that killed them is not the one to come back with.
-	_queue.start(_queue_rng, balance.queue_preview, _dealer)
-	_queue_bar.set_contents(_queue.upcoming, _queue.held)
+	# A fresh offer: the one that killed them is not the one to come back with.
+	_offer.start(_offer_rng, balance.offer_size, _dealer, _deal_context())
+	_refresh_offer_bar()
 
 	state = State.PLAYING
 	_input.enabled = true
@@ -1042,6 +1063,3 @@ func _bank_run() -> void:
 		GameState.submit_daily(score)
 	_hud.set_best(GameState.best)
 
-
-func _screen_to_world(screen_position: Vector2) -> Vector2:
-	return get_viewport().get_canvas_transform().affine_inverse() * screen_position

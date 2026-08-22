@@ -1,5 +1,5 @@
 ## Title screen. Sits over a live but empty board — the cart and its runway are
-## visible, nothing else — and replaces the queue strip with three buttons:
+## visible, nothing else — and replaces the offer strip with three buttons:
 ## upgrades on the left, start in the middle, settings on the right.
 class_name MainMenu
 extends CanvasLayer

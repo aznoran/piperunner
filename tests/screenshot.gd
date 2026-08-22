@@ -76,7 +76,7 @@ func _on_post_draw() -> void:
 
 func _bot_step() -> void:
 	var board: Board = main._board
-	var queue: PipeQueue = main._queue
+	var offer: PipeOffer = main._offer
 	var cart: Cart = main._cart
 
 	var ahead := board.frontier(cart.cell(), cart.entry)
@@ -85,16 +85,13 @@ func _bot_step() -> void:
 	var joint: Vector2i = ahead["cell"]
 	var need: int = ahead["need"]
 
-	if (not ahead["blocked"]
-			and PipeDefs.SIDES[queue.current()].has(need)
-			and board.can_place(joint)):
-		main._try_place(joint)
-		cooldown = ACT_INTERVAL
-		return
-	if queue.held == PipeQueue.NONE:
-		main._on_hold_tapped()
-		cooldown = ACT_INTERVAL
-		return
+	if not ahead["blocked"] and board.can_place(joint):
+		var pick := _best_choice(offer, need)
+		if pick >= 0:
+			main._on_offer_chosen(pick)
+			main._try_place(joint)
+			cooldown = ACT_INTERVAL
+			return
 	for row in range(board.max_row - main.balance.place_below, cart.row):
 		for col in main.balance.cols:
 			var spot := Vector2i(col, row)
@@ -104,6 +101,31 @@ func _bot_step() -> void:
 				main._try_place(spot)
 				cooldown = ACT_INTERVAL
 				return
+
+
+
+## Which shape to take, or -1 when none of them serves the joint.
+##
+## Climbing beats turning, and turning beats being sent back down. With three
+## shapes to choose between, taking whichever fits first is a turn more often
+## than not, and a route that turns every move walks itself sideways out of the
+## build window — which measures the bot, not the game.
+func _best_choice(offer: PipeOffer, need: int) -> int:
+	var best := -1
+	var best_rank := -1
+	for i in offer.choices.size():
+		var exit: int = PipeDefs.exit_side(offer.choices[i], need)
+		if exit == PipeDefs.NO_EXIT:
+			continue
+		var rank := 1
+		if exit == PipeDefs.Side.U:
+			rank = 2
+		elif exit == PipeDefs.Side.D:
+			rank = 0
+		if rank > best_rank:
+			best_rank = rank
+			best = i
+	return best
 
 
 ## --script skips project autoloads, so stand them up by hand.

@@ -7,7 +7,7 @@
 class_name InputHandler
 extends Node
 
-signal hold_tapped
+signal offer_chosen(index: int)
 signal aim_started(world_position: Vector2)
 signal aim_moved(world_position: Vector2)
 signal aim_released(world_position: Vector2)
@@ -15,10 +15,11 @@ signal aim_cancelled
 
 ## Gestures are ignored unless a run is in progress.
 var enabled: bool = false
-## HOLD slot in screen space. Touching it swaps and swallows the gesture.
-var hold_rect := Rect2()
-## Screen y below which touches belong to the queue strip, not the board.
-var queue_strip_top: float = INF
+## Screen-space rect of each shape on offer. Touching one chooses it and
+## swallows the gesture.
+var offer_rects: Array[Rect2] = []
+## Screen y below which touches belong to the offer strip, not the board.
+var offer_strip_top: float = INF
 
 var _active_touch: int = -1
 
@@ -47,12 +48,13 @@ func _begin(index: int, position: Vector2) -> void:
 	if _active_touch != -1:
 		return  # one finger at a time; extra touches are ignored
 
-	if hold_rect.has_point(position):
-		hold_tapped.emit()
-		return
+	for i in offer_rects.size():
+		if offer_rects[i].has_point(position):
+			offer_chosen.emit(i)
+			return
 
-	if position.y >= queue_strip_top:
-		return  # queue strip, not the board
+	if position.y >= offer_strip_top:
+		return  # offer strip, not the board
 
 	_active_touch = index
 	aim_started.emit(_to_world(position))

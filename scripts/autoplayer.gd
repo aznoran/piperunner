@@ -1,8 +1,8 @@
 ## Plays the game by itself, for recording.
 ##
 ## It is deliberately not a cheat: it goes through the same two actions a
-## finger has — place the piece in hand at a cell, or tap HOLD — reads only
-## what is on screen, and cannot see past the preview. Nothing it does is
+## finger has — choose one of the shapes on offer, place it at a cell — reads
+## only what is on screen, and cannot see past the offer. Nothing it does is
 ## privileged, so a run it plays counts exactly like a played one.
 ##
 ## Nor is it optimal. It thinks for a beat before acting, its timing wanders,
@@ -20,14 +20,14 @@ enum Skill { SHOWCASE, EXPERT }
 var skill: Skill = Skill.SHOWCASE
 
 ## How good it is, on a dial rather than a switch: 0 is a beginner who mostly
-## reacts, 1 is the expert that reads the queue to the end. The two presets sit
+## reacts, 1 is the expert that weighs every shape on offer. The two presets sit
 ## at either end and the debug panel can put it anywhere between, which is the
 ## only way to see how a given standard of play meets a given set of formulas.
 var proficiency: float = SHOWCASE_LEVEL
 
 const SHOWCASE_LEVEL := 0.35
 const EXPERT_LEVEL := 1.0
-## Below this it plays move to move; above it, it plans.
+## Below this it takes the first shape that works; above it, it weighs them all.
 const PLANS_FROM := 0.6
 
 ## Seconds between actions. The spread is what stops it looking mechanical.
@@ -54,12 +54,8 @@ var active: bool = false
 var _main: Node
 var _board: Board
 var _cart: Cart
-var _queue: PipeQueue
+var _offer: PipeOffer
 var _wait: float = 0.0
-## The pocket is a swap, so trading twice in a row just puts the piece back —
-## two moves spent, no track laid. Measured at 99 swaps against 51 placements
-## in a forty-cell run.
-var _just_swapped: bool = false
 var _rng := RandomNumberGenerator.new()
 
 ## Why the last run went the way it did. Debug only; costs nothing to keep.
@@ -70,11 +66,11 @@ func _bump(what: String) -> void:
 	tally[what] = int(tally.get(what, 0)) + 1
 
 
-func setup(main: Node, board: Board, cart: Cart, queue: PipeQueue) -> void:
+func setup(main: Node, board: Board, cart: Cart, offer: PipeOffer) -> void:
 	_main = main
 	_board = board
 	_cart = cart
-	_queue = queue
+	_offer = offer
 
 
 ## `dice` fixes the bot's own randomness — benchmarks pass a seed so two runs
@@ -85,7 +81,6 @@ func start(level: Skill = Skill.SHOWCASE, dice: int = -1,
 	proficiency = level_override if level_override >= 0.0 \
 		else (EXPERT_LEVEL if level == Skill.EXPERT else SHOWCASE_LEVEL)
 	tally = {}
-	_just_swapped = false
 	if dice >= 0:
 		_rng.seed = dice
 	else:
@@ -142,7 +137,6 @@ func _act() -> void:
 	var joint: Vector2i = ahead["cell"]
 	var need: int = ahead["need"]
 	var blocked: bool = ahead["blocked"]
-	var piece: int = _queue.current()
 
 	var buffer: int = int(ahead["steps"])
 	var rows := _board.visible_rows()
@@ -159,86 +153,48 @@ func _act() -> void:
 	# is the run ending in three seconds.
 	if blocked:
 		_bump("blocked")
-		if _serves(piece, need) and _board.can_place(joint):
+		var repair := _pick_for(joint, need, buffer, true)
+		if repair >= 0 and _board.can_place(joint):
 			# Building over the wrong-facing pipe. No slip here, however
 			# casually the bot is playing — this move is the run.
 			_bump("repair")
+			_choose(repair)
 			_main._try_place(joint)
-		elif _reroute(piece):
+		elif _reroute():
 			_bump("reroute")
-		elif _queue.held != PipeQueue.NONE and _serves(_queue.held, need):
-			_main._on_hold_tapped()
-		elif _queue.held == PipeQueue.NONE and piece != PipeDefs.Type.X:
-			_main._on_hold_tapped()
 		else:
-			# Neither hand nor pocket fits. Standing still is death; spending
-			# the piece behind the cart brings the next one up.
+			# Nothing on offer serves the jam. Standing still is death, and
+			# spending a shape behind the cart brings a fresh offer up.
 			_bump("cycle")
 			_dump(joint)
 		return
 
-	if _serves(piece, need) and (too_far or not _board.can_place(joint)):
+	# Whether anything on offer merely fits, ignoring where it points the cart.
+	# That is the question for deciding to wait; quality is asked separately.
+	var lenient := _pick_for(joint, need, buffer, true)
+	if lenient >= 0 and (too_far or not _board.can_place(joint)):
 		_bump("wait")
-		return  # hold the good piece until the joint opens up
+		return  # hold the good shape until the joint opens up
 
-	if _plans() and not blocked and not too_far:
-		var line: Array = _queue.upcoming.duplicate()
-		var read: Dictionary = _plan(joint, need, line, _queue.held,
-			float(buffer), PLAN_DEPTH, _just_swapped)
-		match read["do"]:
-			"place":
-				if _board.can_place(joint):
-					_bump("plan_place")
-					_just_swapped = false
-					_place(joint)
-					return
-			"hold":
-				_bump("plan_hold")
-				_just_swapped = true
-				_main._on_hold_tapped()
-				return
-			"dump":
-				_just_swapped = false
-				if _stockpile(joint, piece):
-					_bump("stockpile")
-					return
-				_bump("plan_dump")
-				_dump(joint)
-				return
-			_:
-				_bump("plan_wait")
-				return
-
-	if not too_far and _serves(piece, need) \
-			and _board.can_place(joint):
-		if _worth_extending(joint, piece, need, buffer):
+	if not too_far and lenient >= 0 and _board.can_place(joint):
+		var fit := _pick_for(joint, need, buffer, false)
+		if fit >= 0:
 			_bump("extend")
+			_choose(fit)
 			_place(joint)
 			return
 		_bump("refused")
 	elif too_far:
 		_bump("too_far")
-	elif not _serves(piece, need):
+	elif lenient < 0:
 		_bump("wrong_shape")
 	else:
 		_bump("cant_place")
 
-	# No use at the joint. Before pocketing or dumping it, see whether it is
-	# track the route will want anyway.
-	if _stockpile(joint, piece):
+	# No use at the joint. Before throwing a shape away, see whether one of them
+	# is track the route will want anyway.
+	if _stockpile(joint):
 		_bump("stockpile")
-		return
-
-	# Swap first if the pocket holds what this joint wants — that is what the
-	# pocket is for.
-	if _queue.held != PipeQueue.NONE and _serves(_queue.held, need) and not blocked:
-		_main._on_hold_tapped()
-		return
-
-	# Pocket an awkward piece, but never a crossroads: it fits every joint, so
-	# holding one is throwing away the piece that always works.
-	if _queue.held == PipeQueue.NONE and piece != PipeDefs.Type.X:
-		_main._on_hold_tapped()
 		return
 
 	_bump("dump")
@@ -260,6 +216,8 @@ func _worth_extending(cell: Vector2i, piece: int, entry: int, buffer: int) -> bo
 	if next.x < 0 or next.x >= _main.balance.cols:
 		return false
 	if _board.rocks.has(next):
+		return false
+	if _opens_off_board(cell, piece):
 		return false
 	# Pointing the cart at a pipe that will not take it is how these runs end.
 	# Only when the track has run out is it worth the gamble — by then there is
@@ -309,75 +267,82 @@ func _worth_extending(cell: Vector2i, piece: int, entry: int, buffer: int) -> bo
 	return true
 
 
-# --- planning -----------------------------------------------------------
+# --- choosing -----------------------------------------------------------
 
-## How far down the preview the expert reads. The tree is three-way and the
-## preview is short, so the whole thing costs a few hundred cheap steps.
-const PLAN_DEPTH := 7
-## What a run that ends is worth: nothing, whatever height it reached.
-const DEATH := -400.0
-
-## Plays the visible queue out to the end and returns the first move of the
-## best line, as {"do": "place"/"hold"/"dump"}.
+## The shape on offer that best serves this joint, or -1 when none does.
 ##
-## There is no rotating a piece in this game — it fits the joint or it does
-## not — so the only real decisions are spend it here, pocket it, or throw it
-## behind the cart. That is a small enough tree to walk properly, and walking
-## it is the difference between a bot that reacts and one that reads the
-## queue the way a strong player does.
-func _plan(joint: Vector2i, entry: int, line: Array, held: int,
-		slack: float, depth: int, swapped: bool) -> Dictionary:
-	if depth <= 0 or line.is_empty():
-		return {"score": float(joint.y) + slack * 0.5, "do": "wait"}
-	if slack < 0.0:
-		return {"score": DEATH + joint.y, "do": "wait"}
-
-	var piece: int = line[0]
-	var best := {"score": DEATH * 2.0, "do": "dump"}
-
-	# Spend it at the joint.
-	if _serves(piece, entry):
-		var exit: int = PipeDefs.exit_side(piece, entry)
-		if exit != PipeDefs.NO_EXIT:
-			var next: Vector2i = joint + PipeDefs.DIR[exit]
-			if next.x >= 0 and next.x < _main.balance.cols \
-					and not _board.rocks.has(next) \
-					and _clear(next, PipeDefs.OPPOSITE[exit]):
-				var rest: Array = line.slice(1)
-				var deeper := _plan(next, PipeDefs.OPPOSITE[exit], rest, held,
-					slack + 1.0 - _step_cost(), depth - 1, false)
-				var gain: float = float(next.y - joint.y) * 4.0
-				if _board.crystals.has(next):
-					gain += 6.0  # fuel is distance
-				var here: float = deeper["score"] + gain
-				if here > best["score"]:
-					best = {"score": here, "do": "place"}
-
-	# Pocket it, or trade it for what is pocketed. Trading does not advance the
-	# queue, so it is allowed once per line — otherwise the search would sit
-	# there swapping forever.
-	if not swapped:
-		var traded: Array = line.duplicate()
-		var pocket := held
-		if held == PipeQueue.NONE:
-			pocket = piece
-			traded.remove_at(0)
-		else:
-			traded[0] = held
-			pocket = piece
-		var swap_line := _plan(joint, entry, traded, pocket,
-			slack - _step_cost(), depth - 1, held != PipeQueue.NONE)
-		if swap_line["score"] > best["score"]:
-			best = {"score": swap_line["score"], "do": "hold"}
-
-	# Spend it behind the cart to bring the next one up.
-	var skipped: Array = line.slice(1)
-	var dumped := _plan(joint, entry, skipped, held,
-		slack - _step_cost(), depth - 1, false)
-	if dumped["score"] > best["score"]:
-		best = {"score": dumped["score"], "do": "dump"}
-
+## There is no queue to read to the end any more — the two shapes not taken
+## vanish along with the one that is, so nothing on screen belongs to a later
+## turn. What is left to be good at is this turn: which of the three keeps the
+## cart climbing, and which of them points it at a wall.
+##
+## `desperate` drops the bar to "it fits and the cart survives". That is for a
+## jammed joint, where the run ends in three seconds and there is no time to be
+## fussy about which way the track points.
+func _pick_for(joint: Vector2i, need: int, buffer: int, desperate: bool) -> int:
+	var best := -1
+	var best_score := -INF
+	for i in _offer.choices.size():
+		var piece: int = _offer.choices[i]
+		if not _serves(piece, need):
+			continue
+		if not desperate and not _worth_extending(joint, piece, need, buffer):
+			continue
+		if not _plans():
+			return i  # a player who reacts takes the first shape that works
+		var score := _score(joint, piece, need)
+		if score > best_score:
+			best_score = score
+			best = i
 	return best
+
+
+## What laying this shape at the joint is worth. One ply deep by necessity: the
+## cell the cart ends up in next, and whether that is a cell worth arriving at.
+func _score(joint: Vector2i, piece: int, entry: int) -> float:
+	var exit: int = PipeDefs.exit_side(piece, entry)
+	if exit == PipeDefs.NO_EXIT:
+		return -1000.0
+	var next: Vector2i = joint + PipeDefs.DIR[exit]
+	if next.x < 0 or next.x >= _main.balance.cols or _board.rocks.has(next):
+		return -1000.0
+
+	var score: float = float(next.y - joint.y) * 4.0
+	if _board.crystals.has(next):
+		score += 6.0  # fuel is distance
+	if not _clear(next, PipeDefs.OPPOSITE[exit]):
+		score -= 8.0  # aiming the cart at a pipe that will not take it
+
+	# Sideways towards the nearest crystal beats sideways away from it.
+	var crystal := _nearest_crystal()
+	if crystal != Board.NO_CELL:
+		score += float(absi(joint.x - crystal.x) - absi(next.x - crystal.x)) * 1.5
+	return score
+
+
+## Points the offer at one of its shapes, through the same call a tap makes.
+func _choose(index: int) -> void:
+	_main._on_offer_chosen(index)
+
+
+## True when this shape, here, would throw the cart off the board — from any
+## side it opens onto, not only the one the bot is planning for.
+##
+## The joint is the entry expected right now, but it is not the only entry the
+## route can produce: track gets built over, litter gets driven through, and a
+## reroute turns the cart into a cell from a new direction. A piece that opens
+## onto a wall is a derailment waiting for the cart to arrive the other way.
+## The plan tree used to see that coming a few moves out; one ply cannot, so
+## these are refused outright.
+func _opens_off_board(cell: Vector2i, piece: int) -> bool:
+	for side: int in PipeDefs.SIDES[piece]:
+		var exit: int = PipeDefs.exit_side(piece, side)
+		if exit == PipeDefs.NO_EXIT:
+			continue
+		var beyond: Vector2i = cell + PipeDefs.DIR[exit]
+		if beyond.x < 0 or beyond.x >= _main.balance.cols:
+			return true
+	return false
 
 
 ## Ground a plan may route through: empty, or a pipe that already takes the
@@ -387,15 +352,6 @@ func _plan(joint: Vector2i, entry: int, line: Array, held: int,
 func _clear(cell: Vector2i, side: int) -> bool:
 	var existing := _board.get_pipe(cell)
 	return existing == null or PipeDefs.SIDES[existing.type].has(side)
-
-
-## How much of a cell the cart covers while the hand makes one move. This is
-## what makes throwing pieces away expensive: the track does not grow, but the
-## cart still arrives.
-func _step_cost() -> float:
-	var think: float = lerpf(THINK_MAX, THINK_MIN,
-		clampf(_main.speed / maxf(_main.balance.speed_cap, 0.1), 0.0, 1.0)) * 0.55
-	return _main.speed * think
 
 
 ## The pipes the cart is going to run through, in the order it meets them,
@@ -423,32 +379,35 @@ func _route() -> Array:
 ## is already run through — the track further back usually can be, and turning
 ## the route aside a cell earlier saves the run just as well. This is the move
 ## a player makes without thinking about it and the bot used to die without.
-func _reroute(piece: int) -> bool:
+func _reroute() -> bool:
 	var path := _route()
+	var rows := _board.visible_rows()
 	# Latest first: the change closest to the jam disturbs the least track.
 	for i in range(path.size() - 1, -1, -1):
 		var cell: Vector2i = path[i]["cell"]
 		var entry: int = path[i]["entry"]
 		if not _board.can_place(cell):
 			continue
-		if not _serves(piece, entry):
-			continue
 		var existing := _board.get_pipe(cell)
-		if existing != null and existing.type == piece:
-			continue  # same pipe, same jam
-		var exit: int = PipeDefs.exit_side(piece, entry)
-		if exit == PipeDefs.NO_EXIT:
-			continue
-		var next: Vector2i = cell + PipeDefs.DIR[exit]
-		if next.x < 0 or next.x >= _main.balance.cols:
-			continue
-		if _board.rocks.has(next) or not _clear(next, PipeDefs.OPPOSITE[exit]):
-			continue
-		var rows := _board.visible_rows()
-		if next.y > rows.y - 1:
-			continue
-		_main._try_place(cell)
-		return true
+		for c in _offer.choices.size():
+			var piece: int = _offer.choices[c]
+			if not _serves(piece, entry):
+				continue
+			if existing != null and existing.type == piece:
+				continue  # same pipe, same jam
+			var exit: int = PipeDefs.exit_side(piece, entry)
+			if exit == PipeDefs.NO_EXIT:
+				continue
+			var next: Vector2i = cell + PipeDefs.DIR[exit]
+			if next.x < 0 or next.x >= _main.balance.cols:
+				continue
+			if _board.rocks.has(next) or not _clear(next, PipeDefs.OPPOSITE[exit]):
+				continue
+			if next.y > rows.y - 1 or _opens_off_board(cell, piece):
+				continue
+			_choose(c)
+			_main._try_place(cell)
+			return true
 	return false
 
 
@@ -487,11 +446,9 @@ func _accepts(cell: Vector2i, side: int) -> bool:
 ##
 ## It lays into the column the route is climbing, one or two cells past the
 ## joint, where the cart will arrive from below.
-func _stockpile(joint: Vector2i, piece: int) -> bool:
+func _stockpile(joint: Vector2i) -> bool:
 	if not _plans():
 		return false
-	if not _serves(piece, PipeDefs.Side.D):
-		return false  # nothing that takes the cart from below, no use up there
 
 	# Only stockpile straight ahead when the route is not about to turn off
 	# towards fuel.
@@ -508,14 +465,22 @@ func _stockpile(joint: Vector2i, piece: int) -> bool:
 			continue
 		if not _board.can_place(spot):
 			continue
-		var exit: int = PipeDefs.exit_side(piece, PipeDefs.Side.D)
-		if exit == PipeDefs.NO_EXIT:
-			continue
-		var next: Vector2i = spot + PipeDefs.DIR[exit]
-		if next.x < 0 or next.x >= _main.balance.cols or _board.rocks.has(next):
-			continue
-		_main._try_place(spot)
-		return true
+		for c in _offer.choices.size():
+			var piece: int = _offer.choices[c]
+			# Only a shape that takes the cart from below is any use up there.
+			if not _serves(piece, PipeDefs.Side.D):
+				continue
+			var exit: int = PipeDefs.exit_side(piece, PipeDefs.Side.D)
+			if exit == PipeDefs.NO_EXIT:
+				continue
+			var next: Vector2i = spot + PipeDefs.DIR[exit]
+			if next.x < 0 or next.x >= _main.balance.cols or _board.rocks.has(next):
+				continue
+			if _opens_off_board(spot, piece):
+				continue
+			_choose(c)
+			_main._try_place(spot)
+			return true
 	return false
 
 
@@ -557,8 +522,13 @@ func _place(cell: Vector2i) -> void:
 
 
 ## Junk goes behind the cart, in the litter zone — the play the game is built
-## around. It also has to go somewhere visible: a piece dropped off the bottom
-## of the screen looks to a viewer like the piece simply vanished.
+## around. Which shape gets spent used to look arbitrary — the offer is re-dealt
+## whole either way — but litter is not as safely out of the way as that
+## assumes: a route that turns back down runs through it, and a wall-facing
+## pipe left there kills the cart. So the shape is chosen too. It also has to
+## go somewhere the
+## viewer can see: a piece dropped off the bottom of the screen looks to them
+## like the piece simply vanished.
 func _dump(joint: Vector2i) -> void:
 	var rows := _board.visible_rows()
 	var lowest: int = maxi(_board.max_row - _main.balance.place_below, rows.x + 1)
@@ -581,4 +551,15 @@ func _dump(joint: Vector2i) -> void:
 				best = spot
 
 	if best != Board.NO_CELL:
+		_choose(_safe_at(best))
 		_main._try_place(best)
+
+
+## Which shape can be left at this cell without pointing the cart off the board
+## should the route ever come back through it. Falls back to whatever is
+## already chosen when none of them is safe there.
+func _safe_at(cell: Vector2i) -> int:
+	for i in _offer.choices.size():
+		if not _opens_off_board(cell, _offer.choices[i]):
+			return i
+	return _offer.selected

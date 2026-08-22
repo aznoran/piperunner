@@ -1,7 +1,7 @@
 ## The tuning bench. Never ships: it is built only in a debug build, and the
 ## button that opens it is hidden everywhere else.
 ##
-## Every number the game's feel rests on — how hard the dealer helps, how fast
+## Every number the game's feel rests on — how wide the offer is, how fast
 ## fuel drains, when praise fires, how well the bot plays — is a slider here,
 ## live, without a rebuild. Changes land on the baseline balance, so they apply
 ## from the next run and survive a retry, and they are gone when the app
@@ -21,15 +21,8 @@ const KNOBS := [
 	{"group": "Bot"},
 	{"id": "bot_level", "name": "Proficiency", "min": 0.0, "max": 1.0, "step": 0.05},
 
-	{"group": "Dealer"},
-	{"id": "assist_max_new", "name": "Assist: new player", "min": 0.0, "max": 1.0, "step": 0.05},
-	{"id": "assist_max_early", "name": "Assist: early", "min": 0.0, "max": 1.0, "step": 0.05},
-	{"id": "assist_max_veteran", "name": "Assist: veteran", "min": 0.0, "max": 1.0, "step": 0.05},
-	{"id": "assist_slump_bonus", "name": "Assist: slump bonus", "min": 0.0, "max": 0.6, "step": 0.05},
-	{"id": "assist_fit_gain", "name": "Fitting piece weight", "min": 1.0, "max": 8.0, "step": 0.25},
-	{"id": "assist_miss_penalty", "name": "Wrong piece weight", "min": 0.1, "max": 1.0, "step": 0.05},
-	{"id": "assist_fuel_floor", "name": "Pressure: fuel below", "min": 0.0, "max": 0.8, "step": 0.05},
-	{"id": "assist_buffer_floor", "name": "Pressure: track below", "min": 0, "max": 8, "step": 1},
+	{"group": "Offer"},
+	{"id": "offer_size", "name": "Shapes on offer", "min": 1, "max": 7, "step": 1},
 
 	{"group": "Fuel"},
 	{"id": "fuel_max", "name": "Tank", "min": 40.0, "max": 240.0, "step": 5.0},

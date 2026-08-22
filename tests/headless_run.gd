@@ -16,7 +16,6 @@ var run_index: int = 0
 var frames: int = 0
 var placed: int = 0
 var dumped: int = 0
-var holds: int = 0
 var cooldown: int = 0
 var deaths: Dictionary = {}
 
@@ -61,14 +60,13 @@ func _begin_run() -> void:
 	frames = 4
 	placed = 0
 	dumped = 0
-	holds = 0
 	cooldown = 0
 	main.start_run()
 
 
 func _bot_step() -> void:
 	var board: Board = main._board
-	var queue: PipeQueue = main._queue
+	var offer: PipeOffer = main._offer
 	var cart: Cart = main._cart
 
 	var ahead := board.frontier(cart.cell(), cart.entry)
@@ -78,22 +76,17 @@ func _bot_step() -> void:
 	var joint: Vector2i = ahead["cell"]
 	var need: int = ahead["need"]
 
-	if (not ahead["blocked"]
-			and PipeDefs.SIDES[queue.current()].has(need)
-			and board.can_place(joint)):
-		main._try_place(joint)
-		placed += 1
-		cooldown = ACT_INTERVAL
-		return
+	if not ahead["blocked"] and board.can_place(joint):
+		var pick := _best_choice(offer, need)
+		if pick >= 0:
+			main._on_offer_chosen(pick)
+			main._try_place(joint)
+			placed += 1
+			cooldown = ACT_INTERVAL
+			return
 
-	# The piece does not fit the joint. Pocket it if HOLD is free, otherwise
-	# dump it strictly behind the cart — never on the joint it still needs.
-	if queue.held == PipeQueue.NONE:
-		main._on_hold_tapped()
-		holds += 1
-		cooldown = ACT_INTERVAL
-		return
-
+	# Nothing on offer serves the joint. Spend one strictly behind the cart —
+	# never on the joint it still needs — to bring a fresh offer up.
 	for row in range(board.max_row - main.balance.place_below, cart.row):
 		for col in main.balance.cols:
 			var spot := Vector2i(col, row)
@@ -106,6 +99,31 @@ func _bot_step() -> void:
 				return
 
 
+
+## Which shape to take, or -1 when none of them serves the joint.
+##
+## Climbing beats turning, and turning beats being sent back down. With three
+## shapes to choose between, taking whichever fits first is a turn more often
+## than not, and a route that turns every move walks itself sideways out of the
+## build window — which measures the bot, not the game.
+func _best_choice(offer: PipeOffer, need: int) -> int:
+	var best := -1
+	var best_rank := -1
+	for i in offer.choices.size():
+		var exit: int = PipeDefs.exit_side(offer.choices[i], need)
+		if exit == PipeDefs.NO_EXIT:
+			continue
+		var rank := 1
+		if exit == PipeDefs.Side.U:
+			rank = 2
+		elif exit == PipeDefs.Side.D:
+			rank = 0
+		if rank > best_rank:
+			best_rank = rank
+			best = i
+	return best
+
+
 func _report() -> void:
 	var board: Board = main._board
 	var reason: String = main._death_reason
@@ -113,8 +131,8 @@ func _report() -> void:
 	print("run %d | %-13s score %4d | cells %4d | row %4d | crystals %2d"
 		% [run_index + 1, reason, main.score, main.cells_run, board.max_row,
 			main.crystals_collected]
-		+ " | fuel %5.1f | speed %.2f | placed %3d (+%3d dumped, %2d holds)"
-			% [main.fuel, main.speed, placed, dumped, holds]
+		+ " | fuel %5.1f | speed %.2f | placed %3d (+%3d dumped)"
+			% [main.fuel, main.speed, placed, dumped]
 		+ " | pipes %4d rocks %3d" % [board.pipes.size(), board.rocks.size()])
 
 

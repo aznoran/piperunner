@@ -6,7 +6,7 @@ GDScript, portrait, mobile renderer — per spec sections 01 and 13.
 ## Layout
 
 ```
-scenes/     Main, Board, Cart, HUD, QueueBar, GameOver
+scenes/     Main, Board, Cart, HUD, OfferBar, GameOver
 scripts/    game logic (see below)
 resources/  GameBalance.tres — every tunable number, editable without a rebuild
 tests/      headless checks
@@ -19,7 +19,9 @@ docs/       the spec and the reference prototype
 | `board.gd` | pipe dictionary, generation, placement rules, rendering |
 | `cart.gd` | position, entry side, fractional motion |
 | `pipe_defs.gd` | pipe geometry and the exit-side rule (spec 04) |
-| `pipe_queue.gd` | forced queue and the HOLD pocket (spec 09) |
+| `pipe_offer.gd` | the shapes on offer and choosing between them |
+| `pipe_dealer.gd` | what fills an offer: the rule seam |
+| `random_dealer.gd` | the rule in force — distinct shapes, drawn evenly |
 | `input_handler.gd` | press-drag-release aiming (spec 07) |
 | `game_state.gd` | autoload: best score and its ghost route, currency, daily result, settings |
 | `upgrades.gd` | meta progression: catalogue, levels, prices (spec 11, P0) |
@@ -27,7 +29,7 @@ docs/       the spec and the reference prototype
 | `skins.gd` | which LocationSkin is in effect |
 | `safe_area.gd` | notch insets, clamped and mobile-only |
 | `board_layer.gd` | splits Board's drawing into a slow and a fast layer |
-| `main_menu.gd`, `game_over.gd`, `hud.gd`, `queue_bar.gd`, `fx.gd`, `screen_fx.gd`, `background.gd` | presentation |
+| `main_menu.gd`, `game_over.gd`, `hud.gd`, `offer_bar.gd`, `fx.gd`, `screen_fx.gd`, `background.gd` | presentation |
 
 ## Locations
 
@@ -53,6 +55,22 @@ CC0. Which tiles were taken and what for is recorded in
 The menu chrome repaints from the skin at runtime (`MainMenu.paint`), because
 the scene file can only hold one hard-coded palette.
 
+## Dealing pipes
+
+The player is not handed a pipe, they are handed a choice: three shapes on the
+strip, tap one, place it. Placing spends the whole offer — the two not taken go
+with it — so nothing on screen belongs to a later turn and there is no preview
+to plan against. Choosing costs nothing and can be undone until the pipe lands.
+
+Which shapes go into an offer is a rule object, `PipeDealer`. The one in force
+is `RandomDealer`: distinct shapes, drawn evenly, ignoring everything about the
+run. To add a rule, subclass `PipeDealer`, override `fill()`, and change the one
+line in `main.gd` that names the rule. Every deal is handed a context dictionary
+— the joint the cart is heading for, track ahead, fuel, runs played, whether the
+player is in a slump — so a rule that starts caring about the run needs no change
+to the signature or to any call site. Spec section 04's drop weights stay in
+`PipeDefs` for a rule that wants them.
+
 ## Meta progression
 
 Crystals collected during a run are banked on death and spent in the menu shop.
@@ -71,13 +89,34 @@ this project exports with.
 alias godot=/Applications/Godot.app/Contents/MacOS/Godot
 
 godot --path . --resolution 450x800                              # play
-godot --headless --path . --script res://tests/rules_check.gd    # 49 rule checks
+godot --headless --path . --script res://tests/rules_check.gd    # 242 rule checks
 godot --headless --path . --script res://tests/headless_run.gd   # bot plays 5 runs
 godot --path . --resolution 720x1280 --script res://tests/perf_check.gd
 ```
 
 `tests/screenshot.gd` renders a run and writes PNGs to `$SHOT_DIR`;
 `tests/screenshot_ui.gd` does the same for the menu panels.
+
+## Building for iOS
+
+The `iOS` preset in `export_presets.cfg` exports an Xcode project rather than an
+IPA (`export_project_only=true`), so signing happens in Xcode, not here.
+
+```sh
+godot --headless --path . --export-release "iOS"
+open build/ios/PipeRunner.xcodeproj
+```
+
+Needs the matching export templates installed — the editor's *Manage Export
+Templates* fetches them, and nothing exports without them.
+
+**The simulator does not work on an Apple Silicon Mac.** Godot 4.7.2's iOS
+templates ship a simulator `libgodot.a` built for x86_64 only, while the
+xcframework's `Info.plist` advertises `arm64` alongside it — both in the debug
+and the release template. Xcode links the one slice it finds, then fails on
+`Undefined symbols for architecture arm64: _main`. Forcing `-arch x86_64` links
+and builds, but an arm64 simulator refuses to install the result. Test on a
+device until the templates carry an arm64 simulator slice.
 
 ## Rendering notes
 
@@ -103,7 +142,8 @@ the best single attempt instead of summing across the day.
   skin system above, which carries no gameplay change.
 - **Continue for an ad** (spec 11, P2) — deferred; it does nothing useful
   until an ad SDK is wired in.
-- **Export presets** (spec 13) — no `export_presets.cfg` yet, so the four
-  acceptance items that need a device build are still open.
+- **On-device acceptance** (spec 13) — the iOS preset exports an Xcode project
+  (`build/ios/`), but the four acceptance items that need a run on real
+  hardware are still open.
 - The daily challenge is local only. A shared leaderboard needs a backend.
 - No audio.

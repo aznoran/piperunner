@@ -33,7 +33,7 @@ func _process(_delta: float) -> bool:
 	balance = main.balance
 
 	_check_pipe_table()
-	_check_queue_and_hold()
+	_check_offer()
 	_check_cart_waits()
 	_check_placement_bounds()
 	_check_replace_cost()
@@ -103,31 +103,42 @@ func _check_pipe_table() -> void:
 
 # --- section 09 ---------------------------------------------------------
 
-func _check_queue_and_hold() -> void:
+func _check_offer() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1234
-	var queue := PipeQueue.new()
-	queue.start(rng, balance.queue_preview)
+	var offer := PipeOffer.new()
+	offer.start(rng, balance.offer_size, RandomDealer.new())
 
-	_eq(queue.upcoming.size(), balance.queue_preview, "queue shows four ahead")
-	_eq(queue.held, PipeQueue.NONE, "hold starts empty")
+	_eq(offer.choices.size(), balance.offer_size, "the offer shows three shapes")
+	_eq(offer.selected, 0, "with the first of them chosen to begin with")
+	_eq(offer.current(), offer.choices[0], "and that is what a placement spends")
 
-	var before := queue.upcoming.duplicate()
-	queue.swap_hold()
-	_eq(queue.held, before[0], "empty hold pockets the piece in hand")
-	_eq(queue.current(), before[1], "pocketing advances the queue once")
+	var distinct := {}
+	for type: int in offer.choices:
+		distinct[type] = true
+	_eq(distinct.size(), offer.choices.size(), "no shape is offered twice")
 
-	var tail := queue.upcoming.duplicate()
-	var in_hand := queue.current()
-	queue.swap_hold()
-	_eq(queue.held, in_hand, "swap puts the hand piece in the pocket")
-	_eq(queue.current(), before[0], "swap hands back what was pocketed")
-	_eq(queue.upcoming[1], tail[1], "swapping does not scroll the queue")
-	_eq(queue.upcoming[2], tail[2], "swapping does not scroll the queue further")
+	# Choosing is free and reversible — only placing spends the turn.
+	var shown := offer.choices.duplicate()
+	_ok(offer.select(2), "another shape can be chosen")
+	_eq(offer.current(), shown[2], "and it becomes what a placement spends")
+	_eq(str(offer.choices), str(shown), "choosing does not re-deal the offer")
+	_ok(offer.select(0), "and the choice can be taken back")
+	_eq(offer.current(), shown[0], "with nothing spent for it")
+	_ok(not offer.select(0), "choosing the same shape again is a no-op")
+	_ok(not offer.select(99), "and an index off the end is refused")
 
-	# Two swaps in a row must land back where we started, not deal a new piece.
-	queue.swap_hold()
-	_eq(queue.current(), in_hand, "swapping twice is a no-op, not a reroll")
+	# Taking one spends the whole offer: the shapes not chosen do not carry
+	# over, or the strip would become a hand rather than a decision.
+	offer.select(1)
+	offer.take()
+	_eq(offer.choices.size(), balance.offer_size, "taking one deals a fresh offer")
+	_eq(offer.selected, 0, "with the first shape chosen again")
+
+	# The upgrade widens the offer rather than lengthening a preview.
+	offer.resize(balance.offer_size + 1)
+	_eq(offer.choices.size(), balance.offer_size + 1,
+		"the upgrade widens the offer")
 
 
 # --- section 02 ---------------------------------------------------------
@@ -748,60 +759,45 @@ func _check_praise() -> void:
 # --- dealer --------------------------------------------------------------
 
 func _check_dealer() -> void:
-	var dealer := Dealer.new()
+	var dealer := RandomDealer.new()
 	dealer.setup(balance)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
 
-	# No pressure while there is fuel and track ahead.
-	_eq(dealer.pressure(balance.fuel_max, balance.fuel_max, 6,
-		balance.queue_preview), 0.0, "a comfortable run has no pressure")
-	_ok(dealer.pressure(balance.fuel_max, balance.fuel_max, 0,
-		balance.queue_preview) > 0.5, "no track ahead is pressure")
-	_ok(dealer.pressure(balance.fuel_per_cell * balance.queue_preview,
-		balance.fuel_max, 6, balance.queue_preview) > 0.5,
-		"fuel that will run out inside the preview is pressure too")
+	# Every offer is the size it was asked for and never repeats a shape.
+	var seen := {}
+	var clean := true
+	for i in 300:
+		var dealt := dealer.fill(rng, 3, {})
+		var distinct := {}
+		for type: int in dealt:
+			distinct[type] = true
+			seen[type] = true
+		if dealt.size() != 3 or distinct.size() != dealt.size():
+			clean = false
+	_ok(clean, "every offer is the right size and holds no shape twice")
+	_eq(seen.size(), PipeDefs.ALL.size(), "and every shape comes up sooner or later")
 
-	# Projection: the same tank reads worse the further ahead the queue looks.
-	var near := dealer.pressure(30.0, balance.fuel_max, 6, 1)
-	var far := dealer.pressure(30.0, balance.fuel_max, 6, 6)
-	_ok(far >= near, "a longer preview projects further into the trouble")
+	# Uniqueness caps the offer at the number of shapes that exist.
+	_eq(dealer.fill(rng, 99, {}).size(), PipeDefs.ALL.size(),
+		"an offer cannot ask for more shapes than there are")
+	_eq(dealer.fill(rng, 0, {}).size(), 1, "nor for none at all")
 
-	# The curve is concave: middling pressure barely helps.
-	var ceiling := dealer.assist_ceiling(0, false)
-	_ok(dealer.assist(0.5, ceiling) < 0.5 * ceiling, "assistance comes in late")
-	_eq(dealer.assist(0.0, ceiling), 0.0, "and is off entirely when calm")
+	# Deterministic from the seed: a daily has to deal every player the same
+	# offers (spec section 11).
+	var left := RandomNumberGenerator.new()
+	var right := RandomNumberGenerator.new()
+	left.seed = 77
+	right.seed = 77
+	_eq(str(dealer.fill(left, 3, {})), str(dealer.fill(right, 3, {})),
+		"the same seed deals the same offer")
 
-	_ok(dealer.assist_ceiling(0, false) > dealer.assist_ceiling(50, false),
-		"a new player is helped more than a veteran")
-	_ok(dealer.assist_ceiling(50, true) > dealer.assist_ceiling(50, false),
-		"a slump raises the ceiling")
-
-	# With no assistance the roll is the plain weighted one: misfits survive.
-	var need: int = PipeDefs.Side.D
-	var misfits := 0
-	for i in 400:
-		var type := dealer.deal(rng, need, 0.0)
-		if not PipeDefs.SIDES[type].has(need):
-			misfits += 1
-	_ok(misfits > 100, "unassisted rolls still hand out plenty of misfits")
-
-	# At full assistance fits are likelier — but misfits do not disappear.
-	var assisted_misfits := 0
-	for i in 400:
-		var type := dealer.deal(rng, need, 1.0)
-		if not PipeDefs.SIDES[type].has(need):
-			assisted_misfits += 1
-	_ok(assisted_misfits < misfits, "assistance favours pieces that fit")
-	_ok(assisted_misfits > 0, "without ever removing the misfits")
-
-	# Window check: a preview with no way out is what the rescue looks for.
-	_ok(dealer.window_is_dead([PipeDefs.Type.H, PipeDefs.Type.H], PipeDefs.Side.D),
-		"a preview of horizontals cannot serve a joint from below")
-	_ok(not dealer.window_is_dead([PipeDefs.Type.H, PipeDefs.Type.V], PipeDefs.Side.D),
-		"one vertical is enough to keep it alive")
-	_ok(PipeDefs.SIDES[dealer.rescue(rng, PipeDefs.Side.L)].has(PipeDefs.Side.L),
-		"a rescue piece serves the side it was asked for")
+	# The rule is handed the run, not just a count, so that a later one can
+	# read it without a signature change.
+	var context := {"need": PipeDefs.Side.D, "buffer": 0, "fuel": 5.0,
+		"fuel_max": balance.fuel_max, "runs_played": 0, "in_slump": false}
+	_eq(dealer.fill(rng, 3, context).size(), 3,
+		"and it takes a run context even when it ignores one")
 
 
 # --- continue ------------------------------------------------------------
