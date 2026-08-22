@@ -429,6 +429,13 @@ theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
 theme_override_font_sizes/font_size = 17
 text = "DEBUG: watch the bot play"
 
+[node name="DebugExpertButton" type="Button" parent="SettingsPanel/Box/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
+theme_override_font_sizes/font_size = 17
+text = "DEBUG: expert bot"
+
 [node name="DebugUnlockButton" type="Button" parent="SettingsPanel/Box/Column"]
 unique_name_in_owner = true
 layout_mode = 2

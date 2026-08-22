@@ -7,3 +7,6 @@
 /android/
 *.keystore
 *.jks
+
+# macOS clutter
+.DS_Store

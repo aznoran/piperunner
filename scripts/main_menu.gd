@@ -11,8 +11,8 @@ signal location_chosen(skin: LocationSkin)
 signal cart_chosen(variant: int)
 ## Emitted when a mode is picked in the carousel, as one of MODE_*.
 signal mode_chosen(mode: int)
-## Debug only: hand a classic run to the autoplayer.
-signal autoplay_requested
+## Debug only: hand a classic run to the autoplayer, at this standard of play.
+signal autoplay_requested(level: float)
 ## Emitted when a station is picked on the story map.
 signal level_chosen(number: int)
 
@@ -53,6 +53,10 @@ var _face: Texture2D
 var _fade_tween: Tween
 ## Kept so a repaint can put the mode name back in the right colour.
 var _mode_kind: int = MODE_CLASSIC
+## The tuning bench and the corner button that opens it. Debug builds only;
+## null everywhere else.
+var _bench: DebugPanel
+var _bench_button: Button
 
 
 func _ready() -> void:
@@ -67,13 +71,13 @@ func _ready() -> void:
 	%HowToButton.pressed.connect(_toggle.bind(_how_panel))
 	%LocationButton.pressed.connect(_cycle_location)
 	%CartButton.pressed.connect(_cycle_cart)
-	%DebugAutoplayButton.pressed.connect(func() -> void:
-		_close_panels()
-		autoplay_requested.emit())
-	%DebugAutoplayButton.visible = OS.is_debug_build()
-	%DebugUnlockButton.pressed.connect(_debug_unlock)
-	# Never ships: hidden outside a debug build.
-	%DebugUnlockButton.visible = OS.is_debug_build()
+	# The debug tools live on their own bench now, behind a corner button that
+	# only a debug build has at all.
+	%DebugAutoplayButton.visible = false
+	%DebugExpertButton.visible = false
+	%DebugUnlockButton.visible = false
+	if OS.is_debug_build():
+		_build_bench()
 	%CloseHow.pressed.connect(_close_panels)
 	%CloseSettings.pressed.connect(_close_panels)
 	%CloseUpgrades.pressed.connect(_close_panels)
@@ -85,6 +89,44 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_relayout)
 	_relayout()
 	_close_panels()
+
+
+## Builds the tuning bench and the small corner key that opens it. Top left,
+## clear of the title, where nothing else on the menu wants to be.
+func _build_bench() -> void:
+	_bench = DebugPanel.new()
+	_bench.name = "DebugPanel"
+	_bench.visible = false
+	_bench.autoplay_requested.connect(func(level: float) -> void:
+		_close_panels()
+		autoplay_requested.emit(level))
+	_bench.unlock_requested.connect(_debug_unlock)
+	_bench.reset_requested.connect(_reset_progress)
+	# Into the tree first: the panel measures the viewport as it builds, and
+	# there is no viewport to measure until it is in there.
+	add_child(_bench)
+	_bench.setup(_balance_sheet())
+
+	_bench_button = Button.new()
+	_bench_button.name = "BenchButton"
+	_bench_button.text = "DEV"
+	_bench_button.custom_minimum_size = Vector2(96, 56)
+	_bench_button.add_theme_font_size_override("font_size", 20)
+	_bench_button.position = Vector2(20,
+		SafeArea.insets(get_viewport().get_visible_rect().size).x + 20)
+	_bench_button.pressed.connect(func() -> void:
+		_close_panels()
+		_bench.visible = true)
+	add_child(_bench_button)
+
+
+## The baseline the bench edits: changes have to land on the sheet a run is
+## built from, not on the copy the current run is already using.
+func _balance_sheet() -> GameBalance:
+	var main := get_parent()
+	if main != null and "base_balance" in main:
+		return main.base_balance
+	return null
 
 
 func open() -> void:
@@ -129,6 +171,8 @@ func _fade(alpha: float, duration: float) -> Tween:
 func close() -> void:
 	visible = false
 	_close_panels()
+	if _bench != null:
+		_bench.visible = false
 
 
 ## Lays the lower half out: mode label, run key, then a loose row of icons.
@@ -166,10 +210,12 @@ func paint(skin: LocationSkin) -> void:
 	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
 			"%CloseModes", "%CloseLevels",
 			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton",
-			"%DebugAutoplayButton"]:
+			"%DebugAutoplayButton", "%DebugExpertButton"]:
 		var button: Button = get_node_or_null(path)
 		if button != null:
 			_paint_ghost(button, skin, skin.accent)
+	if _bench_button != null:
+		_paint_ghost(_bench_button, skin, skin.warn)
 	var reset: Button = get_node_or_null("%ResetBestButton")
 	if reset != null:
 		_paint_ghost(reset, skin, skin.danger)

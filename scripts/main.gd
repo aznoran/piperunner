@@ -36,6 +36,9 @@ const SHAKE_REFERENCE_CELL := 68.0
 var balance: GameBalance
 ## Cells of reach around the cart that pull crystals in. 0 = must drive over.
 var _magnet_reach: int = 0
+## Benchmarks pin the run seed here so the same board can be replayed. -1 in
+## normal play, where every run is its own.
+var forced_seed: int = -1
 
 @onready var _board: Board = $World/Board
 @onready var _cart: Cart = $World/Cart
@@ -139,7 +142,7 @@ func _ready() -> void:
 	_menu.start_pressed.connect(func() -> void: start_run(selected_mode))
 	_menu.mode_chosen.connect(_select_mode)
 	_menu.level_chosen.connect(_select_level)
-	_menu.autoplay_requested.connect(_start_autoplay)
+	_menu.autoplay_requested.connect(_launch_autoplay)
 	_autoplayer.setup(self, _board, _cart, _queue)
 	_overlay.retry_pressed.connect(func() -> void: start_run(selected_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
@@ -179,10 +182,50 @@ func _rebuild_balance() -> void:
 ## ordinary — same scoring, same records, same everything — because the player
 ## it runs through is the same one a finger drives.
 func _start_autoplay() -> void:
+	_launch_autoplay(Autoplayer.SHOWCASE_LEVEL)
+
+
+## The one that is supposed to go the distance rather than look human.
+func _start_expert_autoplay() -> void:
+	_launch_autoplay(Autoplayer.EXPERT_LEVEL)
+
+
+## `level` is how well it plays, 0..1 — see Autoplayer.proficiency. The two
+## buttons pass the presets; the debug bench passes whatever the slider says.
+func _launch_autoplay(level: float) -> void:
 	selected_mode = Mode.CLASSIC
 	_refresh_mode_name()
 	start_run(Mode.CLASSIC)
-	_autoplayer.start()
+	var plans: bool = level >= Autoplayer.PLANS_FROM
+	if plans:
+		_equip_for_the_long_run()
+	_autoplayer.start(
+		Autoplayer.Skill.EXPERT if plans else Autoplayer.Skill.SHOWCASE,
+		-1, level)
+
+
+## Gives the expert the loadout a fully upgraded player would bring, for this
+## run only — the save is untouched.
+##
+## This is not a cheat code, it is the top of the shop: a hundred cells burns
+## about three tanks, so on the starting tank the distance is arithmetic, not
+## skill. A player who wants to see a hundred has bought these too.
+func _equip_for_the_long_run() -> void:
+	for upgrade in Upgrades.catalogue():
+		var maxed: float = upgrade.step * upgrade.max_level()
+		match String(upgrade.id):
+			"tank":
+				balance.fuel_max += maxed
+			"preview":
+				balance.queue_preview += int(maxed)
+			"runway":
+				balance.runway += int(maxed)
+			"magnet":
+				_magnet_reach = int(maxed)
+	fuel = balance.fuel_max
+	_hud.set_fuel(1.0)
+	_queue.resize(balance.queue_preview)
+	_queue_bar.set_contents(_queue.upcoming, _queue.held)
 
 
 ## Switches the location's look. Rules, generation and events are untouched —
@@ -363,7 +406,7 @@ func _prepare_board(with_resources: bool) -> void:
 	# preview length cannot reshuffle the map. On a daily the seed comes from
 	# the date, so every player gets the same board (spec section 11, P1).
 	# A daily and a story station are fixed maps; classic rolls a fresh one.
-	var run_seed := randi()
+	var run_seed: int = forced_seed if forced_seed >= 0 else randi()
 	if daily_mode:
 		run_seed = GameState.daily_seed()
 	elif selected_mode == Mode.STORY and active_level != null:
