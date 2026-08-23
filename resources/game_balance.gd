@@ -62,6 +62,11 @@ extends Resource
 @export var rock_density_base: float = 0.05
 @export var rock_density_gain: float = 0.0012
 @export var rock_density_cap: float = 0.14
+## Rings of cells either side of the cart's path that a crystal is picked up
+## from. It used to be an upgrade; it is now simply how the cart works, because
+## a cart that only takes what it drives exactly through reads as fussy rather
+## than as demanding.
+@export var magnet_reach: int = 1
 ## A crystal every crystal_gap_min..crystal_gap_max rows.
 @export var crystal_gap_min: int = 2
 @export var crystal_gap_max: int = 4
@@ -101,6 +106,33 @@ extends Resource
 ## the player counts as under pressure.
 @export var assist_fuel_floor: float = 0.30
 @export var assist_buffer_floor: int = 3
+
+## How often the offer is guaranteed a shape that resumes the climb while the
+## cart is travelling sideways, 0..1.
+##
+## This is parity rather than assistance, and the arithmetic says so.
+##
+## A crossroads goes straight through — entry D leaves by U, entry L leaves by
+## R. So for a cart already climbing, *two* of the seven shapes keep it
+## climbing: the vertical and the crossroads. For a cart turned sideways,
+## exactly *one* gets it back to climbing: the elbow that turns up. In an offer
+## of three drawn from seven that is
+##
+##     climbing on            2 of 7 -> 71.4% of offers hold one
+##     resuming after a turn  1 of 7 -> 42.9%
+##
+## a gap of nearly thirty points, paid every time the player turns. It is not
+## something anyone could see in the rules, and it is exactly what a turn feels
+## like when it strands you.
+##
+## At 0.50 the sideways case lands back on 71.4% — the same odds as climbing
+## on, no better. That is the default for a reason: anything above it is no
+## longer evening things out but tilting them, and at 1.0 every turn would be
+## handed its way out and the game would play itself.
+##
+## It only fires while the cart is already sideways, and it puts a shape on the
+## strip rather than choosing the cell. Zero restores the raw 42.9%.
+@export_range(0.0, 1.0, 0.05) var turn_relief: float = 0.5
 
 @export_group("Praise")
 ## Seconds between praise messages. Praise devalues faster than anything else

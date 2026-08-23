@@ -37,6 +37,11 @@ var last_continue: float = 0.0
 
 ## Purchased upgrades, keyed by id. Empty until the meta layer lands.
 var upgrades: Dictionary = {}
+## Power-ups: how strong each is, and how many are in hand. Two dictionaries
+## rather than one because they are bought separately and mean different
+## things — a level is kept and a charge is spent.
+var power_levels: Dictionary = {}
+var power_charges: Dictionary = {}
 
 
 func _ready() -> void:
@@ -51,6 +56,8 @@ func load_game() -> void:
 	best_distance = config.get_value("progress", "best_distance", 0)
 	crystals = config.get_value("progress", "crystals", 0)
 	upgrades = config.get_value("progress", "upgrades", {})
+	power_levels = config.get_value("progress", "power_levels", {})
+	power_charges = config.get_value("progress", "power_charges", {})
 	daily_date = config.get_value("progress", "daily_date", "")
 	daily_best = config.get_value("progress", "daily_best", 0)
 	quest_date = config.get_value("progress", "quest_date", "")
@@ -70,6 +77,8 @@ func save_game() -> void:
 	config.set_value("progress", "best_distance", best_distance)
 	config.set_value("progress", "crystals", crystals)
 	config.set_value("progress", "upgrades", upgrades)
+	config.set_value("progress", "power_levels", power_levels)
+	config.set_value("progress", "power_charges", power_charges)
 	config.set_value("progress", "daily_date", daily_date)
 	config.set_value("progress", "daily_best", daily_best)
 	config.set_value("progress", "quest_date", quest_date)

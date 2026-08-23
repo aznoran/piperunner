@@ -25,6 +25,7 @@ const KNOBS := [
 	{"id": "offer_size", "name": "Shapes on offer", "min": 1, "max": 7, "step": 1},
 
 	{"group": "Dealer"},
+	{"id": "turn_relief", "name": "Turn relief", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"id": "assist_max_new", "name": "Assist: new player", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"id": "assist_max_early", "name": "Assist: early", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"id": "assist_max_veteran", "name": "Assist: veteran", "min": 0.0, "max": 1.0, "step": 0.05},

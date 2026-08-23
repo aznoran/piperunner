@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PowerUp" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/power_up.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"halt"
+display_name = "Brake"
+short_name = "STOP"
+description = "Stops the cart where it stands, so you can build ahead of it without the clock."
+charge_cost = 20
+starting_charges = 2
+base_value = 3.0
+step = 0.75
+costs = PackedInt32Array(50, 120, 220, 360)
+unit = "s"

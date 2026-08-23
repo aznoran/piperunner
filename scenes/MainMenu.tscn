@@ -496,7 +496,7 @@ theme_override_constants/separation = 12
 [node name="Heading" type="Label" parent="UpgradesPanel/Box/Column"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "Upgrades"
+text = "Depot"
 
 [node name="Wallet" type="Label" parent="UpgradesPanel/Box/Column"]
 unique_name_in_owner = true

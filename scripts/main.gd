@@ -45,6 +45,9 @@ var _last_placed_at: float = 0.0
 ## the board it was played on: a run coming out of the menu reuses the board
 ## laid out there, so the seed is settled well before the run begins.
 var _board_seed: int = 0
+## Seconds the brake still has to run. While it is above zero the cart does not
+## move and fuel does not burn — the whole point is a pause, not a slow lane.
+var _braked: float = 0.0
 ## Benchmarks pin the run seed here so the same board can be replayed. -1 in
 ## normal play, where every run is its own.
 var forced_seed: int = -1
@@ -156,6 +159,7 @@ func _ready() -> void:
 	_input.aim_cancelled.connect(_on_aim_cancelled)
 
 	_hud.back_pressed.connect(abandon_run)
+	_hud.power_used.connect(use_power)
 	_menu.location_chosen.connect(apply_skin)
 	_menu.cart_chosen.connect(func(variant: int) -> void:
 		_cart.variant = variant
@@ -188,10 +192,7 @@ func _ready() -> void:
 ## so a purchase made in the shop takes effect on the next one.
 func _rebuild_balance() -> void:
 	balance = base_balance.duplicate()
-	balance.fuel_max += Upgrades.bonus(&"tank", GameState)
-	balance.offer_size += int(Upgrades.bonus(&"preview", GameState))
-	balance.runway += int(Upgrades.bonus(&"runway", GameState))
-	_magnet_reach = int(Upgrades.bonus(&"magnet", GameState))
+	_magnet_reach = balance.magnet_reach
 	if _board != null:
 		_board.setup(balance)
 	if _dealer != null:
@@ -217,9 +218,11 @@ func _launch_autoplay(level: float, style: Persona = null) -> void:
 	selected_mode = Mode.CLASSIC
 	_refresh_mode_name()
 	start_run(Mode.CLASSIC)
+	# No loadout: the bot plays the game as it ships. It used to be handed a
+	# shop's worth of upgrades, and once upgrades stopped existing there was
+	# nothing to hand it — which is the honest arrangement anyway, since its
+	# distances now mean what a player's distances mean.
 	var plans: bool = level >= Autoplayer.PLANS_FROM
-	if plans:
-		_equip_for_the_long_run()
 	_autoplayer.start(
 		Autoplayer.Skill.EXPERT if plans else Autoplayer.Skill.SHOWCASE,
 		-1, level, style)
@@ -231,24 +234,6 @@ func _launch_autoplay(level: float, style: Persona = null) -> void:
 ## This is not a cheat code, it is the top of the shop: a hundred cells burns
 ## about three tanks, so on the starting tank the distance is arithmetic, not
 ## skill. A player who wants to see a hundred has bought these too.
-func _equip_for_the_long_run() -> void:
-	for upgrade in Upgrades.catalogue():
-		var maxed: float = upgrade.step * upgrade.max_level()
-		match String(upgrade.id):
-			"tank":
-				balance.fuel_max += maxed
-			"preview":
-				balance.offer_size += int(maxed)
-			"runway":
-				balance.runway += int(maxed)
-			"magnet":
-				_magnet_reach = int(maxed)
-	fuel = balance.fuel_max
-	_hud.set_fuel(1.0)
-	_blocks.resize(_deal_context())
-	_refresh_strip()
-
-
 ## The experiment settled on a group. Rebuilding is only safe between runs; a
 ## run in progress keeps the mechanic it started with, because a player whose
 ## strip changed mid-run is not a clean data point for either variant.
@@ -556,6 +541,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 		Analytics.retry()
 	_run_began = _seconds()
 	_last_placed_at = _run_began
+	_braked = 0.0
 	selected_mode = mode
 	daily_mode = mode == Mode.DAILY
 	_autoplayer.stop()
@@ -600,6 +586,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	# balance sheet existed; an upgrade that widens it has to be applied now.
 	_blocks.resize(_deal_context())
 	_show_strip()
+	_hud.set_powers(GameState)
 	_hud.visible = true
 	_refresh_strip()
 	_start_hint.visible = true
@@ -649,6 +636,20 @@ func _process(delta: float) -> void:
 
 
 func _run_frame(delta: float) -> void:
+	if _braked > 0.0:
+		# Held. The cart does not move and the tank does not empty, because the
+		# power-up sells a moment to think and a moment that still cost fuel
+		# would not be one.
+		_braked -= delta
+		if _braked <= 0.0:
+			_braked = 0.0
+		_board.set_cart_incoming(_cart.incoming_cell(
+			balance.place_lockout_progress))
+		_update_frontier()
+		_update_camera(delta)
+		_hud.set_brake(_braked)
+		return
+
 	if started:
 		speed = minf(balance.start_speed + score * balance.speed_gain, balance.speed_cap)
 		_burn_fuel(balance.fuel_per_second * delta)
@@ -781,6 +782,104 @@ func _board_window() -> PackedByteArray:
 			else:
 				window.append(PlayLog.EMPTY)
 	return window
+
+
+# --- power-ups ----------------------------------------------------------
+
+## Fires a power-up, if there is one to fire.
+##
+## Spending happens here rather than in the button, so a power-up that finds
+## nothing to do — the brake with the cart already stopped, the tracklayer with
+## nowhere to build — costs nothing. A charge is expensive and being charged
+## for a no-op is the kind of thing a player remembers.
+func use_power(id: StringName) -> bool:
+	if state != State.PLAYING:
+		return false
+	# Two separate questions, and both have to be asked before anything
+	# happens: is there one to spend, and is there anything for it to do.
+	# Spending is settled last so a power-up that finds nothing costs nothing,
+	# but the charge has to be checked first or an empty one still fires.
+	if PowerUps.charges(id, GameState) <= 0:
+		return false
+
+	var did := false
+	match String(id):
+		"autolay":
+			did = _lay_ahead(int(round(PowerUps.value(id, GameState))))
+		"halt":
+			did = _brake(PowerUps.value(id, GameState))
+	if not did:
+		return false
+	PowerUps.spend(id, GameState)
+	_hud.set_powers(GameState)
+	GameState.vibrate(balance.haptics_crystal_ms)
+	return true
+
+
+## Lays track upward from wherever the cart's route runs out, going round
+## anything in the way.
+##
+## Deliberately not a teleport: it builds real pipe on real cells, so what it
+## leaves behind is a route the player then has to keep going from. The cells
+## it lays are the ones they would have laid themselves, which is why it reads
+## as a rescue and not as a cheat.
+func _lay_ahead(cells: int) -> bool:
+	var laid := 0
+	for _i in cells:
+		var ahead := _board.frontier(_cart.cell(), _cart.entry)
+		if ahead.is_empty() or bool(ahead["blocked"]):
+			break
+		var joint: Vector2i = ahead["cell"]
+		var need: int = ahead["need"]
+		if not _board.can_place(joint):
+			break
+		# Straight up where it can, and round the outside where it cannot.
+		var shape := _shape_for(joint, need)
+		if shape == PipeDefs.NO_EXIT:
+			break
+		if _board.place(joint, shape) == Board.Placement.REJECTED:
+			break
+		_fx.burst(_board.cell_to_world(joint), Skins.current().accent, 6,
+			_cell_size * 1.6)
+		laid += 1
+	if laid == 0:
+		return false
+	_board.ensure_rows(_cart.row + balance.generate_ahead)
+	_update_frontier()
+	started = true
+	_start_hint.visible = false
+	return true
+
+
+## The shape to lay at a joint: the one that climbs, or failing that the one
+## that gets past whatever is above.
+func _shape_for(joint: Vector2i, need: int) -> int:
+	var wanted: Array[int] = []
+	for type: int in PipeDefs.ALL:
+		if not PipeDefs.SIDES[type].has(need):
+			continue
+		var exit: int = PipeDefs.exit_side(type, need)
+		if exit == PipeDefs.NO_EXIT:
+			continue
+		var next: Vector2i = joint + PipeDefs.DIR[exit]
+		if next.x < 0 or next.x >= balance.cols or _board.rocks.has(next):
+			continue
+		# Climbing first, sideways only when the way up is blocked.
+		if exit == PipeDefs.Side.U:
+			wanted.push_front(type)
+		elif exit != PipeDefs.Side.D:
+			wanted.append(type)
+	return wanted[0] if not wanted.is_empty() else PipeDefs.NO_EXIT
+
+
+## Holds the cart still for a few seconds. Not a slow-down: the point of it is
+## a moment with no clock, so the player can build a way out and look at it.
+func _brake(seconds: float) -> bool:
+	if seconds <= 0.0 or _braked > 0.0:
+		return false
+	_braked = seconds
+	_screen_fx.danger = false
+	return true
 
 
 ## Seconds on the wall clock. Wrapped so the run timer and the session timer

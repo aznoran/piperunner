@@ -38,17 +38,29 @@ func fill(rng: RandomNumberGenerator, count: int,
 	if need == PipeDefs.NO_EXIT:
 		return pool  # no joint to serve yet; an even draw is the honest one
 
-	var assist_now := assistance(context)
-	if assist_now <= 0.0:
-		return pool
-
 	# Held windows count toward what the player has: variant C keeps some of
 	# the strip, and a rule that ignored them would insure a cover the strip
 	# already had.
 	var standing: Array = context.get("visible", [])
+
+	# Paid whether or not the player is in trouble, because it is parity rather
+	# than help: a crossroads goes straight through, so two shapes keep a climb
+	# going and only one gets a sideways cart back to climbing. See
+	# GameBalance.turn_relief for the arithmetic.
+	if _sideways(need):
+		_ensure_climb(rng, pool, standing, need, _balance.turn_relief)
+
+	var assist_now := assistance(context)
+	if assist_now <= 0.0:
+		return pool
 	_ensure_fit(rng, pool, standing, need)
 	_ensure_climb(rng, pool, standing, need, assist_now)
 	return pool
+
+
+## Whether the cart is crossing the board rather than climbing it.
+func _sideways(need: int) -> bool:
+	return need == PipeDefs.Side.L or need == PipeDefs.Side.R
 
 
 ## Puts a way out into an offer that has none. Not gated by how much

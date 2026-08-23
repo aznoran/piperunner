@@ -41,7 +41,7 @@ func _process(_delta: float) -> bool:
 	_check_crystal_and_combo()
 	_check_death_reasons()
 	_check_save_round_trip()
-	_check_upgrades()
+	_check_power_ups()
 	_check_magnet()
 	_check_distance_record()
 	_check_daily()
@@ -310,43 +310,62 @@ func _check_save_round_trip() -> void:
 
 
 # --- section 11, P0: meta progression -----------------------------------
+#
+# Upgrades are gone. They were a number that went up once and then sat there,
+# and what the depot sells now is either a decision the player makes during a
+# run or something they can see. So what this checks is the till: crystals are
+# spent, refused purchases change nothing, and a level makes the power-up it
+# belongs to actually stronger.
 
-func _check_upgrades() -> void:
+func _check_power_ups() -> void:
 	var state: Node = root.get_node("GameState")
 	var saved_crystals: int = state.crystals
-	var saved_upgrades: Dictionary = state.upgrades.duplicate()
-	var baseline_fuel: float = main.base_balance.fuel_max
-	state.upgrades.clear()
+	var saved_levels: Dictionary = state.power_levels.duplicate()
+	var saved_charges: Dictionary = state.power_charges.duplicate()
+	state.power_levels.clear()
+	state.power_charges.clear()
 	state.crystals = 0
 
-	var tank := Upgrades.find(&"tank")
-	_ok(tank != null, "the tank upgrade is in the catalogue")
-	_eq(Upgrades.level(&"tank", state), 0, "nothing is owned to begin with")
-	_ok(not Upgrades.can_afford(&"tank", state), "cannot buy without crystals")
-	_ok(not Upgrades.buy(&"tank", state), "a refused purchase changes nothing")
-	_eq(Upgrades.level(&"tank", state), 0, "...and banks no level")
+	var brake := PowerUps.find(&"halt")
+	_ok(brake != null, "the brake is in the catalogue")
+	_eq(PowerUps.charges(&"halt", state), brake.starting_charges,
+		"a fresh save starts with a few charges")
+	_eq(PowerUps.level(&"halt", state), 0, "and nothing levelled")
 
-	state.crystals = tank.costs[0]
-	_ok(Upgrades.buy(&"tank", state), "buying with exactly enough works")
+	_ok(not PowerUps.buy_charge(&"halt", state), "cannot buy without crystals")
+	_eq(PowerUps.charges(&"halt", state), brake.starting_charges,
+		"...and a refused purchase hands out nothing")
+
+	state.crystals = PowerUps.charge_cost(&"halt", state)
+	var held := PowerUps.charges(&"halt", state)
+	_ok(PowerUps.buy_charge(&"halt", state), "buying with exactly enough works")
 	_eq(state.crystals, 0, "the crystals are spent")
-	_eq(Upgrades.level(&"tank", state), 1, "the level is banked")
-	_eq(Upgrades.bonus(&"tank", state), tank.step, "one level is worth one step")
+	_eq(PowerUps.charges(&"halt", state), held + 1, "and a charge arrives")
 
+	_ok(PowerUps.spend(&"halt", state), "a charge can be spent")
+	_eq(PowerUps.charges(&"halt", state), held, "which takes it away again")
+
+	# Levels: each one makes it stronger, and they run out.
 	state.crystals = 999999
-	while Upgrades.next_cost(&"tank", state) >= 0:
-		Upgrades.buy(&"tank", state)
-	_eq(Upgrades.level(&"tank", state), tank.max_level(), "levels stop at the cap")
-	_eq(Upgrades.next_cost(&"tank", state), -1, "a maxed upgrade has no next cost")
-	_ok(not Upgrades.buy(&"tank", state), "a maxed upgrade cannot be bought again")
+	var weakest := PowerUps.value(&"halt", state)
+	_ok(PowerUps.buy_upgrade(&"halt", state), "a level can be bought")
+	_ok(PowerUps.value(&"halt", state) > weakest,
+		"and the power-up gets stronger for it")
+	while PowerUps.upgrade_cost(&"halt", state) >= 0:
+		PowerUps.buy_upgrade(&"halt", state)
+	_eq(PowerUps.level(&"halt", state), brake.max_level(),
+		"levels stop at the cap")
+	_ok(not PowerUps.buy_upgrade(&"halt", state),
+		"a maxed power-up cannot be levelled again")
 
-	main._rebuild_balance()
-	_eq(main.balance.fuel_max, baseline_fuel + tank.step * tank.max_level(),
-		"the tank upgrade raises the tank")
-	_eq(main.base_balance.fuel_max, baseline_fuel,
-		"the baseline sheet on disk is left untouched")
+	# A stronger power-up costs more to restock, or levelling would be the
+	# cheap way to a strong one.
+	_ok(PowerUps.charge_cost(&"halt", state) > brake.charge_cost,
+		"a levelled power-up costs more a charge")
 
 	state.crystals = saved_crystals
-	state.upgrades = saved_upgrades
+	state.power_levels = saved_levels
+	state.power_charges = saved_charges
 	state.save_game()
 	main._rebuild_balance()
 	balance = main.balance

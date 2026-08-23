@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PowerUp" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/power_up.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"autolay"
+display_name = "Tracklayer"
+short_name = "LAY"
+description = "Lays the next stretch of track for you, straight up, past whatever is in the way."
+charge_cost = 25
+starting_charges = 2
+base_value = 5.0
+step = 1.0
+costs = PackedInt32Array(60, 140, 260, 420)
+unit = "cells"

@@ -123,5 +123,43 @@ func _initialize() -> void:
 		"C leaves a comfortable player's strip alone, got %d/%d"
 			% [calm_widen, DEALS])
 
+	# --- turn relief: pays for the move a turn costs -------------------
+	#
+	# A turn is two moves where a climb is one, and the first buys no height.
+	# The relief evens that out at the moment it is owed — while the cart is
+	# already sideways — and at no other time.
+	var calm := _context(PipeDefs.Side.L, false)
+	var relieved := 0
+	for _i in DEALS:
+		var offer := b.fill(rng, 3, calm)
+		for type: int in offer:
+			if PipeDefs.exit_side(type, PipeDefs.Side.L) == PipeDefs.Side.U:
+				relieved += 1
+				break
+	var rate := float(relieved) / float(DEALS)
+	# Left alone a sideways cart sees a way up in 43% of offers, against 71%
+	# for one already climbing — a crossroads goes straight through and so
+	# never rescues a turn. Relief at 0.5 puts the two on the same footing.
+	_check(rate > 0.64, "a sideways cart is offered a way up, got %.0f%%" % (rate * 100.0))
+	_check(rate < 0.80,
+		"and only to parity, not beyond it, got %.0f%%" % (rate * 100.0))
+
+	# Climbing straight on is untouched: the relief pays for a cost the climb
+	# does not have.
+	var climbing := 0
+	for _i in DEALS:
+		var offer := b.fill(rng, 3, _context(PipeDefs.Side.D, false))
+		for type: int in offer:
+			if PipeDefs.exit_side(type, PipeDefs.Side.D) == PipeDefs.Side.U:
+				climbing += 1
+				break
+	var plain := float(climbing) / float(DEALS)
+	_check(plain > 0.64 and plain < 0.80,
+		"a climbing cart gets its own untouched odds, got %.0f%%"
+			% (plain * 100.0))
+	_check(absf(plain - rate) < 0.10,
+		"and the two are now within a few points of each other: %.0f%% vs %.0f%%"
+			% [plain * 100.0, rate * 100.0])
+
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit()

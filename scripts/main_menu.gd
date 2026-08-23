@@ -361,46 +361,85 @@ func _refresh() -> void:
 
 ## One row per upgrade: what it does, how far it is bought, and the price of
 ## the next level.
+## The depot: power-ups to stock and strengthen, and carts to wear.
+##
+## It used to sell upgrades — a bigger tank, a longer preview — and they were
+## quietly the wrong thing. An upgrade is a number that goes up once and then
+## sits there: it makes every run a little longer and no run more interesting,
+## and by the third attempt nobody notices it. What is sold here now is either
+## a decision the player makes during a run, or something they can see.
+##
+## Two rows a power-up. Charges are what runs out; the level is what is kept.
+## They are separate because they are different purchases, and putting them on
+## one button would mean guessing which one somebody meant.
 func _build_shop() -> void:
 	for child in _shop_rows.get_children():
 		child.queue_free()
 	_rows.clear()
 
-	for upgrade in Upgrades.catalogue():
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
+	_shop_heading("POWER-UPS")
+	for power in PowerUps.catalogue():
+		_shop_row(power.id, power.display_name, power.description,
+			"charge", _buy_charge)
+		_shop_row(power.id, power.display_name, "", "level", _buy_level)
 
-		var text := VBoxContainer.new()
-		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		text.add_theme_constant_override("separation", 2)
+	_shop_heading("CARTS")
+	for variant in Skins.current().cart_variant_count():
+		_shop_row(StringName("cart_%d" % variant), "Cart %d" % (variant + 1),
+			"", "cart", _pick_cart.bind(variant))
 
-		var title := Label.new()
-		title.add_theme_font_size_override("font_size", 19)
-		text.add_child(title)
+	_refresh_shop()
 
+
+func _shop_heading(text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
+	var pad := Control.new()
+	pad.custom_minimum_size = Vector2(0, 8)
+	_shop_rows.add_child(pad)
+	_shop_rows.add_child(label)
+
+
+## One line of the depot. `kind` decides what the button on the right is for,
+## and is kept on the row so the refresh knows what to write there.
+func _shop_row(id: StringName, name_text: String, blurb_text: String,
+		kind: String, action: Callable) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override("separation", 2)
+
+	var title := Label.new()
+	title.add_theme_font_size_override("font_size", 19)
+	text.add_child(title)
+
+	if not blurb_text.is_empty():
 		var blurb := Label.new()
 		blurb.add_theme_font_size_override("font_size", 14)
 		blurb.modulate.a = 0.62
 		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		blurb.custom_minimum_size = Vector2(250, 0)
-		blurb.text = upgrade.description
+		blurb.text = blurb_text
 		text.add_child(blurb)
 
-		row.add_child(text)
+	row.add_child(text)
 
-		var buy := Button.new()
-		buy.add_theme_font_size_override("font_size", 17)
-		buy.add_theme_stylebox_override("normal", _buy_style())
-		buy.add_theme_stylebox_override("hover", _buy_style())
-		buy.add_theme_stylebox_override("pressed", _buy_style())
-		buy.custom_minimum_size = Vector2(96, 0)
-		buy.pressed.connect(_buy.bind(upgrade.id))
-		row.add_child(buy)
+	var buy := Button.new()
+	buy.add_theme_font_size_override("font_size", 17)
+	for what in ["normal", "hover", "pressed"]:
+		buy.add_theme_stylebox_override(what, _buy_style())
+	buy.custom_minimum_size = Vector2(104, 0)
+	buy.pressed.connect(action.bind(id) if kind != "cart" else action)
+	row.add_child(buy)
 
-		_shop_rows.add_child(row)
-		_rows[upgrade.id] = {"title": title, "buy": buy}
-
-	_refresh_shop()
+	_shop_rows.add_child(row)
+	_rows["%s:%s" % [id, kind]] = {
+		"title": title, "buy": buy, "id": id, "kind": kind, "name": name_text,
+	}
 
 
 func _buy_style() -> StyleBoxFlat:
@@ -418,24 +457,39 @@ func _buy_style() -> StyleBoxFlat:
 
 func _refresh_shop() -> void:
 	_wallet.text = "%d crystals" % GameState.crystals
-	for upgrade in Upgrades.catalogue():
-		if not _rows.has(upgrade.id):
-			continue
-		var level := Upgrades.level(upgrade.id, GameState)
-		var title: Label = _rows[upgrade.id]["title"]
-		var buy: Button = _rows[upgrade.id]["buy"]
+	for key: String in _rows:
+		var row: Dictionary = _rows[key]
+		var title: Label = row["title"]
+		var buy: Button = row["buy"]
+		var id: StringName = row["id"]
 
-		title.text = "%s   %d/%d" % [upgrade.display_name, level, upgrade.max_level()]
-		if level > 0:
-			title.text += "   (+%s %s)" % [_format(upgrade.step * level), upgrade.unit]
-
-		var cost := Upgrades.next_cost(upgrade.id, GameState)
-		if cost < 0:
-			buy.text = "MAX"
-			buy.disabled = true
-		else:
-			buy.text = str(cost)
-			buy.disabled = not Upgrades.can_afford(upgrade.id, GameState)
+		match String(row["kind"]):
+			"charge":
+				var power := PowerUps.find(id)
+				var held := PowerUps.charges(id, GameState)
+				var value := PowerUps.value(id, GameState)
+				title.text = "%s   x%d   (%s %s)" \
+					% [row["name"], held, _format(value), power.unit]
+				var cost := PowerUps.charge_cost(id, GameState)
+				buy.text = "+1  %d" % cost
+				buy.disabled = GameState.crystals < cost
+			"level":
+				var power := PowerUps.find(id)
+				var level := PowerUps.level(id, GameState)
+				title.text = "    strength   %d/%d" % [level, power.max_level()]
+				var cost := PowerUps.upgrade_cost(id, GameState)
+				if cost < 0:
+					buy.text = "MAX"
+					buy.disabled = true
+				else:
+					buy.text = "+%s  %d" % [_format(power.step), cost]
+					buy.disabled = GameState.crystals < cost
+			"cart":
+				var variant := int(String(id).get_slice("_", 1))
+				var worn: bool = GameState.cart_variant == variant
+				title.text = row["name"]
+				buy.text = "WORN" if worn else "WEAR"
+				buy.disabled = worn
 		buy.modulate.a = 1.0 if not buy.disabled else 0.45
 
 
@@ -444,9 +498,26 @@ func _format(value: float) -> String:
 	return str(int(value)) if is_equal_approx(value, roundf(value)) else "%.1f" % value
 
 
-func _buy(id: StringName) -> void:
-	if Upgrades.buy(id, GameState):
+func _buy_charge(id: StringName) -> void:
+	if PowerUps.buy_charge(id, GameState):
 		GameState.vibrate(20)
+	_refresh_shop()
+
+
+func _buy_level(id: StringName) -> void:
+	if PowerUps.buy_upgrade(id, GameState):
+		GameState.vibrate(20)
+	_refresh_shop()
+
+
+## Carts cost nothing yet — they are the skins the shop is being cleared for,
+## and until there is art to sell, wearing one is free. The row is here so the
+## place they will live exists rather than arriving as a surprise.
+func _pick_cart(variant: int) -> void:
+	GameState.cart_variant = variant
+	GameState.save_game()
+	cart_chosen.emit(variant)
+	GameState.vibrate(20)
 	_refresh_shop()
 
 
@@ -725,9 +796,10 @@ func _claim(id: String) -> void:
 func _debug_unlock() -> void:
 	if not OS.is_debug_build():
 		return
-	for upgrade in Upgrades.catalogue():
-		GameState.upgrades[String(upgrade.id)] = upgrade.max_level()
-	GameState.crystals = 999
+	for power in PowerUps.catalogue():
+		GameState.power_levels[String(power.id)] = power.max_level()
+		GameState.power_charges[String(power.id)] = 99
+	GameState.crystals = 9999
 	GameState.save_game()
 	GameState.vibrate(60)
 	_refresh()
