@@ -70,6 +70,10 @@ var _readouts: Dictionary = {}
 var _bot_level: float = Autoplayer.EXPERT_LEVEL
 ## The A/B/C buttons, kept so picking one can clear the other two.
 var _variant_buttons: Array[Button] = []
+## Sliders and the values they started at, so a knob can be put back without
+## reloading the balance sheet and losing every other change with it.
+var _sliders: Dictionary = {}
+var _defaults: Dictionary = {}
 var _assignment: Label
 
 
@@ -262,16 +266,46 @@ func _add_knob(parent: Control, knob: Dictionary) -> void:
 	head.add_child(value_label)
 	_readouts[id] = value_label
 
-	var slider := HSlider.new()
-	slider.min_value = float(knob["min"])
-	slider.max_value = float(knob["max"])
-	slider.step = float(knob["step"])
-	slider.value = _read(id)
-	slider.custom_minimum_size = Vector2(0, 40)
-	slider.value_changed.connect(_write.bind(id, knob))
-	row.add_child(slider)
+	# Slider and its reset key share a line, so the key is always in reach of
+	# the thumb that just moved the thing it undoes.
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	row.add_child(line)
 
-	_show(id, knob, slider.value)
+	var start := _read(id)
+	# The pristine value, taken before anything on this panel can touch it.
+	# Read from the live sheet rather than reloading the resource, because the
+	# sheet is what a reset has to put back.
+	_defaults[id] = start
+
+	var slider := TuningSlider.new()
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.setup(float(knob["min"]), float(knob["max"]),
+		float(knob["step"]), start)
+	slider.value_changed.connect(_write.bind(id, knob))
+	line.add_child(slider)
+	_sliders[id] = slider
+
+	var reset := Button.new()
+	reset.text = "⟲"
+	reset.tooltip_text = "Back to default"
+	reset.custom_minimum_size = Vector2(46, 40)
+	reset.add_theme_font_size_override("font_size", 20)
+	reset.pressed.connect(_reset_knob.bind(id, knob))
+	line.add_child(reset)
+
+	_show(id, knob, start)
+
+
+## Puts one knob back where it started, leaving the rest of the panel alone.
+func _reset_knob(id: String, knob: Dictionary) -> void:
+	if not _defaults.has(id):
+		return
+	var original: float = float(_defaults[id])
+	var slider: TuningSlider = _sliders.get(id)
+	if slider != null:
+		slider.set_value_silently(original)
+	_write(original, id, knob)
 
 
 func _read(id: String) -> float:
