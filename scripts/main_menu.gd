@@ -594,7 +594,13 @@ func _open_levels() -> void:
 ## station being cleared, and redrawing twelve circles is free.
 func _build_levels() -> void:
 	var skin := Skins.current()
+	# Progress and the next station's terms share this line, so the field below
+	# stays a field — captions on it were a list again by another name.
+	var next := Levels.current(GameState)
 	%Progress.text = "%d of %d cleared" % [GameState.levels_cleared, Levels.count()]
+	if next != null:
+		%Progress.text += "   ·   %d  %s — %s" \
+			% [next.number, next.title, next.goal_short()]
 
 	if _map == null:
 		_map = StoryMap.new()
@@ -609,6 +615,18 @@ func _build_levels() -> void:
 		(%Stations as Control).visible = false
 		scroll.add_child(_map)
 	_map.refresh(skin, _mode_tint(skin, MODE_STORY))
+	# Deferred, because the scroll cannot be moved to a place its content does
+	# not have yet: the map only learns its own height when the layout settles.
+	_scroll_to_cart.call_deferred()
+
+
+## Puts the panel where the cart is. The line runs off the top of the screen,
+## and a story map that opens at the finish is a spoiler and a nuisance.
+func _scroll_to_cart() -> void:
+	var scroll: ScrollContainer = _levels_panel.get_node("Scroll")
+	if scroll == null or _map == null:
+		return
+	scroll.scroll_vertical = int(_map.focus_offset(scroll.size.y))
 
 
 func _pick_level(number: int) -> void:
