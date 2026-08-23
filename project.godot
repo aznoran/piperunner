@@ -17,6 +17,7 @@ config/quit_on_go_back=false
 GameState="*res://scripts/game_state.gd"
 Analytics="*res://scripts/analytics.gd"
 Experiment="*res://scripts/experiment.gd"
+PlayLog="*res://scripts/play_log.gd"
 
 [display]
 

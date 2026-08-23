@@ -17,6 +17,10 @@ extends Node
 ## make casual mistakes.
 enum Skill { SHOWCASE, EXPERT }
 
+## Emitted when the bot takes a run over, naming the archetype it is playing
+## as. Main passes it to the behaviour log; nothing else listens.
+signal took_over(persona_name: String)
+
 var skill: Skill = Skill.SHOWCASE
 
 ## How good it is, on a dial rather than a switch: 0 is a beginner who mostly
@@ -24,6 +28,10 @@ var skill: Skill = Skill.SHOWCASE
 ## at either end and the debug panel can put it anywhere between, which is the
 ## only way to see how a given standard of play meets a given set of formulas.
 var proficiency: float = SHOWCASE_LEVEL
+
+## The kind of player this is. Proficiency lives on it too, and the property
+## above stays in step so the debug bench's one slider keeps working.
+var persona: Persona = Persona.by_name("Optimiser")
 
 const SHOWCASE_LEVEL := 0.35
 const EXPERT_LEVEL := 1.0
@@ -40,6 +48,10 @@ const HESITATE_EXTRA := 0.55
 const MISTAKE_CHANCE := 0.03
 ## How far ahead of the cart it will build. Beyond this the track leaves the
 ## screen, which is no use to a player watching and no use on video either.
+## However impatient a persona is, it has to be willing to build past the
+## starting runway — below this it decides the track is long enough before it
+## has laid anything, and plays no moves at all.
+const MIN_BUFFER := 4
 const MAX_BUFFER := 5
 ## The expert keeps a deeper reserve than the showcase bot, but the screen is
 ## the real limit: track laid where the player cannot see it is not play, it
@@ -78,10 +90,18 @@ func setup(main: Node, board: Board, cart: Cart, offer: BlockSource) -> void:
 ## `dice` fixes the bot's own randomness — benchmarks pass a seed so two runs
 ## of different code face the same hesitations. Left at -1 in play.
 func start(level: Skill = Skill.SHOWCASE, dice: int = -1,
-		level_override: float = -1.0) -> void:
+		level_override: float = -1.0, style: Persona = null) -> void:
 	skill = level
-	proficiency = level_override if level_override >= 0.0 \
-		else (EXPERT_LEVEL if level == Skill.EXPERT else SHOWCASE_LEVEL)
+	if style != null:
+		persona = style
+		proficiency = style.proficiency
+	else:
+		proficiency = level_override if level_override >= 0.0 \
+			else (EXPERT_LEVEL if level == Skill.EXPERT else SHOWCASE_LEVEL)
+		# A bare proficiency with no persona keeps the balanced weights, so the
+		# bench slider behaves exactly as it did before personas existed.
+		persona = Persona.by_name("Optimiser")
+		persona.proficiency = proficiency
 	tally = {}
 	if dice >= 0:
 		_rng.seed = dice
@@ -89,6 +109,7 @@ func start(level: Skill = Skill.SHOWCASE, dice: int = -1,
 		_rng.randomize()
 	active = true
 	_wait = 0.6
+	took_over.emit(persona.name)
 
 
 func stop() -> void:
@@ -119,6 +140,7 @@ func _think_time() -> float:
 	var urgency: float = clampf(_main.speed / maxf(_main.balance.speed_cap, 0.1), 0.0, 1.0)
 	var base: float = lerpf(THINK_MAX, THINK_MIN, urgency)
 	base *= lerpf(1.0, 0.55, _grade())  # better players are quicker on the tap
+	base *= persona.haste
 	var jitter: float = base * _rng.randf_range(0.7, 1.3)
 
 	var ahead := _board.frontier(_cart.cell(), _cart.entry)
@@ -145,7 +167,9 @@ func _act() -> void:
 
 	# Building past the top of the screen wastes pieces on track nobody can see
 	# — and on video it looks like the run is happening somewhere else.
-	var cap: int = int(roundf(lerpf(MAX_BUFFER, MAX_BUFFER_EXPERT, _grade())))
+	var cap: int = clampi(int(roundf(
+		lerpf(MAX_BUFFER, MAX_BUFFER_EXPERT, _grade()) * persona.patience)),
+		MIN_BUFFER, MAX_BUFFER_EXPERT)
 	var too_far: bool = buffer >= cap or joint.y > rows.y - 1
 
 	# A pipe at the joint that refuses the cart is not a dead end — it is a pipe
@@ -293,10 +317,43 @@ func _pick_for(joint: Vector2i, need: int, buffer: int, desperate: bool) -> int:
 		if not _plans():
 			return i  # a player who reacts takes the first shape that works
 		var score := _score(joint, piece, need)
+		score -= _cost_of_losing(i) * persona.hoarding
 		if score > best_score:
 			best_score = score
 			best = i
 	return best
+
+
+## What the strip gives up by spending the shape in slot `i`.
+##
+## Only meaningful where windows are held: in B the whole strip is replaced
+## next turn, so nothing is being given up at all, and in A there is nothing to
+## choose between. Where they are held, spending a shape costs the strip every
+## side no other window can answer — so a hoarder reaches for the redundant
+## shape and leaves the one that covers ground the others do not.
+##
+## This is the bot doing what variant C is for. Without it the strip is played
+## as if it were re-dealt every turn, which is variant B with extra steps, and
+## measuring C that way measures nothing.
+func _cost_of_losing(index: int) -> float:
+	if persona.hoarding <= 0.0 or not _offer.holds_windows():
+		return 0.0
+	var shapes := _offer.choices()
+	if index < 0 or index >= shapes.size():
+		return 0.0
+
+	var elsewhere := {}
+	for i in shapes.size():
+		if i == index:
+			continue
+		for side: int in PipeDefs.SIDES[shapes[i]]:
+			elsewhere[side] = true
+
+	var lost := 0.0
+	for side: int in PipeDefs.SIDES[shapes[index]]:
+		if not elsewhere.has(side):
+			lost += 1.0
+	return lost * 2.0
 
 
 ## What laying this shape at the joint is worth. One ply deep by necessity: the
@@ -309,16 +366,17 @@ func _score(joint: Vector2i, piece: int, entry: int) -> float:
 	if next.x < 0 or next.x >= _main.balance.cols or _board.rocks.has(next):
 		return -1000.0
 
-	var score: float = float(next.y - joint.y) * 4.0
+	var score: float = float(next.y - joint.y) * persona.climb
 	if _board.crystals.has(next):
-		score += 6.0  # fuel is distance
+		score += persona.fuel  # fuel is distance
 	if not _clear(next, PipeDefs.OPPOSITE[exit]):
 		score -= 8.0  # aiming the cart at a pipe that will not take it
 
 	# Sideways towards the nearest crystal beats sideways away from it.
 	var crystal := _nearest_crystal()
 	if crystal != Board.NO_CELL:
-		score += float(absi(joint.x - crystal.x) - absi(next.x - crystal.x)) * 1.5
+		score += float(absi(joint.x - crystal.x) - absi(next.x - crystal.x)) \
+			* persona.fuel * 0.25
 	return score
 
 
@@ -519,7 +577,7 @@ func _serves(piece: int, need: int) -> bool:
 
 func _place(cell: Vector2i) -> void:
 	# The occasional misplay, so the run has texture.
-	if _rng.randf() < MISTAKE_CHANCE * (1.0 - _grade()):
+	if _rng.randf() < MISTAKE_CHANCE * (1.0 - _grade()) * persona.sloppiness:
 		var sideways: int = [PipeDefs.Side.L, PipeDefs.Side.R][_rng.randi() % 2]
 		var slip: Vector2i = cell + PipeDefs.DIR[sideways]
 		if _board.can_place(slip):

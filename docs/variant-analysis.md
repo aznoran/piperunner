@@ -87,22 +87,81 @@ what noise looks like. What can be said is that both clear A comfortably below
 strong play, and that C's one win is in the band where a player has started
 paying attention.
 
+## The persona sweep
+
+The runs above vary how *well* the bot plays. That is one axis, and on its own
+it makes every result the same player having a better or worse day — which is
+the wrong instrument for judging a mechanic, because a mechanic is judged by
+the range of people it suits.
+
+So five archetypes, varying what the bot plays *for* rather than how well
+(`scripts/persona.gd`, and the idea is the procedural personas of the
+automated-playtesting literature). Six runs each, same fixed seeds, no shop.
+
+| | A queue | B offer | C held | best for them |
+|---|---|---|---|---|
+| **Dabbler** — casual, slow, sloppy | 22.5 | **38.2** | 27.8 | B |
+| **Rusher** — height at any cost | 19.2 | **31.0** | 23.3 | B |
+| **Scavenger** — fuel first, detours | 29.2 | 30.5 | **36.8** | C |
+| **Hoarder** — banks shapes, waits | 22.2 | 31.0 | **38.5** | C |
+| **Optimiser** — balanced, plans | 32.7 | **41.5** | 22.0 | B |
+| *average* | *25.2* | *34.4* | *29.7* | |
+
+### C rewards the player who uses it and punishes the one who does not
+
+This is the finding worth the whole exercise, and it is a swing of nearly two
+to one inside a single column.
+
+The Hoarder is the only persona that treats a held window as a place to leave
+something for later — it spends the shape the strip can most afford to lose and
+keeps the one covering ground the others do not. On C it scores 38.5, its own
+best, and the best of any persona on C. The Optimiser, which plays well by
+every other measure but has no notion of keeping anything, scores 22.0 on C:
+the worst cell in the table for a competent player, and a third below its own
+score on B.
+
+So C is not simply better or worse than B. **C is better than B for a player who
+has understood what the held windows are for, and worse than B for a player who
+has not.** And the mechanic is invisible: nothing on the strip announces that
+the two shapes you did not take will still be there next turn. A player who
+never notices is playing B with a worse deal.
+
+### B is the flattest, C is the steepest
+
+Across the five personas, B's range is 30.5 to 41.5 — it plays about the same
+whoever you are. C's is 22.0 to 38.5, the widest in the table. A sits lowest
+and is nobody's best: not one of the five archetypes does better on A than on
+the alternatives.
+
+For an audience you do not get to choose, flat is the safer property. A
+mechanic that only pays for one playing style is a mechanic with one customer.
+
+### Two smaller things
+
+The Rusher — pure height, no interest in crystals — is the worst persona
+overall and worst of all on A (19.2). With no choice of shape, ignoring fuel is
+simply fatal. And the Scavenger on C is the cleanest death profile in the whole
+study: six runs, six empty tanks, not one derailment.
+
 ## Where the bot is a bad witness
 
 Worth stating plainly, because it bears on exactly the comparison that matters:
 
-- **C's whole point is a skill the bot does not have.** Holding a window means
-  banking an awkward shape for a joint that has not arrived yet. The bot plans
-  one move ahead and takes the best shape on offer *now*; it never deliberately
-  leaves something for later. So C is being measured with its main mechanic
-  switched off, and its ceiling is almost certainly higher than 53.
+- **C's point is a skill only one persona has.** Holding a window means banking
+  an awkward shape for a joint that has not arrived yet. Only the Hoarder does
+  it; every other persona plays C as though the strip were re-dealt each turn.
+  That is now a measured result rather than a blind spot — but it does mean the
+  skill-only sweep above, which used no persona at all, was measuring C with
+  its own mechanic switched off, and its numbers there should be read as C's
+  floor rather than its range.
 - **The bot never gets bored, confused or annoyed.** It cannot report that A's
   four-deep preview is a lot to read on a bus, or that C's two held windows are
   invisible state a new player will not notice going stale.
 - **It does not learn.** Every run is that dial's first run, so nothing here
   says how a variant feels in week two.
-- **Small samples.** The A-versus-offer gap is far larger than the spread and
-  is safe to act on. Anything finer — B versus C, the mid-skill zigzag — is not.
+- **Small samples.** The A-versus-offer gap, and the Hoarder-versus-Optimiser
+  gap on C, are both far larger than the spread and are safe to act on.
+  Anything finer — B versus C overall, the mid-skill zigzag — is not.
 
 ## Recommendations
 
@@ -125,13 +184,13 @@ with half an eye on it.
 
 ### If only one ships
 
-**B.** It is the best variant for the largest group, it is the only one whose
-casual deaths are the deaths the game was designed around, and it is the
-cheapest to explain: three shapes, take one. A is a planning game wearing a
-runner's clothes, and its casual numbers show the cost of that. C is the most
-interesting of the three and the most likely to be underrated here — but it
-asks the player to notice something invisible, and the ones who would enjoy that
-are the ones who would have stayed anyway.
+**B.** It is the best variant for the largest group, the flattest across playing
+styles, the only one whose casual deaths are the deaths the game was designed
+around, and the cheapest to explain: three shapes, take one. A is a planning
+game wearing a runner's clothes, and it is nobody's best. C is the most
+interesting of the three and beats B decisively — but only for the player who
+has worked out what it is for, and it is worse than B for the player who has
+not.
 
 ### The hedge worth considering
 
@@ -139,4 +198,10 @@ B and C differ by one method. Nothing stops the game shipping B and turning on
 the held windows later — as an unlock, or after a handful of runs — which gives
 the casual player B's floor and the engaged player C's depth without asking
 anyone to choose. That is not part of the A/B/C test, but it is the obvious
-thing to do with the result.
+thing to do with the result, and the persona sweep makes the case stronger:
+C pays well, but only once the player knows what it is. Handing it to them
+before then costs them a third of their distance.
+
+If C does ship on its own, the held windows need to say so — the pip on the
+strip is a start, but a mechanic worth a third of a player's score should not
+be something they have to infer.

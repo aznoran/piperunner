@@ -38,6 +38,13 @@ var balance: GameBalance
 var _magnet_reach: int = 0
 ## Seconds on the clock when the live run began, for the run's duration.
 var _run_began: float = 0.0
+## When the last pipe went down, so the log can carry how long the player took
+## over each decision — hesitation is behaviour too.
+var _last_placed_at: float = 0.0
+## The seed the live board was generated from. Kept so a logged run can name
+## the board it was played on: a run coming out of the menu reuses the board
+## laid out there, so the seed is settled well before the run begins.
+var _board_seed: int = 0
 ## Benchmarks pin the run seed here so the same board can be replayed. -1 in
 ## normal play, where every run is its own.
 var forced_seed: int = -1
@@ -156,6 +163,7 @@ func _ready() -> void:
 	_menu.level_chosen.connect(_select_level)
 	_menu.autoplay_requested.connect(_launch_autoplay)
 	_autoplayer.setup(self, _board, _cart, _blocks)
+	_autoplayer.took_over.connect(PlayLog.note_player)
 	_overlay.retry_pressed.connect(func() -> void: start_run(selected_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
 	_overlay.continue_pressed.connect(_take_continue)
@@ -206,7 +214,7 @@ func _start_expert_autoplay() -> void:
 
 ## `level` is how well it plays, 0..1 — see Autoplayer.proficiency. The two
 ## buttons pass the presets; the debug bench passes whatever the slider says.
-func _launch_autoplay(level: float) -> void:
+func _launch_autoplay(level: float, style: Persona = null) -> void:
 	selected_mode = Mode.CLASSIC
 	_refresh_mode_name()
 	start_run(Mode.CLASSIC)
@@ -215,7 +223,7 @@ func _launch_autoplay(level: float) -> void:
 		_equip_for_the_long_run()
 	_autoplayer.start(
 		Autoplayer.Skill.EXPERT if plans else Autoplayer.Skill.SHOWCASE,
-		-1, level)
+		-1, level, style)
 
 
 ## Gives the expert the loadout a fully upgraded player would bring, for this
@@ -261,6 +269,7 @@ func _on_variant_resolved(_variant: int) -> void:
 func _close_session() -> void:
 	if state == State.PLAYING and started:
 		Analytics.run_abandoned(distance, _seconds() - _run_began, "backgrounded")
+		PlayLog.end_run(distance, score, "backgrounded")
 	Analytics.session_end()
 
 
@@ -306,9 +315,15 @@ func _hide_strip() -> void:
 ## The event goes out before the deal, so `slot` and `was_held` still describe
 ## the strip the player was looking at when they chose — after the deal, in
 ## variant C, the window has already been refilled.
-func _spend_block() -> void:
+func _spend_block(cell: Vector2i) -> void:
 	Analytics.block_taken(_blocks.current(), _blocks.chosen_slot(),
 		_blocks.slot_count(), _blocks.chosen_was_held(), distance)
+	# The strip as it stood, before the deal replaces any of it.
+	PlayLog.record(_blocks.current(), _blocks.chosen_slot(),
+		_blocks.slot_count(), _blocks.chosen_was_held(), _blocks.choices(),
+		cell, _cart.cell(), _joint_need(), fuel, distance, speed,
+		_seconds() - _last_placed_at, _board_window())
+	_last_placed_at = _seconds()
 	_blocks.spend(_deal_context())
 	_refresh_strip()
 
@@ -356,6 +371,7 @@ func abandon_run() -> void:
 		# opens a run and leaves it is telling you something a death does not.
 		Analytics.run_abandoned(distance, _seconds() - _run_began,
 			"before_first_pipe")
+		PlayLog.end_run(distance, score, "abandoned")
 	_show_menu(true)
 
 
@@ -502,6 +518,7 @@ func _prepare_board(with_resources: bool) -> void:
 	elif selected_mode == Mode.STORY and active_level != null:
 		run_seed = Levels.seed_for(active_level)
 	_board.start_run(run_seed, with_resources, _first_resource_row())
+	_board_seed = run_seed
 	_offer_rng.seed = run_seed + 1
 
 	var start_col: int = balance.cols / 2
@@ -535,6 +552,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	if state == State.DEAD:
 		Analytics.retry()
 	_run_began = _seconds()
+	_last_placed_at = _run_began
 	selected_mode = mode
 	daily_mode = mode == Mode.DAILY
 	_autoplayer.stop()
@@ -569,6 +587,11 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	else:
 		_prepare_board(true)
 	_board_fresh = false
+
+	# Opened here rather than where the board is prepared: a run out of the
+	# menu reuses that board, so preparing it is not the same event as playing
+	# it, and a header written there would describe the wrong run.
+	PlayLog.begin_run(Experiment.name_of(), _board_seed, int(selected_mode))
 	_decor.visible = false
 	# The board came from the menu, so the offer was dealt before this run's
 	# balance sheet existed; an upgrade that widens it has to be applied now.
@@ -733,6 +756,30 @@ func _buffer() -> int:
 ## Everything a dealing rule may look at, gathered in one place so that a rule
 ## which starts caring about something new does not mean touching every site
 ## that deals an offer.
+## The board around the cart, flattened for the behaviour log.
+##
+## Written relative to the cart rather than in board coordinates: the board
+## scrolls forever, so an absolute row number says nothing about what the
+## decision looked like, while "two rows below the cart" says everything.
+func _board_window() -> PackedByteArray:
+	var window := PackedByteArray()
+	var cart := _cart.cell()
+	for row in range(cart.y - PlayLog.WINDOW_ROWS_BELOW,
+			cart.y + PlayLog.WINDOW_ROWS_ABOVE):
+		for col in balance.cols:
+			var cell := Vector2i(col, row)
+			var pipe := _board.get_pipe(cell)
+			if pipe != null:
+				window.append(PlayLog.FLOODED if pipe.flooded else pipe.type)
+			elif _board.rocks.has(cell):
+				window.append(PlayLog.ROCK)
+			elif _board.crystals.has(cell):
+				window.append(PlayLog.CRYSTAL)
+			else:
+				window.append(PlayLog.EMPTY)
+	return window
+
+
 ## Seconds on the wall clock. Wrapped so the run timer and the session timer
 ## agree on what a second is.
 func _seconds() -> float:
@@ -850,7 +897,7 @@ func _try_place(cell: Vector2i) -> void:
 	if cell.y < _cart.row:
 		pipes_dumped += 1
 
-	_spend_block()
+	_spend_block(cell)
 	if not started:
 		_hud.fade_out_back_key()
 	started = true
@@ -986,6 +1033,7 @@ func _die(reason: String) -> void:
 	_fx.burst(_cart.position, Skins.current().danger, 28, _cell_size * 8.0)
 	GameState.vibrate(balance.haptics_death_ms)
 	Analytics.run_completed(distance, score, _seconds() - _run_began, reason)
+	PlayLog.end_run(distance, score, reason)
 	_bank_run()
 
 	_pending_clear = {}

@@ -21,7 +21,7 @@ const RUN_LIMIT := 240.0
 var main: Node
 var experiment: Node
 var variant := 0
-var skill := 1.0
+var persona: Persona
 var wanted := 6
 
 var run := 0
@@ -34,7 +34,13 @@ var deaths: Array[String] = []
 
 func _initialize() -> void:
 	variant = int(OS.get_environment("VARIANT"))
-	skill = float(OS.get_environment("SKILL"))
+	var who := OS.get_environment("PERSONA")
+	persona = Persona.by_name(who if not who.is_empty() else "Optimiser")
+	var skill := OS.get_environment("SKILL")
+	if not skill.is_empty():
+		# A bare skill overrides the persona's own, for sweeping competence
+		# with the style held still.
+		persona.proficiency = float(skill)
 	var asked := int(OS.get_environment("RUNS"))
 	wanted = clampi(asked if asked > 0 else 6, 1, SEEDS.size())
 
@@ -56,11 +62,12 @@ func _begin() -> void:
 	main.forced_seed = SEEDS[run]
 	main.start_run(0)
 	# Straight to the autoplayer rather than through _launch_autoplay, which
-	# would equip the planning bot with a full shop and make the two standards
-	# of play incomparable.
-	var grade: int = Autoplayer.Skill.EXPERT if skill >= Autoplayer.PLANS_FROM \
+	# would equip the planning bot with a full shop and make the standards of
+	# play incomparable.
+	var grade: int = Autoplayer.Skill.EXPERT \
+		if persona.proficiency >= Autoplayer.PLANS_FROM \
 		else Autoplayer.Skill.SHOWCASE
-	main._autoplayer.start(grade, 5000 + run, skill)
+	main._autoplayer.start(grade, 5000 + run, -1.0, persona)
 	elapsed = 0.0
 
 
@@ -107,7 +114,7 @@ func _report() -> void:
 	for r in deaths:
 		reasons[r] = int(reasons.get(r, 0)) + 1
 
-	print("RESULT variant=%s skill=%.2f n=%d mean=%.1f median=%.1f min=%d max=%d %s %s"
-		% [BlockSource.NAMES[variant], skill, sorted.size(),
+	print("RESULT variant=%s persona=%-9s n=%d mean=%.1f median=%.1f min=%d max=%d %s %s"
+		% [BlockSource.NAMES[variant], persona.name, sorted.size(),
 			float(total) / sorted.size(), median, sorted[0],
 			sorted[sorted.size() - 1], str(sorted), str(reasons)])

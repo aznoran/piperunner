@@ -80,6 +80,10 @@ func resize(context: Dictionary) -> void:
 		_reset_held()
 
 
+func holds_windows() -> bool:
+	return true
+
+
 func chosen_was_held() -> bool:
 	var index := _offer.selected
 	if index < 0 or index >= _held.size():

@@ -12,7 +12,7 @@ signal cart_chosen(variant: int)
 ## Emitted when a mode is picked in the carousel, as one of MODE_*.
 signal mode_chosen(mode: int)
 ## Debug only: hand a classic run to the autoplayer, at this standard of play.
-signal autoplay_requested(level: float)
+signal autoplay_requested(level: float, persona: Persona)
 ## Emitted when a station is picked on the story map.
 signal level_chosen(number: int)
 
@@ -97,9 +97,9 @@ func _build_bench() -> void:
 	_bench = DebugPanel.new()
 	_bench.name = "DebugPanel"
 	_bench.visible = false
-	_bench.autoplay_requested.connect(func(level: float) -> void:
+	_bench.autoplay_requested.connect(func(level: float, style: Persona) -> void:
 		_close_panels()
-		autoplay_requested.emit(level))
+		autoplay_requested.emit(level, style))
 	_bench.unlock_requested.connect(_debug_unlock)
 	_bench.reset_requested.connect(_reset_progress)
 	# Into the tree first: the panel measures the viewport as it builds, and

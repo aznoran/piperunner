@@ -132,6 +132,13 @@ func chosen_slot() -> int:
 	return 0
 
 
+## Whether shapes left untaken survive the turn. Only variant C says yes, and
+## it is the difference between a strip that is a hand and one that is a draw —
+## anything reasoning about what to keep has to ask before it bothers.
+func holds_windows() -> bool:
+	return false
+
+
 ## Whether the shape in the chosen slot was carried over from a previous turn
 ## rather than dealt this one. Only variant C can answer yes; it is the whole
 ## point of the comparison, so it is on the interface rather than cast for.

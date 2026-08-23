@@ -10,7 +10,7 @@ class_name DebugPanel
 extends Control
 
 ## Runs a classic run under the autoplayer at the given standard of play.
-signal autoplay_requested(level: float)
+signal autoplay_requested(level: float, persona: Persona)
 ## Debug conveniences that used to live in Settings.
 signal unlock_requested
 signal reset_requested
@@ -73,6 +73,10 @@ var _variant_buttons: Array[Button] = []
 ## Sliders and the values they started at, so a knob can be put back without
 ## reloading the balance sheet and losing every other change with it.
 var _sliders: Dictionary = {}
+## The archetype the bot plays as, and the buttons that pick it.
+var _persona: Persona = Persona.by_name("Optimiser")
+var _persona_buttons: Array[Button] = []
+var _playlog_label: Label
 var _defaults: Dictionary = {}
 var _assignment: Label
 
@@ -127,7 +131,9 @@ func _build() -> void:
 	scroll.add_child(rows)
 
 	_add_variants(rows)
+	_add_personas(rows)
 	_add_actions(rows)
+	_add_playlog(rows)
 	_fit()
 	for knob: Dictionary in KNOBS:
 		if knob.has("group"):
@@ -227,10 +233,97 @@ func _show_assignment() -> void:
 	_assignment.text = "Group %s from %s%s" % [Experiment.name_of(), source, forced]
 
 
+## The archetype the bot plays as. Style rather than strength: the proficiency
+## slider below still sets how well it plays, and a persona sets what it plays
+## for. See Persona.
+func _add_personas(parent: Control) -> void:
+	_add_heading(parent, "Bot persona")
+
+	var caption := Label.new()
+	caption.text = "Dabbler casual · Rusher height · Scavenger fuel · Hoarder keeps windows · Optimiser balanced"
+	caption.add_theme_font_size_override("font_size", 15)
+	caption.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
+	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(caption)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	parent.add_child(row)
+
+	for candidate in Persona.catalogue():
+		var button := Button.new()
+		button.text = candidate.name.substr(0, 4)
+		button.tooltip_text = candidate.name
+		button.custom_minimum_size = Vector2(0, 54)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", 16)
+		button.toggle_mode = true
+		button.button_pressed = candidate.name == _persona.name
+		button.pressed.connect(_pick_persona.bind(candidate))
+		_persona_buttons.append(button)
+		row.add_child(button)
+
+
+func _pick_persona(chosen: Persona) -> void:
+	_persona = chosen
+	_bot_level = chosen.proficiency
+	var slider: TuningSlider = _sliders.get("bot_level")
+	if slider != null:
+		slider.set_value_silently(chosen.proficiency)
+		_show("bot_level", {"step": 0.05}, chosen.proficiency)
+	for i in _persona_buttons.size():
+		_persona_buttons[i].button_pressed = \
+			_persona_buttons[i].tooltip_text == chosen.name
+
+
+## What the behaviour store is holding, and the two things worth doing to it.
+## Shown as a count rather than left invisible: a store nobody can see the size
+## of is a store nobody trusts.
+func _add_playlog(parent: Control) -> void:
+	_add_heading(parent, "Behaviour log")
+
+	_playlog_label = Label.new()
+	_playlog_label.add_theme_font_size_override("font_size", 15)
+	_playlog_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
+	_playlog_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(_playlog_label)
+	_show_playlog()
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+
+	for spec in [
+		{"text": "Export", "call": func() -> void:
+			var path: String = PlayLog.export_all()
+			_playlog_label.text = "Written to %s" % path},
+		{"text": "Clear", "call": func() -> void:
+			PlayLog.clear()
+			_show_playlog()},
+	]:
+		var button := Button.new()
+		button.text = String(spec["text"])
+		button.custom_minimum_size = Vector2(0, 54)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", 18)
+		var action: Callable = spec["call"]
+		button.pressed.connect(func() -> void: action.call())
+		row.add_child(button)
+
+
+func _show_playlog() -> void:
+	if _playlog_label == null:
+		return
+	var held := PlayLog.stats()
+	_playlog_label.text = "%d runs, %d KB on this device. Nothing is sent anywhere." \
+		% [int(held["runs"]), int(held["bytes"]) / 1024]
+
+
 func _add_actions(parent: Control) -> void:
 	_add_heading(parent, "Run")
 	for spec in [
-		{"text": "Play as bot", "call": func() -> void: autoplay_requested.emit(_bot_level)},
+		{"text": "Play as bot", "call": func() -> void:
+			autoplay_requested.emit(_bot_level, _persona)},
 		{"text": "Grant all upgrades", "call": func() -> void: unlock_requested.emit()},
 		{"text": "Reset progress", "call": func() -> void: reset_requested.emit()},
 	]:
