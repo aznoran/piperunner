@@ -20,7 +20,7 @@ extends PipeDealer
 func fill(rng: RandomNumberGenerator, count: int,
 		context: Dictionary) -> Array[int]:
 	var need: int = int(context.get("need", PipeDefs.NO_EXIT))
-	var assist_now := _assist(context)
+	var assist_now := assistance(context)
 
 	var dealt: Array[int] = []
 	for _i in maxi(count, 1):
@@ -34,59 +34,6 @@ func fill(rng: RandomNumberGenerator, count: int,
 		if _window_is_dead(visible + dealt, need):
 			dealt[dealt.size() - 1] = _rescue(rng, need)
 	return dealt
-
-
-## How hard the thumb presses, 0..1, given everything the run knows.
-func _assist(context: Dictionary) -> float:
-	if _balance == null:
-		return 0.0
-	var ceiling := _ceiling(
-		int(context.get("runs_played", 0)),
-		bool(context.get("in_slump", false)))
-	var pressure_now := _pressure(
-		float(context.get("fuel", 0.0)),
-		float(context.get("fuel_max", 1.0)),
-		int(context.get("buffer", 0)),
-		int(context.get("horizon", 0)))
-	# The curve is concave: at middling pressure assistance is still almost
-	# off, and it comes in sharply at the edge. The player should never feel
-	# led by the hand — only that the game did not finish them off.
-	return pow(clampf(pressure_now, 0.0, 1.0), 1.5) * ceiling
-
-
-## How much trouble the player will be in when this piece reaches their hand —
-## not how much they are in now. The piece is `horizon` moves away, so reading
-## the present would arrive that many moves late.
-func _pressure(fuel: float, fuel_max: float, buffer: int,
-		horizon: int) -> float:
-	# Fuel is spent deterministically, so it can be projected outright.
-	var projected: float = fuel - _balance.fuel_per_cell * horizon
-	var fuel_ratio: float = projected / maxf(fuel_max, 1.0)
-	var floor_ratio: float = maxf(_balance.assist_fuel_floor, 0.01)
-	var fuel_pressure := clampf((floor_ratio - fuel_ratio) / floor_ratio,
-		0.0, 1.0)
-
-	# Buffer cannot be projected — it depends on what the player builds — but
-	# its current value says what pace they are keeping.
-	var buffer_floor: float = maxf(float(_balance.assist_buffer_floor), 1.0)
-	var buffer_pressure := clampf((buffer_floor - buffer) / buffer_floor,
-		0.0, 1.0)
-
-	# The larger of two dangers, not their sum: being short of both is not
-	# twice as bad as being short of one.
-	return maxf(fuel_pressure, buffer_pressure)
-
-
-## Ceiling on assistance for a player this experienced.
-func _ceiling(runs_played: int, in_slump: bool) -> float:
-	var ceiling: float = _balance.assist_max_veteran
-	if runs_played < _balance.assist_runs_new:
-		ceiling = _balance.assist_max_new
-	elif runs_played < _balance.assist_runs_early:
-		ceiling = _balance.assist_max_early
-	if in_slump:
-		ceiling += _balance.assist_slump_bonus
-	return clampf(ceiling, 0.0, 1.0)
 
 
 ## Rolls a shape. `need` is the side the cart will arrive from at the joint, or
@@ -128,10 +75,7 @@ func _window_is_dead(visible: Array, need: int) -> bool:
 
 ## A shape that serves the joint, for when the window has gone dead.
 func _rescue(rng: RandomNumberGenerator, need: int) -> int:
-	var fitting: Array[int] = []
-	for type: int in PipeDefs.WEIGHTS:
-		if PipeDefs.SIDES[type].has(need):
-			fitting.append(type)
+	var fitting: Array[int] = split_by_fit(need)[0]
 	if fitting.is_empty():
 		return PipeDefs.Type.V
 	return fitting[rng.randi_range(0, fitting.size() - 1)]

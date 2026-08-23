@@ -18,12 +18,12 @@ func variant() -> int:
 	return Variant.B
 
 
-## Even rather than weighted, and distinct rather than free. Three shapes are
-## not a draw — the player is being handed a decision, not a piece — and both
-## weighting the options and letting them repeat only make that decision
-## quieter. Assistance would blunt it further, so the offer does without.
+## Distinct rather than free, and helped on quality rather than on
+## availability: three distinct shapes practically always contain one that
+## fits, so the queue's kind of assistance would be answering a question this
+## mechanic does not ask. See OfferDealer.
 func make_dealer() -> PipeDealer:
-	return RandomDealer.new()
+	return OfferDealer.new()
 
 
 func attach(queue_bar: QueueBar, offer_bar: OfferBar) -> void:

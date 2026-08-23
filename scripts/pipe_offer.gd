@@ -63,10 +63,15 @@ func replace(index: int, context: Dictionary = {}) -> void:
 	var kept: Array[int] = choices.duplicate()
 	kept.remove_at(index)
 
+	# The windows staying put go to the rule as `visible`. A rule that reasons
+	# about the whole strip — C's does — cannot see it any other way.
+	var ask := context.duplicate()
+	ask["visible"] = kept
+
 	# Ask for a full strip's worth and take the first shape that is not already
-	# on it. A rule is free to return shapes in any order, so this cannot
-	# assume the first one is usable.
-	for candidate: int in _dealer.fill(_rng, _size, context):
+	# on it. A rule is free to return shapes in any order, and C's returns them
+	# best-first, so the order is the rule's answer rather than a coincidence.
+	for candidate: int in _dealer.fill(_rng, _size, ask):
 		if not kept.has(candidate):
 			choices[index] = candidate
 			return

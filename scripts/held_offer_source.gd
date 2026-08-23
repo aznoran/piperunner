@@ -39,6 +39,13 @@ func variant() -> int:
 	return Variant.C
 
 
+## C's own rule. Refilling one window while two stay put is a different problem
+## from dealing three at once — the strip can go stale, and only one slot can
+## do anything about it. See HeldOfferDealer.
+func make_dealer() -> PipeDealer:
+	return HeldOfferDealer.new()
+
+
 func start(rng: RandomNumberGenerator, balance: GameBalance,
 		dealer: PipeDealer, context: Dictionary) -> void:
 	super(rng, balance, dealer, context)
