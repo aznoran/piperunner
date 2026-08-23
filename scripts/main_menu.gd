@@ -614,7 +614,7 @@ func _build_levels() -> void:
 		var scroll: Control = _levels_panel.get_node("Scroll")
 		(%Stations as Control).visible = false
 		scroll.add_child(_map)
-	_map.refresh(skin, _mode_tint(skin, MODE_STORY))
+	_map.refresh(skin, _mode_tint(skin, MODE_STORY), GameState)
 	# Deferred, because the scroll cannot be moved to a place its content does
 	# not have yet: the map only learns its own height when the layout settles.
 	_scroll_to_cart.call_deferred()

@@ -28,11 +28,19 @@ signal station_picked(number: int)
 ## half again as large, the grid read as sparse, and nothing about it recalled
 ## the field however faithfully each piece was drawn.
 const COLS := 7
-## The columns the road bounces between. Narrower than the grid on purpose:
-## the field is seven cells wide and the road winds up the middle of it, the
-## way a played run does, instead of ruling the full width every row.
+## The columns the road may use. One cell of field is kept either side so the
+## line never runs along the edge of the world.
 const ROAD_LEFT := 1
 const ROAD_RIGHT := 5
+## How often a climb turns aside instead of going straight up. This is the
+## whole character of the line: at zero it is a ladder, at one it staggers.
+const SIDESTEP_CHANCE := 0.44
+## Rocks strewn on the field away from the road, as a fraction of free cells.
+## Enough to look quarried, not enough to read as a maze.
+const RUBBLE := 0.1
+## Fixed, so the line is the same line every time the panel opens. A story map
+## that reshuffled itself would not be a place.
+const MAP_SEED := 20260824
 ## Cell size is chosen to fill the panel, within these.
 const CELL_MIN := 56.0
 const CELL_MAX := 124.0
@@ -44,6 +52,8 @@ const RUN_OFF := 2
 
 var _skin: LocationSkin
 var _tint: Color = Color.WHITE
+## The save the map is reading progress out of.
+var _state: Node
 var _font: Font
 var _time: float = 0.0
 
@@ -60,16 +70,35 @@ var _here_index: int = 0
 ## tap rather than as a drag of the map.
 const DRAG_SLACK := 16.0
 
+## Rock cells, the cells the road uses, and which route index carries which
+## station. All rebuilt together, all keyed the same way the board keys them.
+var _rocks: Dictionary = {}
+var _on_road: Dictionary = {}
+var _stations: Dictionary = {}
+
+## How much of the flick survives each frame at sixty of them a second.
+const GLIDE_DECAY := 0.92
+
 var _pressed_at := Vector2.ZERO
 var _pressing: bool = false
+## How far the finger has travelled since it came down, and what is left of the
+## flick it ended with.
+var _travel: float = 0.0
+var _glide: float = 0.0
 var _cell: float = 96.0
 var _origin := Vector2.ZERO
 var _rows: int = 1
 var _grid_box := StyleBoxFlat.new()
+var _rock_box := StyleBoxFlat.new()
 
 
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
+	# The map moves itself rather than leaving it to the scroll. A
+	# ScrollContainer only drags on touch where the platform reports a
+	# touchscreen, which is true on the phone and false everywhere the thing
+	# can be tested — so the behaviour that shipped was the behaviour nobody
+	# could check. Owning the gesture makes it the same on both.
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_grid_box.bg_color = Color.TRANSPARENT
 
@@ -79,6 +108,13 @@ func _process(delta: float) -> void:
 	if not visible:
 		return
 	_time += delta
+	if not _pressing and absf(_glide) > 0.5:
+		# Coasting. Stops early if it has run into the end of the line, so a
+		# hard flick does not leave the map straining against the edge.
+		if is_zero_approx(_pan(_glide)):
+			_glide = 0.0
+		else:
+			_glide *= pow(GLIDE_DECAY, delta * 60.0)
 	queue_redraw()
 
 
@@ -96,12 +132,18 @@ func focus_offset(view_height: float) -> float:
 
 ## Rebuilds the route from the progress as it now stands. Cheap enough to call
 ## whenever the panel opens, which is the only time it can have changed.
-func refresh(skin: LocationSkin, tint: Color) -> void:
+##
+## The save is handed in rather than reached for by its autoload name. Three
+## scripts in this project have now been caught doing the latter, and it fails
+## the same way every time: a headless harness loads the script before the
+## autoloads exist and the whole compile falls over, somewhere far from here.
+func refresh(skin: LocationSkin, tint: Color, state: Node) -> void:
 	_skin = skin
 	_tint = tint
+	_state = state
 	_here = Levels.count()
 	for level in Levels.catalogue():
-		if not Levels.is_cleared(GameState, level.number):
+		if not Levels.is_cleared(_state, level.number):
 			_here = level.number
 			break
 	_relayout()
@@ -117,14 +159,17 @@ func _notification(what: int) -> void:
 func _relayout() -> void:
 	_route.clear()
 	_spots.clear()
+	_rocks.clear()
+	_on_road.clear()
+	_stations.clear()
 	var total := Levels.count()
 	if total == 0:
 		return
 
-	# One station a row, so the line is as long as the story is and the panel
-	# has to be dragged to see the end of it — which is the point. Plus a
-	# couple of rows of open field at each end.
-	_rows = total + RUN_OFF * 2
+	# Two rows a station, so the road has room to wander between them, and a
+	# couple of rows of open field at each end. The line comes out longer than
+	# the panel, which is the point — it is dragged through.
+	_rows = total * 2 + RUN_OFF * 2
 
 	# The scroll's size, not this control's: inside a scroll a control is sized
 	# to its content, so asking itself how tall it is only echoes back whatever
@@ -140,31 +185,61 @@ func _relayout() -> void:
 	queue_redraw()
 
 
-## Lays the cells down in the order the cart would meet them, and works out
-## which pipe shape each one has to be from the turn it makes there.
+## Lays the road down in the order the cart would meet it, and works out which
+## pipe each cell has to be from the turn it makes there.
+##
+## The road is generated rather than ruled. A serpentine — across, turn, back —
+## is the obvious thing and it looked like a diagram: no line anybody actually
+## built goes like that. This one climbs, and at every row it may step aside
+## first, one or two cells, before carrying on up.
+##
+## What makes it read as a route rather than as a wiggle is that the sidesteps
+## are given a reason: the cell it would have climbed into gets a rock. So
+## every kink in the line is the line going round something, and the field
+## behind it tells the story of why the road is shaped as it is.
 func _walk(total: int) -> void:
-	# The road, bottom to top. The cart climbs in a run, so it climbs here:
-	# station one sits at the bottom and the last at the top, and progress
-	# fills upward exactly as built track does.
-	#
-	# Each station row runs across to the far side, then the road steps up a
-	# row and comes back — so every station is the corner the road turns at,
-	# and between two of them is a straight stretch of pipe.
-	var cells: Array[Vector2i] = []
-	var column := ROAD_LEFT
-	for i in total:
-		var row: int = _rows - 1 - RUN_OFF - i
-		var far: int = ROAD_RIGHT if column == ROAD_LEFT else ROAD_LEFT
-		# Across this row, station to station.
-		var stride: int = 1 if far > column else -1
-		var x := column
-		while x != far:
-			cells.append(Vector2i(x, row))
-			x += stride
-		cells.append(Vector2i(far, row))
-		column = far
+	var rng := RandomNumberGenerator.new()
+	rng.seed = MAP_SEED
 
-	var number := 0
+	var cells: Array[Vector2i] = []
+	var column: int = (ROAD_LEFT + ROAD_RIGHT) / 2
+	var row: int = _rows - 1 - RUN_OFF
+	var floor_row: int = RUN_OFF
+
+	while row >= floor_row:
+		cells.append(Vector2i(column, row))
+		if row == floor_row:
+			break
+
+		if rng.randf() < SIDESTEP_CHANCE:
+			# Turn aside. Which way is forced at the edges of the road's band,
+			# and free in the middle.
+			var toward: int = 1
+			if column >= ROAD_RIGHT:
+				toward = -1
+			elif column > ROAD_LEFT:
+				toward = 1 if rng.randf() < 0.5 else -1
+			# What it swerved to avoid.
+			_rocks[Vector2i(column, row - 1)] = true
+			for _i in rng.randi_range(1, 2):
+				var next: int = column + toward
+				if next < ROAD_LEFT or next > ROAD_RIGHT:
+					break
+				column = next
+				cells.append(Vector2i(column, row))
+		row -= 1
+
+	# Stations spread evenly along the road as it came out, rather than at
+	# fixed columns: the shape is the shape, and the crystals sit on it.
+	var last: int = cells.size() - 1
+	for j in total:
+		var at: int = int(round(float(j) * float(last) / float(maxi(total - 1, 1))))
+		var station: int = j + 1
+		_spots[station] = _centre(cells[at])
+		if station == _here:
+			_here_index = at
+		_stations[at] = station
+
 	for i in cells.size():
 		var cell := cells[i]
 		# Entry is the side facing where the cart came from, exit the side
@@ -178,24 +253,29 @@ func _walk(total: int) -> void:
 		if forward == Vector2i.ZERO:
 			forward = -back
 
-		# A station is a corner: the cell the road arrives at and turns up from.
-		# Those are the only cells whose two sides are not opposite each other
-		# along a row, so they are found rather than counted off.
-		var station := 0
-		var turns: bool = (back.y != 0 or forward.y != 0) or i == 0 \
-			or i == cells.size() - 1
-		if turns and number < total:
-			number += 1
-			station = number
-			_spots[station] = _centre(cell)
-			if station == _here:
-				_here_index = i
-
 		_route.append({
 			"cell": cell,
 			"type": _shape(_side(back), _side(forward)),
-			"station": station,
+			"station": int(_stations.get(i, 0)),
 		})
+		_on_road[cell] = true
+
+	_strew(rng)
+
+
+## Rubble across the rest of the field, so the road is crossing somewhere
+## rather than floating on graph paper. Nothing lands on the road itself, and
+## nothing directly above a station, where it would crowd the crystal.
+func _strew(rng: RandomNumberGenerator) -> void:
+	for row in _rows:
+		for column in COLS:
+			var cell := Vector2i(column, row)
+			if _on_road.has(cell) or _rocks.has(cell):
+				continue
+			if rng.randf() < RUBBLE:
+				_rocks[cell] = true
+	for cell: Vector2i in _on_road:
+		_rocks.erase(cell)
 
 
 ## The side of a cell a step points at. The board's y runs up and the screen's
@@ -224,42 +304,82 @@ func _centre(cell: Vector2i) -> Vector2:
 
 # --- input --------------------------------------------------------------
 
-## A station opens on a tap, and only on a tap.
+## The map is dragged with a finger, and a station opens on a tap.
 ##
-## The map is longer than the panel and is meant to be dragged, so a press is
-## never acted on and never swallowed — the scroll has to be able to take the
-## gesture. Only a release close to where the press landed counts, which is the
-## difference between choosing a station and scrolling past it.
+## Both live here because they are the same gesture until they are not: a
+## press could still become either, and only the travel between press and
+## release tells them apart. Past the slack it was a drag and no station opens,
+## however precisely the finger came down on one.
 func _gui_input(event: InputEvent) -> void:
-	if not (event is InputEventScreenTouch or event is InputEventMouseButton):
+	if event is InputEventScreenTouch or event is InputEventMouseButton:
+		if event.pressed:
+			_pressed_at = event.position
+			_pressing = true
+			_travel = 0.0
+			_glide = 0.0
+			accept_event()
+			return
+		if not _pressing:
+			return
+		_pressing = false
+		accept_event()
+		if _travel > DRAG_SLACK:
+			return  # that was a drag, and it has already moved the panel
+		_glide = 0.0
+		_pick_at(event.position)
 		return
-	if event.pressed:
-		_pressed_at = event.position
-		_pressing = true
-		return
+
 	if not _pressing:
 		return
-	_pressing = false
-	if event.position.distance_to(_pressed_at) > DRAG_SLACK:
-		return  # that was a drag; the scroll has already acted on it
+	var moved := 0.0
+	if event is InputEventScreenDrag:
+		moved = (event as InputEventScreenDrag).relative.y
+	elif event is InputEventMouseMotion:
+		moved = (event as InputEventMouseMotion).relative.y
+	else:
+		return
+	_travel += absf(moved)
+	_pan(-moved)
+	# Kept so the map carries on a little after the finger lifts, the way a
+	# list does. Without it a long line takes a dozen swipes to cross.
+	_glide = -moved
+	accept_event()
 
+
+func _pick_at(position: Vector2) -> void:
 	for number: int in _spots:
-		if event.position.distance_to(_spots[number]) > _cell * 0.5:
+		if position.distance_to(_spots[number]) > _cell * 0.5:
 			continue
-		if not Levels.is_unlocked(GameState, number):
+		if not Levels.is_unlocked(_state, number):
 			return  # out of reach: the tap does nothing rather than misfiring
-		accept_event()
 		station_picked.emit(number)
 		return
+
+
+## Moves the panel by `amount`, and reports how much of it was actually used —
+## nothing, once the line has been dragged to either end.
+func _pan(amount: float) -> float:
+	var scroll := _scroll()
+	if scroll == null:
+		return 0.0
+	var before := scroll.scroll_vertical
+	scroll.scroll_vertical = int(round(float(before) + amount))
+	return float(scroll.scroll_vertical - before)
+
+
+func _scroll() -> ScrollContainer:
+	var parent := get_parent()
+	return parent as ScrollContainer
 
 
 # --- drawing ------------------------------------------------------------
 
 func _draw() -> void:
-	if _skin == null or _route.is_empty():
+	if _skin == null or _state == null or _route.is_empty():
 		return
 	_draw_ground()
 	_draw_grid()
+	_draw_rocks()
 	for i in _route.size():
 		_draw_pipe(i)
 	for step: Dictionary in _route:
@@ -297,10 +417,27 @@ func _draw_grid() -> void:
 	_grid_box.set_corner_radius_all(int(_cell * 0.16))
 	for row in _rows:
 		for column in COLS:
-			var centre := _centre(Vector2i(column, row))
+			var cell := Vector2i(column, row)
+			if _rocks.has(cell):
+				continue  # a rock is not a cell anything can be built on
+			var centre := _centre(cell)
 			var side := _cell * 0.84
 			draw_style_box(_grid_box,
 				Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side)))
+
+
+## The rocks, in the board's own fill and edge. Drawn under the road, since the
+## road was laid past them rather than over them.
+func _draw_rocks() -> void:
+	_rock_box.bg_color = _skin.rock_fill
+	_rock_box.border_color = _skin.rock_edge
+	_rock_box.set_border_width_all(maxi(1, int(_cell * 0.03)))
+	_rock_box.set_corner_radius_all(int(_cell * 0.16))
+	for cell: Vector2i in _rocks:
+		var centre := _centre(cell)
+		var side := _cell * 0.94
+		draw_style_box(_rock_box,
+			Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side)))
 
 
 ## One pipe, drawn the way Board draws one: a shell out to each open side, a
@@ -338,8 +475,8 @@ func _offset(side: int, reach: float) -> Vector2:
 func _draw_station(step: Dictionary) -> void:
 	var number: int = int(step["station"])
 	var centre: Vector2 = _centre(step["cell"])
-	var cleared: bool = Levels.is_cleared(GameState, number)
-	var unlocked: bool = Levels.is_unlocked(GameState, number)
+	var cleared: bool = Levels.is_cleared(_state, number)
+	var unlocked: bool = Levels.is_unlocked(_state, number)
 	# Wider than the pipe it sits on, or the socket disappears into the track:
 	# the shell is a third of a cell, so anything narrower than that reads as a
 	# bulge in the road rather than as a thing in its own right.
