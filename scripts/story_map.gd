@@ -45,10 +45,10 @@ const MAP_SEED := 20260824
 const CELL_MIN := 56.0
 const CELL_MAX := 124.0
 const EDGE := 8.0
-## Rows of empty field above the last station and below the first, so the road
-## reads as part of a longer line rather than as something that starts and
-## stops at the edges of the panel.
-const RUN_OFF := 2
+## Cells of road beyond the first and last stations. The line is longer than
+## the story: it comes up out of somewhere and carries on somewhere, and these
+## are the cells over which it fades away rather than stopping at a cut end.
+const LEAD := 7
 
 var _skin: LocationSkin
 var _tint: Color = Color.WHITE
@@ -65,6 +65,10 @@ var _spots: Dictionary = {}
 ## The station the cart is parked at, and how far along the route that is.
 var _here: int = 1
 var _here_index: int = 0
+## Where along the road the stations begin and end. Outside them the line is
+## fading in or out, and is drawn as such.
+var _first_station: int = 0
+var _last_station: int = 0
 
 ## How far a finger may travel between press and release and still count as a
 ## tap rather than as a drag of the map.
@@ -89,6 +93,8 @@ var _cell: float = 96.0
 var _origin := Vector2.ZERO
 var _rows: int = 1
 var _grid_box := StyleBoxFlat.new()
+## Rebuilt whenever the skin changes, which is the only thing it depends on.
+var _ground: GradientTexture2D
 var _rock_box := StyleBoxFlat.new()
 
 
@@ -138,6 +144,8 @@ func focus_offset(view_height: float) -> float:
 ## the same way every time: a headless harness loads the script before the
 ## autoloads exist and the whole compile falls over, somewhere far from here.
 func refresh(skin: LocationSkin, tint: Color, state: Node) -> void:
+	if _skin != skin:
+		_ground = null
 	_skin = skin
 	_tint = tint
 	_state = state
@@ -166,10 +174,10 @@ func _relayout() -> void:
 	if total == 0:
 		return
 
-	# Two rows a station, so the road has room to wander between them, and a
-	# couple of rows of open field at each end. The line comes out longer than
+	# Two rows a station, so the road has room to wander between them, plus the
+	# rows the line needs to run off at either end. It comes out longer than
 	# the panel, which is the point — it is dragged through.
-	_rows = total * 2 + RUN_OFF * 2
+	_rows = total * 2 + LEAD * 2
 
 	# The scroll's size, not this control's: inside a scroll a control is sized
 	# to its content, so asking itself how tall it is only echoes back whatever
@@ -203,8 +211,9 @@ func _walk(total: int) -> void:
 
 	var cells: Array[Vector2i] = []
 	var column: int = (ROAD_LEFT + ROAD_RIGHT) / 2
-	var row: int = _rows - 1 - RUN_OFF
-	var floor_row: int = RUN_OFF
+	# The whole height, edge to edge: the fading ends are road too.
+	var row: int = _rows - 1
+	var floor_row: int = 0
 
 	while row >= floor_row:
 		cells.append(Vector2i(column, row))
@@ -229,11 +238,15 @@ func _walk(total: int) -> void:
 				cells.append(Vector2i(column, row))
 		row -= 1
 
-	# Stations spread evenly along the road as it came out, rather than at
-	# fixed columns: the shape is the shape, and the crystals sit on it.
-	var last: int = cells.size() - 1
+	# Stations spread evenly along the middle of the road — not into the ends,
+	# which belong to the parts of the line that fade away.
+	var first: int = mini(LEAD, cells.size() - 1)
+	var last: int = maxi(cells.size() - 1 - LEAD, first)
+	_first_station = first
+	_last_station = last
 	for j in total:
-		var at: int = int(round(float(j) * float(last) / float(maxi(total - 1, 1))))
+		var at: int = first + int(round(float(j) * float(last - first)
+			/ float(maxi(total - 1, 1))))
 		var station: int = j + 1
 		_spots[station] = _centre(cells[at])
 		if station == _here:
@@ -396,17 +409,32 @@ func _draw() -> void:
 ## panel. So the gradient comes too, in bands — the same three colours the
 ## background uses, in the same order.
 func _draw_ground() -> void:
-	var bands := 32
-	var height: float = maxf(size.y, 1.0)
-	var band := height / float(bands) + 1.0
-	for i in bands:
-		var t := float(i) / float(bands - 1)
-		var shade: Color = _skin.bg_top.lerp(_skin.bg_mid, t / 0.55) if t < 0.55 \
-			else _skin.bg_mid.lerp(_skin.bg_bottom, (t - 0.55) / 0.45)
-		# Faded in at the very top, so the field arrives out of the panel
-		# rather than starting at a ruled line under the heading.
-		shade.a = clampf(t * float(bands) / 3.0, 0.0, 1.0)
-		draw_rect(Rect2(0.0, height * t, size.x, band), shade)
+	if _ground == null:
+		_build_ground()
+	draw_texture_rect(_ground, Rect2(Vector2.ZERO, size), false)
+
+
+## The background as one gradient rather than as a stack of rectangles.
+##
+## Painting it in bands looked right in a screenshot and wrong on a phone:
+## every seam between two bands showed as a faint rule across the field, and
+## thirty-two of them read as corduroy. A gradient texture has no seams to
+## show.
+##
+## The first stop is transparent so the field arrives out of the panel instead
+## of starting at a hard line under the heading.
+func _build_ground() -> void:
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 0.06, 0.55, 1.0])
+	gradient.colors = PackedColorArray([
+		Color(_skin.bg_top, 0.0), _skin.bg_top, _skin.bg_mid, _skin.bg_bottom])
+	var ramp := GradientTexture2D.new()
+	ramp.gradient = gradient
+	ramp.fill_from = Vector2(0.0, 0.0)
+	ramp.fill_to = Vector2(0.0, 1.0)
+	ramp.width = 4
+	ramp.height = 256
+	_ground = ramp
 
 
 ## The placement grid, exactly as the board draws it: an outline per cell, at
@@ -452,6 +480,19 @@ func _draw_pipe(index: int) -> void:
 	var flooded: bool = index < _here_index
 	var shell: Color = _skin.pipe_shell_used if flooded else _skin.pipe_shell
 	var core: Color = _skin.pipe_core_used if flooded else _skin.pipe_core
+
+	# Past the last station and below the first, the road thins out to nothing
+	# rather than stopping at a cut end.
+	var fade := 1.0
+	if index < _first_station:
+		fade = float(index) / float(maxi(_first_station, 1))
+	elif index > _last_station:
+		fade = float(_route.size() - 1 - index) \
+			/ float(maxi(_route.size() - 1 - _last_station, 1))
+	if fade <= 0.02:
+		return
+	shell.a *= fade
+	core.a *= fade
 
 	var shell_width := _cell * 0.34
 	var core_width := _cell * 0.09
