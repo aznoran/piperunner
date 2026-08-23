@@ -67,7 +67,7 @@ var _main: Node
 var _board: Board
 var _cart: Cart
 ## Whatever the live experiment variant hands the player. The bot reads the
-## same strip they do — in variant A that is one shape, in B and C three.
+## same strip they do, and takes from it the same way.
 var _offer: BlockSource
 var _wait: float = 0.0
 var _rng := RandomNumberGenerator.new()
@@ -382,9 +382,9 @@ func _score(joint: Vector2i, piece: int, entry: int) -> float:
 
 ## Points the offer at one of its shapes, through the same call a tap makes.
 func _choose(index: int) -> void:
-	# Already pointing there. Worth checking rather than tapping anyway: in
-	# variant A the strip's one tap target is the pocket, so a redundant tap
-	# would swap the piece in hand instead of doing nothing.
+	# Already pointing there. Worth checking rather than tapping anyway: a tap
+	# is a real action, and a redundant one costs a turn the cart is still
+	# rolling through.
 	if index == _offer.chosen_slot():
 		return
 	_main._on_offer_chosen(index)

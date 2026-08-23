@@ -55,7 +55,6 @@ var forced_seed: int = -1
 @onready var _camera: Camera2D = $Camera
 @onready var _hud: Hud = $Hud
 @onready var _offer_bar: OfferBar = $Ui/OfferBar
-@onready var _queue_bar: QueueBar = $Ui/QueueBar
 @onready var _screen_fx: ScreenFx = $ScreenFx
 @onready var _overlay: GameOverScreen = $GameOver
 @onready var _menu: MainMenu = $MainMenu
@@ -70,8 +69,8 @@ var forced_seed: int = -1
 
 var state: State = State.MENU
 
-## Where the next pipe comes from. Which of the three variants this is comes
-## from the experiment, and nothing below this line asks which.
+## Where the next pipe comes from. Which variant this is comes from the
+## experiment, and nothing below this line asks which.
 var _blocks: BlockSource
 ## Which rule fills the offer. This line is the whole extension point: anything
 ## deriving from PipeDealer plugs in here and nothing else has to move.
@@ -141,6 +140,9 @@ func _ready() -> void:
 	# variant can change out from under a menu that has not been played yet —
 	# which is exactly when it is safe to swap the mechanic.
 	Experiment.resolved.connect(_on_variant_resolved)
+	# Experiment publishes during its own _ready, before anything here is
+	# listening, so the group is stamped once by hand as well as on the signal.
+	_stamp_variant()
 	Analytics.session_start()
 	_praise.setup(balance)
 	_cart.board = _board
@@ -187,10 +189,7 @@ func _ready() -> void:
 func _rebuild_balance() -> void:
 	balance = base_balance.duplicate()
 	balance.fuel_max += Upgrades.bonus(&"tank", GameState)
-	# One upgrade, two strips: it widens whichever one the live variant draws.
-	var wider: int = int(Upgrades.bonus(&"preview", GameState))
-	balance.offer_size += wider
-	balance.queue_preview += wider
+	balance.offer_size += int(Upgrades.bonus(&"preview", GameState))
 	balance.runway += int(Upgrades.bonus(&"runway", GameState))
 	_magnet_reach = int(Upgrades.bonus(&"magnet", GameState))
 	if _board != null:
@@ -240,7 +239,6 @@ func _equip_for_the_long_run() -> void:
 				balance.fuel_max += maxed
 			"preview":
 				balance.offer_size += int(maxed)
-				balance.queue_preview += int(maxed)
 			"runway":
 				balance.runway += int(maxed)
 			"magnet":
@@ -255,11 +253,19 @@ func _equip_for_the_long_run() -> void:
 ## run in progress keeps the mechanic it started with, because a player whose
 ## strip changed mid-run is not a clean data point for either variant.
 func _on_variant_resolved(_variant: int) -> void:
+	_stamp_variant()
 	if state != State.MENU:
 		return
 	_build_source()
 	_blocks.start(_offer_rng, balance, _dealer, _deal_context())
 	_refresh_strip()
+
+
+## Puts the group on the user, which is the only thing Firebase's own
+## retention report can be split by — D1 and D7 come from sessions the SDK logs
+## itself, and those carry none of our parameters.
+func _stamp_variant() -> void:
+	Analytics.set_variant(Experiment.name_of(), Experiment.debug_override)
 
 
 ## Closes out the session, and the run inside it if one is live.
@@ -290,7 +296,7 @@ func _build_source() -> void:
 	_blocks = Experiment.make_source()
 	_dealer = _blocks.make_dealer()
 	_dealer.setup(balance)
-	_blocks.attach(_queue_bar, _offer_bar)
+	_blocks.attach(_offer_bar)
 	# The bot reads the strip through the same object the player taps, so it
 	# has to be re-pointed at the new one. Holding the old source left it
 	# reading a strip that had never been dealt.
@@ -300,14 +306,13 @@ func _build_source() -> void:
 
 ## Shows the strip the live variant plays on, and only that one.
 func _show_strip() -> void:
-	_blocks.attach(_queue_bar, _offer_bar)
+	_blocks.attach(_offer_bar)
 	_blocks.reveal()
 	_refresh_strip()
 
 
 func _hide_strip() -> void:
 	_offer_bar.visible = false
-	_queue_bar.visible = false
 
 
 ## Spends the chosen shape and deals whatever replaces it.
@@ -339,7 +344,6 @@ func apply_skin(skin: LocationSkin) -> void:
 	_board.set_skin(skin)
 	_cart.set_skin(skin)
 	_offer_bar.set_skin(skin)
-	_queue_bar.set_skin(skin)
 	_hud.set_skin(skin)
 	_screen_fx.set_skin(skin)
 
@@ -355,7 +359,6 @@ func _apply_layout() -> void:
 	_cart.set_cell_size(_cell_size)
 	_fx.set_cell_size(_cell_size)
 	_offer_bar.set_cell_size(_cell_size)
-	_queue_bar.set_cell_size(_cell_size)
 	_refresh_strip()
 	_camera.position.x = viewport.x * 0.5
 

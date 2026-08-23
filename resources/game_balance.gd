@@ -82,17 +82,10 @@ extends Resource
 ## of shapes that exist, since an offer never repeats one.
 ## How many shapes variant B and C put on the strip to choose between.
 @export var offer_size: int = 3
-## How far ahead variant A's queue lets the player see. A different mechanic
-## with a different natural size, so it gets its own number rather than sharing
-## one with the offer.
-@export var queue_preview: int = 4
-
 @export_group("Dealer")
-## How strongly the dealer may favour a piece that fits, by experience. Zero
-## reproduces the plain weighted roll from spec section 04.
-##
-## Only variant A deals this way: the offer variants hand out distinct shapes
-## evenly, so none of these touch them.
+## How hard the dealing rules may lean on a player in trouble, by experience.
+## Zero switches assistance off entirely and leaves the even draw of spec
+## section 04.
 @export var assist_max_new: float = 0.90
 @export var assist_max_early: float = 0.65
 @export var assist_max_veteran: float = 0.40

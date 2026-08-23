@@ -49,11 +49,10 @@ func _process(_delta: float) -> bool:
 		# overriding mid-run is deliberately ignored.
 		main._show_menu()
 		experiment.override(variant)
-		# Switching variants rebuilds the source, and rebuilding must not put a
-		# strip on screen: the menu's own buttons live down there, and a run
-		# has not started.
-		_check(not main.get_node("Ui/QueueBar").visible
-				and not main.get_node("Ui/OfferBar").visible,
+		# Switching variants rebuilds the source, and rebuilding must not put
+		# the strip on screen: the menu's own buttons live down there, and a
+		# run has not started.
+		_check(not main.get_node("Ui/OfferBar").visible,
 			"no strip shows in the menu after switching to %s"
 				% BlockSource.NAMES[variant])
 		main.start_run(0)
@@ -90,8 +89,6 @@ func _process(_delta: float) -> bool:
 			ever_changed = true
 
 	match variant:
-		BlockSource.Variant.A:
-			_check(before.size() == 1, "A offers one shape, not a choice")
 		BlockSource.Variant.B:
 			_check(before.size() == 3, "B offers three shapes")
 			_check(ever_changed,
@@ -106,7 +103,7 @@ func _process(_delta: float) -> bool:
 	variant += 1
 	stage = 0
 	frames = 0
-	if variant < 3:
+	if variant < BlockSource.NAMES.size():
 		return false
 
 	print("--- %d checks, %d failed ---" % [checks, failures])

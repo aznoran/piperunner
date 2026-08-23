@@ -4,11 +4,8 @@
 ## this and never to a concrete variant, so switching variants is a single
 ## assignment rather than a branch threaded through the game loop.
 ##
-## Three implementations ship:
+## Two implementations ship:
 ##
-##   A  QueueSource      a forced queue — one piece in hand, a preview behind
-##                       it, a pocket to stash an awkward shape. The mechanic
-##                       the game shipped with, and the baseline to beat.
 ##   B  OfferSource      three shapes, take one, all three are replaced. The
 ##                       player chooses the shape as well as the cell, and pays
 ##                       for it by spending the whole offer.
@@ -16,18 +13,21 @@
 ##                       The two untaken stay put, so an awkward shape can be
 ##                       left on the strip until there is a use for it.
 ##
-## A variant owns its own strip. That is why `attach` takes both: each one
-## shows the widget its mechanic is built around and hides the other, and Main
-## never has to ask which is on screen.
+## There used to be a third — the forced queue the game shipped with, a piece
+## in hand and a preview behind it. It is gone: across five playing styles it
+## was nobody's best, and at casual play every one of its runs ended with the
+## track running out rather than with an empty tank, which is the game's own
+## economy never getting to matter. `docs/variant-analysis.md` has the numbers,
+## and the `experiment-abc` branch has the code.
 class_name BlockSource
 extends RefCounted
 
 ## Which experiment group this is. The letters are the values Remote Config
 ## serves, so they are the names used end to end — config, code and analytics.
-enum Variant { A, B, C }
+enum Variant { B, C }
 
 ## Names for analytics and for the debug bench, indexed by Variant.
-const NAMES := ["A", "B", "C"]
+const NAMES := ["B", "C"]
 
 var _balance: GameBalance
 var _dealer: PipeDealer
@@ -36,7 +36,7 @@ var _rng: RandomNumberGenerator
 
 func variant() -> int:
 	push_error("BlockSource.variant is abstract — subclass it")
-	return Variant.A
+	return Variant.B
 
 
 ## The rule this variant deals shapes by. Each mechanic was designed around
@@ -46,13 +46,13 @@ func make_dealer() -> PipeDealer:
 	return RandomDealer.new()
 
 
-## Binds the source to the two strips in the scene and leaves **both hidden**.
+## Binds the source to the strip and leaves it **hidden**.
 ##
 ## Binding is not showing. A source is built whenever the variant changes,
 ## which includes standing in the menu with the bench open — and a strip that
 ## appeared there would sit across the menu's own buttons with a run that has
 ## not started. `reveal` is the separate, deliberate step.
-func attach(_queue_bar: QueueBar, _offer_bar: OfferBar) -> void:
+func attach(_offer_bar: OfferBar) -> void:
 	push_error("BlockSource.attach is abstract — subclass it")
 
 
@@ -117,17 +117,11 @@ func strip() -> Control:
 
 
 ## The shapes a placement could spend right now, left to right.
-##
-## Variant A returns one — the piece in hand. That is not a limitation of the
-## reporting, it is the mechanic: in A the player chooses the cell and nothing
-## else. Anything reading this (the bot, analytics) gets the same answer the
-## player sees.
 func choices() -> Array[int]:
 	return [current()]
 
 
-## Which slot the next placement spends, for `block_taken`. Variant A has one
-## place a piece can come from, so it always reports 0.
+## Which slot the next placement spends, for `block_taken`.
 func chosen_slot() -> int:
 	return 0
 

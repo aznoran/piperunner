@@ -13,8 +13,7 @@
 ##
 ## What that buys the player is a stash they did not have to pay for. An
 ## awkward shape can be left sitting in its window until the joint that wants
-## it comes round, which is the pocket from variant A generalised to three
-## slots and made free. What it costs them is that the strip goes stale: take
+## it comes round — a stash they never had to pay for. What it costs them is that the strip goes stale: take
 ## repeatedly from one window and the other two silently become dead weight,
 ## and the choice narrows to one live shape and two shapes they have already
 ## decided against.

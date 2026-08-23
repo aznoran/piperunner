@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Resource" path="res://resources/GameBalance.tres" id="2_balance"]
@@ -7,7 +7,6 @@
 [ext_resource type="Script" path="res://scripts/fx.gd" id="5_fx"]
 [ext_resource type="Script" path="res://scripts/screen_fx.gd" id="6_screenfx"]
 [ext_resource type="PackedScene" path="res://scenes/OfferBar.tscn" id="7_offer"]
-[ext_resource type="PackedScene" path="res://scenes/QueueBar.tscn" id="16_queue"]
 [ext_resource type="PackedScene" path="res://scenes/HUD.tscn" id="8_hud"]
 [ext_resource type="PackedScene" path="res://scenes/GameOver.tscn" id="9_over"]
 [ext_resource type="Script" path="res://scripts/input_handler.gd" id="10_input"]
@@ -106,9 +105,6 @@ color = Color(1, 0.301961, 0.301961, 0)
 layer = 9
 
 [node name="OfferBar" parent="Ui" instance=ExtResource("7_offer")]
-
-[node name="QueueBar" parent="Ui" instance=ExtResource("16_queue")]
-visible = false
 
 [node name="PraiseSlot" type="Control" parent="Ui"]
 unique_name_in_owner = true

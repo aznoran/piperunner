@@ -22,10 +22,9 @@ const KNOBS := [
 	{"id": "bot_level", "name": "Proficiency", "min": 0.0, "max": 1.0, "step": 0.05},
 
 	{"group": "Strip"},
-	{"id": "offer_size", "name": "Shapes on offer (B, C)", "min": 1, "max": 7, "step": 1},
-	{"id": "queue_preview", "name": "Preview length (A)", "min": 1, "max": 7, "step": 1},
+	{"id": "offer_size", "name": "Shapes on offer", "min": 1, "max": 7, "step": 1},
 
-	{"group": "Dealer (variant A only)"},
+	{"group": "Dealer"},
 	{"id": "assist_max_new", "name": "Assist: new player", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"id": "assist_max_early", "name": "Assist: early", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"id": "assist_max_veteran", "name": "Assist: veteran", "min": 0.0, "max": 1.0, "step": 0.05},
@@ -188,7 +187,7 @@ func _add_variants(parent: Control) -> void:
 	_add_heading(parent, "Gameplay variant")
 
 	var caption := Label.new()
-	caption.text = "A queue · B offer of 3 · C offer of 3, held"
+	caption.text = "B offer of 3 · C offer of 3, untaken windows held"
 	caption.add_theme_font_size_override("font_size", 16)
 	caption.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -228,9 +227,14 @@ func _pick_variant(index: int) -> void:
 func _show_assignment() -> void:
 	if _assignment == null:
 		return
-	var source := "Remote Config" if Experiment.assigned else "fallback (no config yet)"
+	# The switch is the thing worth reading first: C is built but not served,
+	# and a tester who does not know that will report the wrong bug.
+	var gate := "C is open" if Experiment.held_windows_enabled \
+		else "C is switched off — players all get B"
+	var source := "Remote Config" if Experiment.assigned else "fallback"
 	var forced := " · forced from here" if Experiment.debug_override else ""
-	_assignment.text = "Group %s from %s%s" % [Experiment.name_of(), source, forced]
+	_assignment.text = "%s. Group %s from %s%s" \
+		% [gate, Experiment.name_of(), source, forced]
 
 
 ## The archetype the bot plays as. Style rather than strength: the proficiency

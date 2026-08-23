@@ -1,20 +1,26 @@
-# A/B/C test: how the player gets their next pipe
+# The offer, and the question left open about it
 
-Three ways of handing the player a shape, measured against each other. The
-question is whether choosing the shape — and whether being allowed to *keep*
-the shapes you did not choose — is worth more than the forced queue the game
-shipped with.
+Two ways of handing the player a shape. Only one of them is served.
 
-## The three variants
+## The two variants
 
 | | Strip | Taking a shape | Class |
 |---|---|---|---|
-| **A** baseline | one piece in hand, preview behind it, a HOLD pocket | queue advances, a new shape joins the back | `QueueSource` |
 | **B** offer | three shapes, all equal | **all three** are replaced | `OfferSource` |
 | **C** held offer | three shapes, all equal | **only the one taken** is replaced | `HeldOfferSource` |
 
-A is the mechanic as it shipped, assistance and all. B and C are the branch's
-offer, and differ from each other by one method.
+They differ by one method, and B is what players get.
+
+## What happened to A
+
+There used to be a third: the forced queue the game shipped with — a piece in
+hand, a four-deep preview behind it, a pocket for an awkward shape. It is gone.
+
+Across five playing styles it was nobody's best, and at casual play *every one*
+of its runs ended with the track running out rather than with an empty tank,
+which means the fuel economy, the crystals and the continue offer never got to
+matter at all. `docs/variant-analysis.md` has the numbers; the `experiment-abc`
+branch has the code, and nothing here depends on it.
 
 ### What "held" means in C
 
@@ -24,8 +30,8 @@ the other two keep their shapes, turn after turn, until the player finally
 takes from them.
 
 That buys the player a stash they did not pay for — an awkward shape can sit in
-its window until the joint that wants it comes round, which is A's pocket
-generalised to three slots and made free. It costs them a strip that goes
+its window until the joint that wants it comes round. It costs them a strip
+that goes
 stale: take repeatedly from one window and the other two quietly become dead
 weight, and the choice narrows to one live shape and two already rejected.
 
@@ -46,34 +52,51 @@ game loop — the only place a letter turns into behaviour is
 `Experiment.make_source()`.
 
 ```
-Experiment.make_source() ─→ BlockSource ─┬─ QueueSource      (A) ─→ QueueBar
-                                         ├─ OfferSource      (B) ─┬→ OfferBar
+Experiment.make_source() ─→ BlockSource ─┬─ OfferSource      (B) ─┬→ OfferBar
                                          └─ HeldOfferSource  (C) ─┘
 ```
 
 Each variant also names the dealing rule it was designed around
-(`make_dealer()`): A leans on `AssistDealer`, because a forced draw without a
-thumb on the scale is a death sentence with no decision in it; B and C use
-`RandomDealer`, because weighting three options only makes the choice quieter.
+(`make_dealer()`): `OfferDealer` for B, which insures the rare dead offer and
+guarantees a way up under pressure, and `HeldOfferDealer` for C, which watches
+what is *staying* on the strip and works to how many of the four sides it can
+answer. Input needs no variant knowledge at all — the strip publishes tap
+targets as an array of rects.
 
-A variant owns its own strip, which is why `attach()` takes both bars: it shows
-the one its mechanic is built around and hides the other. Input needs no
-variant knowledge at all — the strip publishes tap targets as an array of
-rects, and A's array happens to hold exactly one, the pocket.
+## The switch
+
+**C is built, tested and not served.** Two Remote Config keys, not one:
+
+| Key | Meaning | Default |
+|---|---|---|
+| `held_windows_enabled` | the switch. Off, and everybody gets B | `false` |
+| `gameplay_variant` | the split, `B` or `C`. Read only while the switch is on | `B` |
+
+Two keys because they answer different questions. The split is an experiment
+setting, fiddled with while a test is being planned; the switch is a decision
+about what players get. Collapsed into one value, a mistyped rollout percentage
+starts serving an untested mechanic with no quick way back.
+
+The switch **overrides a saved group** — the one place the assign-once rule
+below is deliberately broken, because that is what a kill switch is for. The
+saved letter is kept rather than erased, so turning it back on restores the
+groups instead of reshuffling them. `tests/switch_check.gd` asserts that a
+saved `C` cannot reach a player while the switch is off.
 
 ## Assignment
 
 `Experiment` (autoload) resolves the group from Remote Config key
-`gameplay_variant`, one of `A`, `B`, `C`.
+`gameplay_variant`, `B` or `C`, once the switch is on.
 
 Three rules keep the data honest, and each is enforced in code:
 
 - **Assign once.** The first answer is written to `user://experiment.cfg` and
   is the answer from then on. A player who switched variants mid-test belongs
   to neither group.
-- **Offline keeps its group.** The A fallback is only for a player who has
-  never been assigned. Falling back to A for an offline C player would file
-  their sessions under A and poison the baseline.
+- **Offline keeps its group.** Once the switch is on and a player has been
+  assigned, a session with no network uses the saved letter. Falling back to B
+  for an offline C player would file their runs under the baseline and poison
+  it. Before the switch is on there is no group to keep, so B it is.
 - **Debug overrides are marked.** Forcing a variant from the bench does not
   persist and does not count as an assignment; every event it produces carries
   `debug_override: true`.
@@ -81,8 +104,8 @@ Three rules keep the data honest, and each is enforced in code:
 Firebase buckets by installation ID, so a player stays in their group across
 sessions without the game rolling anything itself.
 
-**Until Remote Config is live, every device falls back to A.** B and C are
-reachable only from the debug bench.
+**Until the switch is turned on, every device plays B.** C is reachable only
+from the debug bench, which marks everything it produces `debug_override`.
 
 ## Events
 
@@ -121,9 +144,9 @@ resolves, so a new player's first session is not filed under the fallback.
 
 ## What is done, and what is not
 
-**Done and testable now:** all three variants, the assignment logic with its
-fallback and persistence, every event above, the user property, and the debug
-bench. The GDScript side runs on desktop with no SDK at all — events print to
+**Done and testable now:** both variants, the switch, the assignment logic with
+its fallback and persistence, every event above, the user property, and the
+debug bench. The GDScript side runs on desktop with no SDK at all — events print to
 the console in a debug build.
 
 **Not done:** the native SDKs are not built or linked. They cannot be, until
@@ -139,8 +162,12 @@ not as tested code.
    `com.antonsavchenko.piperunner`.
 2. Add `GoogleService-Info.plist` to the exported Xcode project, and
    `google-services.json` to the Android export.
-3. In Remote Config, add `gameplay_variant` with default `A`, and a rollout
-   splitting **34 / 33 / 33** across A / B / C.
+3. In Remote Config, add `held_windows_enabled` with default `false`, and
+   `gameplay_variant` with default `B`. Leave the switch off until there is
+   enough traffic for the test to conclude — `docs/testing-plan.md` has the
+   arithmetic, and the short version is that a retention verdict needs
+   thousands of installs, not hundreds. When it is time, it is two arms and a
+   50/50 split, not three.
 4. Build the plugins from `native/` and drop them into the export
    (`ios/plugins/` and `android/plugins/`).
 5. Register `variant` as a custom user property in the Firebase console, and
@@ -158,10 +185,14 @@ variant, and the code enforces that rather than trusting the tester.
 
 ## Tests
 
-`tests/variants_check.gd` asserts the three are actually three different
-mechanics — that B replaces the whole offer and C keeps the untaken windows.
-It checks behaviour rather than wiring, because the B/C difference is one line
-deep and exactly the kind of thing a refactor removes by accident.
+`tests/variants_check.gd` asserts the two are actually two different mechanics
+— that B replaces the whole offer and C keeps the untaken windows. It checks
+behaviour rather than wiring, because the difference is one line deep and
+exactly the kind of thing a refactor removes by accident.
+
+`tests/switch_check.gd` asserts C cannot reach a player while the switch is
+off, including the case that matters most: a group saved from an earlier
+session.
 
 ```
 godot --headless --path . --script res://tests/variants_check.gd

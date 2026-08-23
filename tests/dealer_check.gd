@@ -1,9 +1,9 @@
 ## Checks each variant's dealing rule does what its mechanic needs.
 ##
-## The three rules answer three different questions, so a shared test would
-## only prove they all return shapes. What matters is that B insures the thing
-## B can lose to, and C insures the thing C can lose to, and that both leave a
-## comfortable player alone.
+## The two rules answer different questions, so a shared test would only prove
+## they both return shapes. What matters is that B insures the thing B can lose
+## to, and C insures the thing C can lose to, and that both leave a comfortable
+## player alone.
 ##
 ##   godot --headless --path . --script res://tests/dealer_check.gd
 extends SceneTree
@@ -122,18 +122,6 @@ func _initialize() -> void:
 	_check(calm_widen < DEALS * 0.92,
 		"C leaves a comfortable player's strip alone, got %d/%d"
 			% [calm_widen, DEALS])
-
-	# --- A: still the weighted roll -----------------------------------
-	var a := AssistDealer.new()
-	a.setup(balance)
-	var a_fits := 0
-	for _i in DEALS:
-		var dealt := a.fill(rng, 1, _context(need, true))
-		if _serves(dealt[0], need):
-			a_fits += 1
-	_check(a_fits > DEALS * 0.7,
-		"A leans hard toward a fitting piece under pressure, got %d/%d"
-			% [a_fits, DEALS])
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit()
