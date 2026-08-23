@@ -57,6 +57,9 @@ var _mode_kind: int = MODE_CLASSIC
 ## null everywhere else.
 var _bench: DebugPanel
 var _bench_button: Button
+## The story map. Built on first use — the panel is not opened on most runs,
+## and a control that draws every frame should not exist until it is looked at.
+var _map: StoryMap
 
 
 func _ready() -> void:
@@ -586,85 +589,26 @@ func _open_levels() -> void:
 	_set_menu_chrome(false)
 
 
+## Lays the story map out for the progress as it now stands. Rebuilt on every
+## open rather than patched, because the only thing that can have changed is a
+## station being cleared, and redrawing twelve circles is free.
 func _build_levels() -> void:
 	var skin := Skins.current()
-	var tint := _mode_tint(skin, MODE_STORY)
-	var rows: VBoxContainer = %Stations
-	for child in rows.get_children():
-		child.queue_free()
-
 	%Progress.text = "%d of %d cleared" % [GameState.levels_cleared, Levels.count()]
 
-	for level in Levels.catalogue():
-		var cleared := Levels.is_cleared(GameState, level.number)
-		var unlocked := Levels.is_unlocked(GameState, level.number)
-		var is_next: bool = unlocked and not cleared
-
-		var row := Button.new()
-		row.custom_minimum_size = Vector2(0, 92)
-		row.disabled = not unlocked
-		if unlocked:
-			row.pressed.connect(_pick_level.bind(level.number))
-
-		var accent: Color = tint if is_next else (skin.accent if cleared
-			else Color(skin.pipe_core, 0.4))
-		for state in ["normal", "hover", "pressed", "disabled"]:
-			var box := StyleBoxFlat.new()
-			box.bg_color = skin.bg_top.lightened(0.16 if is_next else 0.08)
-			if is_next:
-				box.bg_color = box.bg_color.lerp(tint, 0.16)
-			box.border_color = Color(accent, 0.55 if unlocked else 0.2)
-			box.set_border_width_all(2)
-			box.set_corner_radius_all(16)
-			box.content_margin_left = 18.0
-			box.content_margin_right = 18.0
-			row.add_theme_stylebox_override(state, box)
-		rows.add_child(row)
-
-		var line := HBoxContainer.new()
-		line.set_anchors_preset(Control.PRESET_FULL_RECT)
-		line.offset_left = 18.0
-		line.offset_right = -18.0
-		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		line.add_theme_constant_override("separation", 16)
-		row.add_child(line)
-
-		var badge := Label.new()
-		badge.text = str(level.number)
-		badge.custom_minimum_size = Vector2(44, 0)
-		badge.add_theme_font_size_override("font_size", 26)
-		badge.add_theme_color_override("font_color", accent)
-		badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		line.add_child(badge)
-
-		var text := VBoxContainer.new()
-		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		text.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		text.add_theme_constant_override("separation", 2)
-		line.add_child(text)
-
-		var name_label := Label.new()
-		name_label.text = level.title
-		name_label.add_theme_font_size_override("font_size", 19)
-		name_label.modulate.a = 1.0 if unlocked else 0.4
-		text.add_child(name_label)
-
-		var goal := Label.new()
-		goal.text = level.goal_text() if unlocked else "Locked"
-		goal.add_theme_font_size_override("font_size", 15)
-		goal.modulate.a = 0.6 if unlocked else 0.3
-		text.add_child(goal)
-
-		var mark := Label.new()
-		mark.add_theme_font_size_override("font_size", 17)
-		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		if cleared:
-			mark.text = "CLEARED"
-			mark.add_theme_color_override("font_color", Color(skin.accent, 0.8))
-		elif is_next:
-			mark.text = "NEXT"
-			mark.add_theme_color_override("font_color", tint)
-		line.add_child(mark)
+	if _map == null:
+		_map = StoryMap.new()
+		_map.name = "Map"
+		_map.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_map.station_picked.connect(_pick_level)
+		# Straight into the scroll rather than into the box that used to hold
+		# the rows: a box hugs its contents, so the map could never learn how
+		# much height it had been given.
+		var scroll: Control = _levels_panel.get_node("Scroll")
+		(%Stations as Control).visible = false
+		scroll.add_child(_map)
+	_map.refresh(skin, _mode_tint(skin, MODE_STORY))
 
 
 func _pick_level(number: int) -> void:
