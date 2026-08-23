@@ -372,6 +372,17 @@ func _refresh() -> void:
 ## Two rows a power-up. Charges are what runs out; the level is what is kept.
 ## They are separate because they are different purchases, and putting them on
 ## one button would mean guessing which one somebody meant.
+## The depot: power-ups to stock and strengthen, and carts to wear.
+##
+## It used to sell upgrades — a bigger tank, a longer preview — and they were
+## quietly the wrong thing. An upgrade is a number that goes up once and then
+## sits there: it makes every run a little longer and no run more interesting,
+## and by the third attempt nobody notices it. What is sold here now is either
+## a decision the player makes during a run, or something they can see.
+##
+## One row a power-up, with both purchases on it. Charges are what runs out and
+## the level is what is kept — separate buttons, because they are separate
+## things and a single one would mean guessing which was meant.
 func _build_shop() -> void:
 	for child in _shop_rows.get_children():
 		child.queue_free()
@@ -379,67 +390,115 @@ func _build_shop() -> void:
 
 	_shop_heading("POWER-UPS")
 	for power in PowerUps.catalogue():
-		_shop_row(power.id, power.display_name, power.description,
-			"charge", _buy_charge)
-		_shop_row(power.id, power.display_name, "", "level", _buy_level)
+		_power_row(power)
 
 	_shop_heading("CARTS")
 	for variant in Skins.current().cart_variant_count():
-		_shop_row(StringName("cart_%d" % variant), "Cart %d" % (variant + 1),
-			"", "cart", _pick_cart.bind(variant))
+		_cart_row(variant)
 
 	_refresh_shop()
 
 
 func _shop_heading(text: String) -> void:
+	var pad := Control.new()
+	pad.custom_minimum_size = Vector2(0, 6)
+	_shop_rows.add_child(pad)
+
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 16)
-	label.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
-	var pad := Control.new()
-	pad.custom_minimum_size = Vector2(0, 8)
-	_shop_rows.add_child(pad)
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color",
+		Color(Skins.current().accent, 0.75))
 	_shop_rows.add_child(label)
 
 
-## One line of the depot. `kind` decides what the button on the right is for,
-## and is kept on the row so the refresh knows what to write there.
-func _shop_row(id: StringName, name_text: String, blurb_text: String,
-		kind: String, action: Callable) -> void:
+## Icon, name and what it does on the left; the two buttons stacked on the
+## right. The icon is the one the run screen draws, so a power-up is the same
+## object in both places rather than a word here and a shape there.
+func _power_row(power: PowerUp) -> void:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 12)
+	row.add_theme_constant_override("separation", 10)
+
+	var mark := TabIcon.new()
+	mark.kind = power.icon
+	mark.color = Skins.current().accent
+	mark.custom_minimum_size = Vector2(38, 38)
+	mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(mark)
 
 	var text := VBoxContainer.new()
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_theme_constant_override("separation", 2)
+	text.add_theme_constant_override("separation", 1)
 
 	var title := Label.new()
-	title.add_theme_font_size_override("font_size", 19)
+	title.add_theme_font_size_override("font_size", 18)
 	text.add_child(title)
 
-	if not blurb_text.is_empty():
-		var blurb := Label.new()
-		blurb.add_theme_font_size_override("font_size", 14)
-		blurb.modulate.a = 0.62
-		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		blurb.custom_minimum_size = Vector2(250, 0)
-		blurb.text = blurb_text
-		text.add_child(blurb)
-
+	var blurb := Label.new()
+	blurb.add_theme_font_size_override("font_size", 13)
+	blurb.modulate.a = 0.55
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.custom_minimum_size = Vector2(150, 0)
+	blurb.text = power.description
+	text.add_child(blurb)
 	row.add_child(text)
 
-	var buy := Button.new()
-	buy.add_theme_font_size_override("font_size", 17)
-	for what in ["normal", "hover", "pressed"]:
-		buy.add_theme_stylebox_override(what, _buy_style())
-	buy.custom_minimum_size = Vector2(104, 0)
-	buy.pressed.connect(action.bind(id) if kind != "cart" else action)
-	row.add_child(buy)
+	var keys := VBoxContainer.new()
+	keys.add_theme_constant_override("separation", 5)
+	keys.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	var stock := _shop_key()
+	stock.pressed.connect(_buy_charge.bind(power.id))
+	keys.add_child(stock)
+
+	var level := _shop_key()
+	level.pressed.connect(_buy_level.bind(power.id))
+	keys.add_child(level)
+	row.add_child(keys)
 
 	_shop_rows.add_child(row)
-	_rows["%s:%s" % [id, kind]] = {
-		"title": title, "buy": buy, "id": id, "kind": kind, "name": name_text,
+	_rows[String(power.id)] = {
+		"title": title, "stock": stock, "level": level, "id": power.id,
 	}
+
+
+## A cart is worn rather than bought, until there is art worth charging for.
+## The swatch is the cart itself, so the row shows the thing instead of naming
+## it.
+func _cart_row(variant: int) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+
+	var swatch := ColorRect.new()
+	swatch.color = Skins.current().cart_body
+	swatch.custom_minimum_size = Vector2(30, 38)
+	swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(swatch)
+
+	var title := Label.new()
+	title.text = "Cart %d" % (variant + 1)
+	title.add_theme_font_size_override("font_size", 18)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(title)
+
+	var wear := _shop_key()
+	wear.pressed.connect(_pick_cart.bind(variant))
+	row.add_child(wear)
+
+	_shop_rows.add_child(row)
+	_rows["cart_%d" % variant] = {
+		"title": title, "wear": wear, "variant": variant,
+	}
+
+
+func _shop_key() -> Button:
+	var key := Button.new()
+	key.add_theme_font_size_override("font_size", 15)
+	for what in ["normal", "hover", "pressed"]:
+		key.add_theme_stylebox_override(what, _buy_style())
+	key.custom_minimum_size = Vector2(96, 34)
+	return key
 
 
 func _buy_style() -> StyleBoxFlat:
@@ -457,40 +516,46 @@ func _buy_style() -> StyleBoxFlat:
 
 func _refresh_shop() -> void:
 	_wallet.text = "%d crystals" % GameState.crystals
-	for key: String in _rows:
-		var row: Dictionary = _rows[key]
-		var title: Label = row["title"]
-		var buy: Button = row["buy"]
-		var id: StringName = row["id"]
 
-		match String(row["kind"]):
-			"charge":
-				var power := PowerUps.find(id)
-				var held := PowerUps.charges(id, GameState)
-				var value := PowerUps.value(id, GameState)
-				title.text = "%s   x%d   (%s %s)" \
-					% [row["name"], held, _format(value), power.unit]
-				var cost := PowerUps.charge_cost(id, GameState)
-				buy.text = "+1  %d" % cost
-				buy.disabled = GameState.crystals < cost
-			"level":
-				var power := PowerUps.find(id)
-				var level := PowerUps.level(id, GameState)
-				title.text = "    strength   %d/%d" % [level, power.max_level()]
-				var cost := PowerUps.upgrade_cost(id, GameState)
-				if cost < 0:
-					buy.text = "MAX"
-					buy.disabled = true
-				else:
-					buy.text = "+%s  %d" % [_format(power.step), cost]
-					buy.disabled = GameState.crystals < cost
-			"cart":
-				var variant := int(String(id).get_slice("_", 1))
-				var worn: bool = GameState.cart_variant == variant
-				title.text = row["name"]
-				buy.text = "WORN" if worn else "WEAR"
-				buy.disabled = worn
-		buy.modulate.a = 1.0 if not buy.disabled else 0.45
+	for power in PowerUps.catalogue():
+		var row: Dictionary = _rows.get(String(power.id), {})
+		if row.is_empty():
+			continue
+		var title: Label = row["title"]
+		var stock: Button = row["stock"]
+		var level_key: Button = row["level"]
+
+		var held := PowerUps.charges(power.id, GameState)
+		var strength := PowerUps.level(power.id, GameState)
+		title.text = "%s   ×%d      %s %s   ·   %d/%d" % [
+			power.display_name, held,
+			_format(PowerUps.value(power.id, GameState)), power.unit,
+			strength, power.max_level()]
+
+		var stock_cost := PowerUps.charge_cost(power.id, GameState)
+		stock.text = "+1     %d" % stock_cost
+		stock.disabled = GameState.crystals < stock_cost
+
+		var up_cost := PowerUps.upgrade_cost(power.id, GameState)
+		if up_cost < 0:
+			level_key.text = "MAX"
+			level_key.disabled = true
+		else:
+			level_key.text = "+%s   %d" % [_format(power.step), up_cost]
+			level_key.disabled = GameState.crystals < up_cost
+
+		for key: Button in [stock, level_key]:
+			key.modulate.a = 1.0 if not key.disabled else 0.4
+
+	for variant in Skins.current().cart_variant_count():
+		var row: Dictionary = _rows.get("cart_%d" % variant, {})
+		if row.is_empty():
+			continue
+		var wear: Button = row["wear"]
+		var worn: bool = GameState.cart_variant == variant
+		wear.text = "WORN" if worn else "WEAR"
+		wear.disabled = worn
+		wear.modulate.a = 1.0 if not worn else 0.4
 
 
 ## Trims the trailing zero off whole numbers: 15.0 -> "15".

@@ -27,6 +27,10 @@ extends Resource
 ## Short label for the button on the run screen, where there is room for very
 ## little.
 @export var short_name: String = ""
+## Which TabIcon to draw for it. Named here rather than looked up by id, so a
+## new power-up brings its own face instead of needing a table edited in two
+## other files.
+@export var icon: TabIcon.Kind = TabIcon.Kind.PLAY
 
 ## What one charge costs, in crystals.
 @export var charge_cost: int = 20

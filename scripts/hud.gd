@@ -20,9 +20,15 @@ const BAR_RADIUS := 7
 @onready var _fuel_bar: Panel = %FuelBar
 
 ## Size of a power-up key and how far it sits off the edge.
-const POWER_SIZE := 66.0
-const POWER_MARGIN := 16.0
+const POWER_SIZE := 78.0
+const POWER_MARGIN := 14.0
+## The bar's key face and the 9-patch inset that keeps its corners crisp — the
+## same numbers the menu uses, because it is the same button.
+const KEY_FACE := "res://art/ui/tab_face.png"
+const KEY_MARGIN := 18
+const KEY_LIP := 6.0
 
+var _face: Texture2D
 var _power_bar: VBoxContainer
 var _power_keys: Dictionary = {}
 ## True while the brake read-out has the combo label.
@@ -73,22 +79,42 @@ func _build_powers() -> void:
 	_power_bar.offset_right = -POWER_MARGIN
 	add_child(_power_bar)
 
+	_face = load(KEY_FACE)
 	for power in PowerUps.catalogue():
 		var key := Button.new()
 		key.custom_minimum_size = Vector2(POWER_SIZE, POWER_SIZE)
 		key.focus_mode = Control.FOCUS_NONE
-		key.add_theme_font_size_override("font_size", 15)
 		key.pressed.connect(func() -> void: power_used.emit(power.id))
 		_power_bar.add_child(key)
 
-		var count := Label.new()
-		count.name = "Count"
-		count.add_theme_font_size_override("font_size", 15)
-		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		count.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		count.offset_top = -20.0
-		count.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		key.add_child(count)
+		# Drawn, not written. The bar tabs already say what they are with a
+		# shape, and two keys captioned LAY and STOP in the corner of a run
+		# were the only place in the game asking to be read rather than seen.
+		var mark := TabIcon.new()
+		mark.name = "Mark"
+		mark.kind = power.icon
+		mark.set_anchors_preset(Control.PRESET_FULL_RECT)
+		mark.offset_left = POWER_SIZE * 0.22
+		mark.offset_top = POWER_SIZE * 0.18
+		mark.offset_right = -POWER_SIZE * 0.22
+		mark.offset_bottom = -POWER_SIZE * 0.3
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		key.add_child(mark)
+
+		# The count as the same red pill the tabs wear, in the same corner.
+		var badge := Label.new()
+		badge.name = "Count"
+		badge.add_theme_font_size_override("font_size", 16)
+		badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		badge.custom_minimum_size = Vector2(26, 26)
+		badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		badge.offset_left = -18.0
+		badge.offset_top = -8.0
+		badge.offset_right = 8.0
+		badge.offset_bottom = 18.0
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		key.add_child(badge)
 		_power_keys[String(power.id)] = key
 
 
@@ -101,21 +127,39 @@ func set_powers(state: Node) -> void:
 		if key == null:
 			continue
 		var held := PowerUps.charges(power.id, state)
-		key.text = power.short_name
-		key.disabled = held <= 0
-		key.modulate.a = 1.0 if held > 0 else 0.4
-		var count: Label = key.get_node("Count")
-		count.text = "x%d" % held
-		count.add_theme_color_override("font_color",
-			_skin.accent if held > 0 else Color(1, 1, 1, 0.5))
+		var ready: bool = held > 0
+		key.disabled = not ready
 
-		var box := StyleBoxFlat.new()
-		box.bg_color = Color(_skin.bg_top, 0.85)
-		box.border_color = Color(_skin.accent if held > 0 else _skin.pipe_shell,
-			0.7)
-		box.set_border_width_all(2)
-		box.set_corner_radius_all(14)
+		var mark: TabIcon = key.get_node("Mark")
+		mark.color = _skin.accent if ready else Color(_skin.pipe_shell, 0.9)
+
+		var badge: Label = key.get_node("Count")
+		badge.text = str(held)
+		badge.visible = ready
+		var pill := StyleBoxFlat.new()
+		pill.bg_color = _skin.danger
+		pill.border_color = Color(_skin.bg_bottom, 0.85)
+		pill.set_border_width_all(3)
+		pill.set_corner_radius_all(20)
+		badge.add_theme_stylebox_override("normal", pill)
+		badge.add_theme_color_override("font_color", Color.WHITE)
+
+		# The bar's own key face, so a power-up looks like the rest of the
+		# game's furniture rather than like a debug button parked on top of it.
 		for what in ["normal", "hover", "pressed", "disabled"]:
+			var box := StyleBoxTexture.new()
+			box.texture = _face
+			box.set_texture_margin_all(KEY_MARGIN)
+			var base: Color = _skin.bg_top.lightened(0.18).lerp(
+				_skin.accent if ready else _skin.pipe_shell, 0.14)
+			if what == "pressed":
+				base = base.darkened(0.12)
+				box.content_margin_top = KEY_LIP
+			elif what == "hover":
+				base = base.lightened(0.06)
+			elif what == "disabled":
+				base = base.darkened(0.22)
+			box.modulate_color = base
 			key.add_theme_stylebox_override(what, box)
 
 

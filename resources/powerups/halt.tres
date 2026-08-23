@@ -14,3 +14,4 @@ base_value = 3.0
 step = 0.75
 costs = PackedInt32Array(50, 120, 220, 360)
 unit = "s"
+icon = 9

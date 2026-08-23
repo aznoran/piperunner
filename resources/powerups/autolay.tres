@@ -14,3 +14,4 @@ base_value = 5.0
 step = 1.0
 costs = PackedInt32Array(60, 140, 260, 420)
 unit = "cells"
+icon = 8

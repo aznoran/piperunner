@@ -3,7 +3,8 @@
 class_name TabIcon
 extends Control
 
-enum Kind { DEPOT, TODAY, PLAY, GOALS, SETUP, PAUSE, BACK, MODES }
+enum Kind { DEPOT, TODAY, PLAY, GOALS, SETUP, PAUSE, BACK, MODES,
+	TRACKLAYER, BRAKE }
 
 @export var kind: Kind = Kind.PLAY
 
@@ -35,6 +36,10 @@ func _draw() -> void:
 			_draw_back(unit, stroke, centre)
 		Kind.MODES:
 			_draw_modes(unit, stroke, centre)
+		Kind.TRACKLAYER:
+			_draw_tracklayer(unit, stroke, centre)
+		Kind.BRAKE:
+			_draw_brake(unit, stroke, centre)
 
 
 ## Sliders — the shorthand for "adjust your loadout" that a player already
@@ -48,6 +53,40 @@ func _draw_depot(unit: float, stroke: float, centre: Vector2) -> void:
 		draw_line(Vector2(centre.x - half, y), Vector2(centre.x + half, y), color, stroke)
 		var knob := Vector2(centre.x + half * knobs[i], y)
 		draw_circle(knob, unit * 0.115, color)
+
+
+## Track laying itself: two rails climbing, with the next sleeper arriving
+## ahead of them. The game's own object rather than a generic arrow, because
+## the power-up does exactly the thing the player spends the whole game doing.
+func _draw_tracklayer(unit: float, stroke: float, centre: Vector2) -> void:
+	var half := unit * 0.34
+	var top := centre.y - unit * 0.42
+	var bottom := centre.y + unit * 0.42
+	for side in [-1.0, 1.0]:
+		var x: float = centre.x + half * 0.52 * side
+		draw_line(Vector2(x, bottom), Vector2(x, top + unit * 0.2), color, stroke)
+	# Sleepers, thinning as they run ahead — the stretch being laid for you.
+	var rungs := [0.30, 0.02, -0.24]
+	for i in rungs.size():
+		var y: float = centre.y + unit * float(rungs[i])
+		var fade := Color(color, 1.0 - 0.28 * float(i))
+		draw_line(Vector2(centre.x - half * 0.62, y),
+			Vector2(centre.x + half * 0.62, y), fade, stroke)
+	# The head of the run, arriving.
+	var tip := Vector2(centre.x, top)
+	draw_line(Vector2(centre.x - half * 0.5, top + unit * 0.18), tip, color, stroke)
+	draw_line(Vector2(centre.x + half * 0.5, top + unit * 0.18), tip, color, stroke)
+
+
+## A cart held between two blocks. Not a hand and not an hourglass: what the
+## brake does is stop this cart, and the cart is the thing on screen.
+func _draw_brake(unit: float, stroke: float, centre: Vector2) -> void:
+	var body := Vector2(unit * 0.34, unit * 0.42)
+	draw_rect(Rect2(centre - body * 0.5, body), color, false, stroke)
+	for side in [-1.0, 1.0]:
+		var x: float = centre.x + unit * 0.4 * side
+		draw_line(Vector2(x, centre.y - unit * 0.34),
+			Vector2(x, centre.y + unit * 0.34), color, stroke * 1.6)
 
 
 func _draw_today(unit: float, stroke: float, centre: Vector2) -> void:
