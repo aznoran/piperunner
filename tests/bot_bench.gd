@@ -11,7 +11,9 @@ var _last_beat: int = 0
 const SEEDS := [11, 202, 3003, 40004, 55, 606]
 
 func _initialize() -> void:
-	Engine.time_scale = 1.0  # real time: speeding the world up outruns the lookahead
+	# Real time on purpose. Raising Engine.time_scale to shorten the benchmark
+	# makes the world move six cells between the bot's frames, so its lookahead
+	# is stale before it acts and the numbers measure the harness, not the bot.
 	for entry in [["GameState", "res://scripts/game_state.gd"]]:
 		if not root.has_node(entry[0]):
 			var node: Node = load(entry[1]).new()

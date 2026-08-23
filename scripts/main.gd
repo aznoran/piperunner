@@ -36,6 +36,8 @@ const SHAKE_REFERENCE_CELL := 68.0
 var balance: GameBalance
 ## Cells of reach around the cart that pull crystals in. 0 = must drive over.
 var _magnet_reach: int = 0
+## Seconds on the clock when the live run began, for the run's duration.
+var _run_began: float = 0.0
 ## Benchmarks pin the run seed here so the same board can be replayed. -1 in
 ## normal play, where every run is its own.
 var forced_seed: int = -1
@@ -46,6 +48,7 @@ var forced_seed: int = -1
 @onready var _camera: Camera2D = $Camera
 @onready var _hud: Hud = $Hud
 @onready var _offer_bar: OfferBar = $Ui/OfferBar
+@onready var _queue_bar: QueueBar = $Ui/QueueBar
 @onready var _screen_fx: ScreenFx = $ScreenFx
 @onready var _overlay: GameOverScreen = $GameOver
 @onready var _menu: MainMenu = $MainMenu
@@ -60,10 +63,12 @@ var forced_seed: int = -1
 
 var state: State = State.MENU
 
-var _offer := PipeOffer.new()
+## Where the next pipe comes from. Which of the three variants this is comes
+## from the experiment, and nothing below this line asks which.
+var _blocks: BlockSource
 ## Which rule fills the offer. This line is the whole extension point: anything
 ## deriving from PipeDealer plugs in here and nothing else has to move.
-var _dealer: PipeDealer = RandomDealer.new()
+var _dealer: PipeDealer
 var _praise := Praise.new()
 ## Pipes placed since the last overwrite, for the clean-run praise.
 var _clean_streak: int = 0
@@ -124,7 +129,12 @@ func _ready() -> void:
 	_rebuild_balance()
 
 	_board.setup(balance)
-	_dealer.setup(balance)
+	_build_source()
+	# Remote Config may answer after the game is already up. When it does, the
+	# variant can change out from under a menu that has not been played yet —
+	# which is exactly when it is safe to swap the mechanic.
+	Experiment.resolved.connect(_on_variant_resolved)
+	Analytics.session_start()
 	_praise.setup(balance)
 	_cart.board = _board
 	_cart.stepped.connect(_on_cart_stepped)
@@ -145,7 +155,7 @@ func _ready() -> void:
 	_menu.mode_chosen.connect(_select_mode)
 	_menu.level_chosen.connect(_select_level)
 	_menu.autoplay_requested.connect(_launch_autoplay)
-	_autoplayer.setup(self, _board, _cart, _offer)
+	_autoplayer.setup(self, _board, _cart, _blocks)
 	_overlay.retry_pressed.connect(func() -> void: start_run(selected_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
 	_overlay.continue_pressed.connect(_take_continue)
@@ -169,12 +179,16 @@ func _ready() -> void:
 func _rebuild_balance() -> void:
 	balance = base_balance.duplicate()
 	balance.fuel_max += Upgrades.bonus(&"tank", GameState)
-	balance.offer_size += int(Upgrades.bonus(&"preview", GameState))
+	# One upgrade, two strips: it widens whichever one the live variant draws.
+	var wider: int = int(Upgrades.bonus(&"preview", GameState))
+	balance.offer_size += wider
+	balance.queue_preview += wider
 	balance.runway += int(Upgrades.bonus(&"runway", GameState))
 	_magnet_reach = int(Upgrades.bonus(&"magnet", GameState))
 	if _board != null:
 		_board.setup(balance)
-	_dealer.setup(balance)
+	if _dealer != null:
+		_dealer.setup(balance)
 	_praise.setup(balance)
 
 
@@ -218,14 +232,84 @@ func _equip_for_the_long_run() -> void:
 				balance.fuel_max += maxed
 			"preview":
 				balance.offer_size += int(maxed)
+				balance.queue_preview += int(maxed)
 			"runway":
 				balance.runway += int(maxed)
 			"magnet":
 				_magnet_reach = int(maxed)
 	fuel = balance.fuel_max
 	_hud.set_fuel(1.0)
-	_offer.resize(balance.offer_size, _deal_context())
-	_refresh_offer_bar()
+	_blocks.resize(_deal_context())
+	_refresh_strip()
+
+
+## The experiment settled on a group. Rebuilding is only safe between runs; a
+## run in progress keeps the mechanic it started with, because a player whose
+## strip changed mid-run is not a clean data point for either variant.
+func _on_variant_resolved(_variant: int) -> void:
+	if state != State.MENU:
+		return
+	_build_source()
+	_blocks.start(_offer_rng, balance, _dealer, _deal_context())
+	_refresh_strip()
+
+
+## Closes out the session, and the run inside it if one is live.
+##
+## Backgrounding the app on a phone is how most runs actually end, so it counts
+## as abandoning that run rather than as nothing happening at all.
+func _close_session() -> void:
+	if state == State.PLAYING and started:
+		Analytics.run_abandoned(distance, _seconds() - _run_began, "backgrounded")
+	Analytics.session_end()
+
+
+func _notification(what: int) -> void:
+	match what:
+		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_WM_CLOSE_REQUEST:
+			_close_session()
+		NOTIFICATION_APPLICATION_RESUMED:
+			Analytics.session_start()
+
+
+## Builds the block source for the experiment's live variant, and the dealing
+## rule that variant was designed around. Called at boot, and again whenever
+## the debug bench forces a different variant.
+##
+## This is the only place in the game a variant letter turns into behaviour.
+func _build_source() -> void:
+	_blocks = Experiment.make_source()
+	_dealer = _blocks.make_dealer()
+	_dealer.setup(balance)
+	_blocks.attach(_queue_bar, _offer_bar)
+	# The bot reads the strip through the same object the player taps, so it
+	# has to be re-pointed at the new one. Holding the old source left it
+	# reading a strip that had never been dealt.
+	if _autoplayer != null:
+		_autoplayer.setup(self, _board, _cart, _blocks)
+
+
+## Shows the strip the live variant plays on, and only that one.
+func _show_strip() -> void:
+	_blocks.attach(_queue_bar, _offer_bar)
+	_refresh_strip()
+
+
+func _hide_strip() -> void:
+	_offer_bar.visible = false
+	_queue_bar.visible = false
+
+
+## Spends the chosen shape and deals whatever replaces it.
+##
+## The event goes out before the deal, so `slot` and `was_held` still describe
+## the strip the player was looking at when they chose — after the deal, in
+## variant C, the window has already been refilled.
+func _spend_block() -> void:
+	Analytics.block_taken(_blocks.current(), _blocks.chosen_slot(),
+		_blocks.slot_count(), _blocks.chosen_was_held(), distance)
+	_blocks.spend(_deal_context())
+	_refresh_strip()
 
 
 ## Switches the location's look. Rules, generation and events are untouched —
@@ -239,6 +323,7 @@ func apply_skin(skin: LocationSkin) -> void:
 	_board.set_skin(skin)
 	_cart.set_skin(skin)
 	_offer_bar.set_skin(skin)
+	_queue_bar.set_skin(skin)
 	_hud.set_skin(skin)
 	_screen_fx.set_skin(skin)
 
@@ -254,9 +339,8 @@ func _apply_layout() -> void:
 	_cart.set_cell_size(_cell_size)
 	_fx.set_cell_size(_cell_size)
 	_offer_bar.set_cell_size(_cell_size)
-
-	_input.offer_rects = _offer_bar.slot_rects
-	_input.offer_strip_top = _offer_bar.strip_top
+	_queue_bar.set_cell_size(_cell_size)
+	_refresh_strip()
 	_camera.position.x = viewport.x * 0.5
 
 
@@ -266,6 +350,11 @@ func _apply_layout() -> void:
 func abandon_run() -> void:
 	if state == State.PLAYING and started:
 		return
+	if state == State.PLAYING:
+		# Walked out before laying a pipe. Worth its own event: a player who
+		# opens a run and leaves it is telling you something a death does not.
+		Analytics.run_abandoned(distance, _seconds() - _run_began,
+			"before_first_pipe")
 	_show_menu(true)
 
 
@@ -372,7 +461,7 @@ func _show_menu(animated: bool = false) -> void:
 	_input.cancel()
 	_board.reveal = 1.0
 	_input.enabled = false
-	_offer_bar.visible = false
+	_hide_strip()
 	_hud.visible = false
 	_start_hint.visible = false
 	_board.hide_ghost()
@@ -421,7 +510,7 @@ func _prepare_board(with_resources: bool) -> void:
 
 	# Dealt once the cart is parked, so the rule is asked about the joint this
 	# run opens on rather than about whatever the last one ended on.
-	_offer.start(_offer_rng, balance.offer_size, _dealer, _deal_context())
+	_blocks.start(_offer_rng, balance, _dealer, _deal_context())
 
 	_board.show_record(GameState.best_distance)
 
@@ -440,6 +529,11 @@ func _first_resource_row() -> int:
 
 
 func start_run(mode: Mode = Mode.CLASSIC) -> void:
+	# A run started straight off the end card is a retry; one started from the
+	# menu is not. The overlay is only up in the first case.
+	if state == State.DEAD:
+		Analytics.retry()
+	_run_began = _seconds()
 	selected_mode = mode
 	daily_mode = mode == Mode.DAILY
 	_autoplayer.stop()
@@ -477,10 +571,10 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	_decor.visible = false
 	# The board came from the menu, so the offer was dealt before this run's
 	# balance sheet existed; an upgrade that widens it has to be applied now.
-	_offer.resize(balance.offer_size, _deal_context())
-	_offer_bar.visible = true
+	_blocks.resize(_deal_context())
+	_show_strip()
 	_hud.visible = true
-	_refresh_offer_bar()
+	_refresh_strip()
 	_start_hint.visible = true
 	_hint_pulse = 0.0
 
@@ -497,7 +591,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	push.tween_method(_set_camera_anchor, _camera_anchor, balance.camera_anchor,
 		CAMERA_PUSH).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	_fade_in(_hud_root(), MENU_FADE)
-	_fade_in(_offer_bar, MENU_FADE)
+	_fade_in(_blocks.strip(), MENU_FADE)
 	var gate := create_tween()
 	gate.tween_interval(MENU_FADE)
 	gate.tween_callback(func() -> void:
@@ -638,6 +732,12 @@ func _buffer() -> int:
 ## Everything a dealing rule may look at, gathered in one place so that a rule
 ## which starts caring about something new does not mean touching every site
 ## that deals an offer.
+## Seconds on the wall clock. Wrapped so the run timer and the session timer
+## agree on what a second is.
+func _seconds() -> float:
+	return float(Time.get_ticks_msec()) / 1000.0
+
+
 func _deal_context() -> Dictionary:
 	return {
 		"need": _joint_need(),
@@ -652,9 +752,12 @@ func _deal_context() -> Dictionary:
 ## Repaints the strip and re-points the input handler at it. Both the number of
 ## slots and where they sit move when the offer is re-dealt, so the two have to
 ## travel together or a tap lands on the shape next door.
-func _refresh_offer_bar() -> void:
-	_offer_bar.set_contents(_offer.choices, _offer.selected)
-	_input.offer_rects = _offer_bar.slot_rects
+func _refresh_strip() -> void:
+	if _blocks == null:
+		return
+	_blocks.refresh()
+	_input.offer_rects = _blocks.tap_targets()
+	_input.offer_strip_top = _blocks.strip_top()
 
 
 ## Marks the cell where the cart needs pipe next, and warns when the track is
@@ -669,7 +772,7 @@ func _update_frontier() -> void:
 	var cell: Vector2i = ahead["cell"]
 	var need: int = ahead["need"]
 	var fits: bool = (not ahead["blocked"]
-		and PipeDefs.SIDES[_offer.current()].has(need)
+		and PipeDefs.SIDES[_blocks.current()].has(need)
 		and _board.can_place(cell))
 	_board.show_frontier(cell, need, fits)
 	_screen_fx.danger = started and int(ahead["steps"]) <= 1
@@ -683,9 +786,9 @@ func _update_frontier() -> void:
 func _on_offer_chosen(index: int) -> void:
 	if state != State.PLAYING:
 		return
-	if not _offer.select(index):
+	if not _blocks.point_at(index):
 		return
-	_refresh_offer_bar()
+	_refresh_strip()
 	# The ghost is still holding up the shape chosen a moment ago.
 	_board.hide_ghost()
 	GameState.vibrate(balance.haptics_place_ms)
@@ -698,7 +801,7 @@ func _on_aim_moved(world_position: Vector2) -> void:
 	if not _camera_frozen:
 		_camera_frozen = true
 		_freeze_timer = 0.0
-	_board.show_ghost(_board.world_to_cell(world_position), _offer.current())
+	_board.show_ghost(_board.world_to_cell(world_position), _blocks.current())
 
 
 func _on_aim_released(world_position: Vector2) -> void:
@@ -740,14 +843,13 @@ func _try_place(cell: Vector2i) -> void:
 			_die(REASON_OUT_OF_FUEL)
 			return
 
-	if _board.place(cell, _offer.current()) == Board.Placement.REJECTED:
+	if _board.place(cell, _blocks.current()) == Board.Placement.REJECTED:
 		return
 
 	if cell.y < _cart.row:
 		pipes_dumped += 1
 
-	_offer.take(_deal_context())
-	_refresh_offer_bar()
+	_spend_block()
 	if not started:
 		_hud.fade_out_back_key()
 	started = true
@@ -882,6 +984,7 @@ func _die(reason: String) -> void:
 	_shake = 16.0 * (_cell_size / SHAKE_REFERENCE_CELL)
 	_fx.burst(_cart.position, Skins.current().danger, 28, _cell_size * 8.0)
 	GameState.vibrate(balance.haptics_death_ms)
+	Analytics.run_completed(distance, score, _seconds() - _run_began, reason)
 	_bank_run()
 
 	_pending_clear = {}
@@ -1033,8 +1136,8 @@ func _take_continue() -> void:
 	_hud.set_combo(0)
 
 	# A fresh offer: the one that killed them is not the one to come back with.
-	_offer.start(_offer_rng, balance.offer_size, _dealer, _deal_context())
-	_refresh_offer_bar()
+	_blocks.start(_offer_rng, balance, _dealer, _deal_context())
+	_refresh_strip()
 
 	state = State.PLAYING
 	_input.enabled = true

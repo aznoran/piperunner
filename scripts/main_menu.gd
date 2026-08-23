@@ -113,10 +113,15 @@ func _build_bench() -> void:
 	_bench_button.custom_minimum_size = Vector2(96, 56)
 	_bench_button.add_theme_font_size_override("font_size", 20)
 	_bench_button.position = Vector2(20,
-		SafeArea.insets(get_viewport().get_visible_rect().size).x + 20)
+		SafeArea.insets(get_viewport().get_visible_rect().size).y + 20)
 	_bench_button.pressed.connect(func() -> void:
 		_close_panels()
-		_bench.visible = true)
+		_bench.visible = true
+		# The key sits where the bench draws its heading, so it stands down
+		# while the bench is up rather than overlapping it.
+		_bench_button.visible = false)
+	_bench.visibility_changed.connect(func() -> void:
+		_bench_button.visible = not _bench.visible)
 	add_child(_bench_button)
 
 

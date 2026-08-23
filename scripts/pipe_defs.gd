@@ -24,6 +24,17 @@ const SIDES := {
 ## Every shape, in enum order — the pool a dealer draws an offer from.
 const ALL: Array[int] = [Type.V, Type.H, Type.UR, Type.UL, Type.DR, Type.DL, Type.X]
 
+## Shape names, for analytics and for debug output. A report that says "UR" can
+## be read; one that says "2" has to be decoded against this file.
+const NAMES := {
+	Type.V: "V", Type.H: "H", Type.UR: "UR", Type.UL: "UL",
+	Type.DR: "DR", Type.DL: "DL", Type.X: "X",
+}
+
+
+static func name_of(type: int) -> String:
+	return NAMES.get(type, "?")
+
 const OPPOSITE := {
 	Side.U: Side.D,
 	Side.D: Side.U,

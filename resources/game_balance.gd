@@ -80,7 +80,34 @@ extends Resource
 @export_group("Offer")
 ## How many shapes the player chooses between each turn. Capped by the number
 ## of shapes that exist, since an offer never repeats one.
+## How many shapes variant B and C put on the strip to choose between.
 @export var offer_size: int = 3
+## How far ahead variant A's queue lets the player see. A different mechanic
+## with a different natural size, so it gets its own number rather than sharing
+## one with the offer.
+@export var queue_preview: int = 4
+
+@export_group("Dealer")
+## How strongly the dealer may favour a piece that fits, by experience. Zero
+## reproduces the plain weighted roll from spec section 04.
+##
+## Only variant A deals this way: the offer variants hand out distinct shapes
+## evenly, so none of these touch them.
+@export var assist_max_new: float = 0.90
+@export var assist_max_early: float = 0.65
+@export var assist_max_veteran: float = 0.40
+## Added while the player is in a slump, removed on a decent run.
+@export var assist_slump_bonus: float = 0.20
+## Runs before assistance steps down a tier.
+@export var assist_runs_new: int = 3
+@export var assist_runs_early: int = 10
+## Multipliers applied to a shape's base weight at full assistance.
+@export var assist_fit_gain: float = 3.0
+@export var assist_miss_penalty: float = 0.6
+## Below this fraction of a tank, or this many cells of built track ahead,
+## the player counts as under pressure.
+@export var assist_fuel_floor: float = 0.30
+@export var assist_buffer_floor: int = 3
 
 @export_group("Praise")
 ## Seconds between praise messages. Praise devalues faster than anything else

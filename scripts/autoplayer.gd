@@ -54,7 +54,9 @@ var active: bool = false
 var _main: Node
 var _board: Board
 var _cart: Cart
-var _offer: PipeOffer
+## Whatever the live experiment variant hands the player. The bot reads the
+## same strip they do — in variant A that is one shape, in B and C three.
+var _offer: BlockSource
 var _wait: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -66,7 +68,7 @@ func _bump(what: String) -> void:
 	tally[what] = int(tally.get(what, 0)) + 1
 
 
-func setup(main: Node, board: Board, cart: Cart, offer: PipeOffer) -> void:
+func setup(main: Node, board: Board, cart: Cart, offer: BlockSource) -> void:
 	_main = main
 	_board = board
 	_cart = cart
@@ -282,8 +284,8 @@ func _worth_extending(cell: Vector2i, piece: int, entry: int, buffer: int) -> bo
 func _pick_for(joint: Vector2i, need: int, buffer: int, desperate: bool) -> int:
 	var best := -1
 	var best_score := -INF
-	for i in _offer.choices.size():
-		var piece: int = _offer.choices[i]
+	for i in _offer.choices().size():
+		var piece: int = _offer.choices()[i]
 		if not _serves(piece, need):
 			continue
 		if not desperate and not _worth_extending(joint, piece, need, buffer):
@@ -322,6 +324,11 @@ func _score(joint: Vector2i, piece: int, entry: int) -> float:
 
 ## Points the offer at one of its shapes, through the same call a tap makes.
 func _choose(index: int) -> void:
+	# Already pointing there. Worth checking rather than tapping anyway: in
+	# variant A the strip's one tap target is the pocket, so a redundant tap
+	# would swap the piece in hand instead of doing nothing.
+	if index == _offer.chosen_slot():
+		return
 	_main._on_offer_chosen(index)
 
 
@@ -389,8 +396,8 @@ func _reroute() -> bool:
 		if not _board.can_place(cell):
 			continue
 		var existing := _board.get_pipe(cell)
-		for c in _offer.choices.size():
-			var piece: int = _offer.choices[c]
+		for c in _offer.choices().size():
+			var piece: int = _offer.choices()[c]
 			if not _serves(piece, entry):
 				continue
 			if existing != null and existing.type == piece:
@@ -465,8 +472,8 @@ func _stockpile(joint: Vector2i) -> bool:
 			continue
 		if not _board.can_place(spot):
 			continue
-		for c in _offer.choices.size():
-			var piece: int = _offer.choices[c]
+		for c in _offer.choices().size():
+			var piece: int = _offer.choices()[c]
 			# Only a shape that takes the cart from below is any use up there.
 			if not _serves(piece, PipeDefs.Side.D):
 				continue
@@ -559,7 +566,7 @@ func _dump(joint: Vector2i) -> void:
 ## should the route ever come back through it. Falls back to whatever is
 ## already chosen when none of them is safe there.
 func _safe_at(cell: Vector2i) -> int:
-	for i in _offer.choices.size():
-		if not _opens_off_board(cell, _offer.choices[i]):
+	for i in _offer.choices().size():
+		if not _opens_off_board(cell, _offer.choices()[i]):
 			return i
-	return _offer.selected
+	return _offer.chosen_slot()

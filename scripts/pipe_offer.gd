@@ -50,6 +50,31 @@ func take(context: Dictionary = {}) -> void:
 	_deal(context)
 
 
+## Replaces a single window and leaves the rest exactly as they are — the
+## refill variant C is built on.
+##
+## The new shape avoids the ones still on the strip. Letting it repeat them
+## would let the strip collapse to three of the same shape, and three identical
+## windows is not a choice at all; keeping them distinct is the same rule the
+## whole-offer deal already follows.
+func replace(index: int, context: Dictionary = {}) -> void:
+	if index < 0 or index >= choices.size():
+		return
+	var kept: Array[int] = choices.duplicate()
+	kept.remove_at(index)
+
+	# Ask for a full strip's worth and take the first shape that is not already
+	# on it. A rule is free to return shapes in any order, so this cannot
+	# assume the first one is usable.
+	for candidate: int in _dealer.fill(_rng, _size, context):
+		if not kept.has(candidate):
+			choices[index] = candidate
+			return
+	# Every shape a rule offered is already on the strip. Rare, and only
+	# possible when the strip is as wide as the shape list, so the honest
+	# answer is to leave the window as it was rather than force a repeat.
+
+
 ## Grows or shrinks the offer — used when an upgrade changes how many shapes
 ## the player gets to choose between. The offer is re-dealt rather than padded,
 ## because a rule is entitled to pick its shapes as a set.

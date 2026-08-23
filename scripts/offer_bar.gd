@@ -25,6 +25,10 @@ var strip_top: float = 0.0
 var _skin: LocationSkin
 var _choices: Array[int] = []
 var _selected: int = 0
+## True for a window whose shape was carried over from an earlier turn — the
+## held state of variant C. Empty, or all false, for the variants where every
+## window is dealt fresh each turn.
+var _held: Array[bool] = []
 ## What a slot would like to be, and what it ends up as once the row has been
 ## made to fit the screen.
 var _slot: float = 60.0
@@ -55,12 +59,15 @@ func set_cell_size(cell_size: float) -> void:
 	_relayout()
 
 
-## The shapes to show and which one is chosen. The slot count can change
-## between calls — an upgrade widens the offer — so the geometry is rebuilt
-## here and not only when the viewport changes.
-func set_contents(choices: Array[int], selected: int) -> void:
+## The shapes to show, which one is chosen, and which ones are being held from
+## an earlier turn. The slot count can change between calls — an upgrade widens
+## the offer — so the geometry is rebuilt here and not only when the viewport
+## changes.
+func set_contents(choices: Array[int], selected: int,
+		held: Array[bool] = []) -> void:
 	_choices = choices
 	_selected = selected
+	_held = held
 	_relayout()
 
 
@@ -118,13 +125,14 @@ func _draw() -> void:
 	if _choices.is_empty() or _centres.size() != _choices.size():
 		return
 	for i in _choices.size():
-		_draw_slot(_centres[i], _drawn_slot, _choices[i], i == _selected)
+		_draw_slot(_centres[i], _drawn_slot, _choices[i], i == _selected,
+			i < _held.size() and _held[i])
 	_draw_label("CHOOSE", Vector2(size.x * 0.5, _row_y() - _drawn_slot * 0.66),
 		Color(1.0, 1.0, 1.0, 0.34))
 
 
 func _draw_slot(centre: Vector2, slot_size: float, type: int,
-		chosen: bool) -> void:
+		chosen: bool, held: bool) -> void:
 	var tint: Color = _skin.shape_color(type)
 	var rect := Rect2(centre - Vector2(slot_size, slot_size) * 0.5,
 		Vector2(slot_size, slot_size))
@@ -142,6 +150,9 @@ func _draw_slot(centre: Vector2, slot_size: float, type: int,
 		draw_line(centre, centre + offset, line, slot_size * 0.15)
 	draw_circle(centre, slot_size * 0.075, line)
 
+	if held:
+		_draw_hold_pip(centre, slot_size, tint)
+
 	if not chosen:
 		return
 	# An underline as well as the brighter frame: two tints of one colour are
@@ -151,6 +162,14 @@ func _draw_slot(centre: Vector2, slot_size: float, type: int,
 	_marker_box.bg_color = tint
 	draw_style_box(_marker_box,
 		Rect2(centre + Vector2(-bar.x * 0.5, slot_size * 0.62), bar))
+
+
+## A held window keeps its shape until the player takes from it, and has to say
+## so — otherwise the strip looks like it re-deals and simply failed to. One
+## small pip in the corner, dim enough to stay out of the way of the shape.
+func _draw_hold_pip(centre: Vector2, slot_size: float, tint: Color) -> void:
+	var corner := centre + Vector2(slot_size, -slot_size) * 0.34
+	draw_circle(corner, maxf(2.0, slot_size * 0.055), Color(tint, 0.85))
 
 
 func _draw_label(text: String, centre: Vector2, color: Color) -> void:
