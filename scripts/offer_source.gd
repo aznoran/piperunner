@@ -28,8 +28,8 @@ func make_dealer() -> PipeDealer:
 
 func attach(queue_bar: QueueBar, offer_bar: OfferBar) -> void:
 	_bar = offer_bar
-	offer_bar.visible = true
 	queue_bar.visible = false
+	offer_bar.visible = false
 
 
 func start(rng: RandomNumberGenerator, balance: GameBalance,

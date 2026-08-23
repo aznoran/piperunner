@@ -46,10 +46,21 @@ func make_dealer() -> PipeDealer:
 	return RandomDealer.new()
 
 
-## Binds the source to the two strips in the scene. Called once, when a run is
-## laid out; the implementation shows its own and hides the other.
+## Binds the source to the two strips in the scene and leaves **both hidden**.
+##
+## Binding is not showing. A source is built whenever the variant changes,
+## which includes standing in the menu with the bench open — and a strip that
+## appeared there would sit across the menu's own buttons with a run that has
+## not started. `reveal` is the separate, deliberate step.
 func attach(_queue_bar: QueueBar, _offer_bar: OfferBar) -> void:
 	push_error("BlockSource.attach is abstract — subclass it")
+
+
+## Shows this variant's strip. Called when a run begins, and never before.
+func reveal() -> void:
+	var bar := strip()
+	if bar != null:
+		bar.visible = true
 
 
 ## Begins a run. `context` is the deal context described on PipeDealer.

@@ -26,7 +26,7 @@ func make_dealer() -> PipeDealer:
 
 func attach(queue_bar: QueueBar, offer_bar: OfferBar) -> void:
 	_bar = queue_bar
-	queue_bar.visible = true
+	queue_bar.visible = false
 	offer_bar.visible = false
 
 

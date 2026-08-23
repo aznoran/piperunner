@@ -292,6 +292,7 @@ func _build_source() -> void:
 ## Shows the strip the live variant plays on, and only that one.
 func _show_strip() -> void:
 	_blocks.attach(_queue_bar, _offer_bar)
+	_blocks.reveal()
 	_refresh_strip()
 
 

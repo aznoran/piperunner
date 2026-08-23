@@ -49,7 +49,16 @@ func _process(_delta: float) -> bool:
 		# overriding mid-run is deliberately ignored.
 		main._show_menu()
 		experiment.override(variant)
+		# Switching variants rebuilds the source, and rebuilding must not put a
+		# strip on screen: the menu's own buttons live down there, and a run
+		# has not started.
+		_check(not main.get_node("Ui/QueueBar").visible
+				and not main.get_node("Ui/OfferBar").visible,
+			"no strip shows in the menu after switching to %s"
+				% BlockSource.NAMES[variant])
 		main.start_run(0)
+		_check(main._blocks.strip().visible,
+			"the live strip shows once a run begins")
 		source = main._blocks
 		_check(source.variant() == variant,
 			"variant %d builds its own source" % variant)
