@@ -1013,8 +1013,12 @@ func _refresh_strip() -> void:
 	if _blocks == null:
 		return
 	_blocks.refresh()
-	_input.offer_rects = _blocks.tap_targets()
+	var targets := _blocks.tap_targets()
+	_input.offer_rects = targets
 	_input.offer_strip_top = _blocks.strip_top()
+	# The power keys flank the strip, so they move whenever it does — which is
+	# every deal, since the row is rebuilt to fit whatever is on offer.
+	_hud.place_powers(targets)
 
 
 ## Marks the cell where the cart needs pipe next, and warns when the track is

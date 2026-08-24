@@ -21,7 +21,10 @@ const BAR_RADIUS := 7
 
 ## Size of a power-up key and how far it sits off the edge.
 const POWER_SIZE := 78.0
-const POWER_MARGIN := 14.0
+## What a key may shrink or grow to when it is matched to a shape slot.
+const POWER_MIN := 52.0
+const POWER_MAX := 86.0
+const POWER_MARGIN := 10.0
 ## The bar's key face and the 9-patch inset that keeps its corners crisp — the
 ## same numbers the menu uses, because it is the same button.
 const KEY_FACE := "res://art/ui/tab_face.png"
@@ -29,7 +32,7 @@ const KEY_MARGIN := 18
 const KEY_LIP := 6.0
 
 var _face: Texture2D
-var _power_bar: VBoxContainer
+var _power_bar: Control
 var _power_keys: Dictionary = {}
 ## True while the brake read-out has the combo label.
 var _braking: bool = false
@@ -99,19 +102,18 @@ func _build_speed_chip() -> void:
 ## The power-up keys, down the right-hand edge where a thumb already is and
 ## nothing else lives. Built once; only their counts change after that.
 func _build_powers() -> void:
-	_power_bar = VBoxContainer.new()
+	# A plain Control, not a container: the keys are placed against the shape
+	# strip by `place_powers`, and a container would lay them out again and
+	# throw those positions away.
+	_power_bar = Control.new()
 	_power_bar.name = "Powers"
-	_power_bar.add_theme_constant_override("separation", 10)
-	_power_bar.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	_power_bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_power_bar.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_power_bar.offset_right = -POWER_MARGIN
+	_power_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_power_bar)
 
 	_face = load(KEY_FACE)
 	for power in PowerUps.catalogue():
 		var key := Button.new()
-		key.custom_minimum_size = Vector2(POWER_SIZE, POWER_SIZE)
+		key.size = Vector2(POWER_SIZE, POWER_SIZE)
 		key.focus_mode = Control.FOCUS_NONE
 		key.pressed.connect(func() -> void: power_used.emit(power.id))
 		_power_bar.add_child(key)
@@ -122,11 +124,8 @@ func _build_powers() -> void:
 		var mark := TabIcon.new()
 		mark.name = "Mark"
 		mark.kind = power.icon
-		mark.set_anchors_preset(Control.PRESET_FULL_RECT)
-		mark.offset_left = POWER_SIZE * 0.22
-		mark.offset_top = POWER_SIZE * 0.18
-		mark.offset_right = -POWER_SIZE * 0.22
-		mark.offset_bottom = -POWER_SIZE * 0.3
+		mark.position = Vector2(POWER_SIZE * 0.22, POWER_SIZE * 0.18)
+		mark.size = Vector2(POWER_SIZE * 0.56, POWER_SIZE * 0.52)
 		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		key.add_child(mark)
 
@@ -136,15 +135,76 @@ func _build_powers() -> void:
 		badge.add_theme_font_size_override("font_size", 16)
 		badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		badge.custom_minimum_size = Vector2(26, 26)
-		badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		badge.offset_left = -18.0
-		badge.offset_top = -8.0
-		badge.offset_right = 8.0
-		badge.offset_bottom = 18.0
+		badge.size = Vector2(26, 26)
+		badge.position = Vector2(POWER_SIZE - 18.0, -8.0)
 		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		key.add_child(badge)
 		_power_keys[String(power.id)] = key
+
+
+## Sits the keys either side of the shape strip, which is where the thumb
+## already is.
+##
+## They used to live down the right-hand edge, a long way from the only other
+## thing anybody touches during a run. Flanking the strip puts every control in
+## one band across the bottom of the screen: the shapes in the middle, a
+## power-up on each side, nothing to reach for.
+##
+## Given the strip's own slots rather than a guess at them, so the keys line up
+## with the row however wide the offer is or however small the cells have been
+## squeezed on a narrow phone.
+func place_powers(slots: Array[Rect2]) -> void:
+	if _power_bar == null or slots.is_empty():
+		return
+	var leftmost: Rect2 = slots[0]
+	var rightmost: Rect2 = slots[slots.size() - 1]
+	for rect: Rect2 in slots:
+		if rect.position.x < leftmost.position.x:
+			leftmost = rect
+		if rect.end.x > rightmost.end.x:
+			rightmost = rect
+
+	# Matched to the slots so the band reads as one row, within reason: on a
+	# wide screen a key the size of a slot would be a dinner plate.
+	var side: float = clampf(leftmost.size.y, POWER_MIN, POWER_MAX)
+	var middle: float = leftmost.position.y + leftmost.size.y * 0.5
+	# The HUD is a layer, not a control, so the width comes from the viewport.
+	var wide: float = get_viewport().get_visible_rect().size.x
+
+	var index := 0
+	for power in PowerUps.catalogue():
+		var key: Button = _power_keys.get(String(power.id))
+		if key == null:
+			continue
+		key.size = Vector2(side, side)
+		# Alternating outward, so a third power-up would stack beside the first
+		# rather than land on top of it.
+		var rank: int = index / 2
+		var step: float = side + POWER_MARGIN
+		var x: float
+		if index % 2 == 0:
+			x = rightmost.end.x + POWER_MARGIN + step * float(rank)
+			# Nowhere to put it: tuck it against the edge rather than off it.
+			if x + side > wide:
+				x = maxf(wide - side - 2.0, rightmost.end.x + 2.0)
+		else:
+			x = leftmost.position.x - POWER_MARGIN - side - step * float(rank)
+			if x < 0.0:
+				x = minf(2.0, leftmost.position.x - side - 2.0)
+		key.position = Vector2(x, middle - side * 0.5)
+		_resize_key_face(key, side)
+		index += 1
+
+
+## The icon and the count follow the key's size, which the strip decides.
+func _resize_key_face(key: Button, side: float) -> void:
+	var mark: TabIcon = key.get_node_or_null("Mark")
+	if mark != null:
+		mark.position = Vector2(side * 0.22, side * 0.18)
+		mark.size = Vector2(side * 0.56, side * 0.52)
+	var badge: Label = key.get_node_or_null("Count")
+	if badge != null:
+		badge.position = Vector2(side - 18.0, -8.0)
 
 
 ## Repaints the keys from what the player owns. A power-up with nothing left is
