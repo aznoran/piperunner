@@ -33,6 +33,11 @@ var _power_bar: VBoxContainer
 var _power_keys: Dictionary = {}
 ## True while the brake read-out has the combo label.
 var _braking: bool = false
+## Seconds an announcement still has the label for.
+const ANNOUNCE_TIME := 1.1
+var _announcing: float = 0.0
+var _speed_chip: Label
+var _speed_pulse: float = 0.0
 
 var _skin: LocationSkin
 var _track_box := StyleBoxFlat.new()
@@ -54,15 +59,39 @@ func _ready() -> void:
 	_combo_label.modulate.a = 0.0
 	%BackButton.pressed.connect(func() -> void: back_pressed.emit())
 	_build_powers()
+	_build_speed_chip()
 	get_viewport().size_changed.connect(_apply_safe_area)
 	_apply_safe_area()
 
 
 func _process(delta: float) -> void:
+	_speed_pulse += delta
+	# An announcement holds the label against the combo, which would otherwise
+	# overwrite it the moment the next crystal came in.
+	if _announcing > 0.0:
+		_announcing -= delta
+		if _announcing <= 0.0:
+			_combo_label.modulate.a = 0.0
+		return
 	if _combo_fade > 0.0:
 		_combo_fade -= delta
 		if _combo_fade <= 0.0:
 			_combo_label.modulate.a = 0.0
+
+
+## The speed warning, sitting on the fuel line where the other clock is.
+func _build_speed_chip() -> void:
+	_speed_chip = Label.new()
+	_speed_chip.name = "SpeedChip"
+	_speed_chip.visible = false
+	_speed_chip.add_theme_font_size_override("font_size", 17)
+	_speed_chip.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_speed_chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_speed_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_speed_chip.offset_left = -180.0
+	_speed_chip.offset_top = 4.0
+	_speed_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	(%FuelTrack as Control).get_parent().add_child(_speed_chip)
 
 
 # --- power-ups ----------------------------------------------------------
@@ -163,6 +192,36 @@ func set_powers(state: Node) -> void:
 			key.add_theme_stylebox_override(what, box)
 
 
+## How fast the cart is, as a fraction of the way from its starting speed to
+## the cap, and whether that is enough to be worth saying.
+##
+## Shown against the fuel bar rather than as another floating word: fuel and
+## speed are the two clocks running a run down, and a player watching one is
+## already looking at the other.
+func set_speed(ratio: float, warn: bool) -> void:
+	if _speed_chip == null:
+		return
+	_speed_chip.visible = warn
+	if not warn:
+		return
+	_speed_chip.text = "FAST  ×%.1f" % (1.0 + ratio)
+	var heat: Color = _skin.warn.lerp(_skin.danger, clampf(ratio, 0.0, 1.0))
+	_speed_chip.add_theme_color_override("font_color", heat)
+	# Breathing, so it reads as a state the run is in rather than as a label
+	# that has always been there.
+	_speed_chip.modulate.a = 0.7 + 0.3 * absf(sin(_speed_pulse * 3.0))
+
+
+## A word held for a beat where the combo goes. Used for things that happen
+## once and are over — the gate that slowed the cart, which otherwise announces
+## itself only by a change in a speed nobody was reading.
+func announce(text: String, tint: Color) -> void:
+	_combo_label.text = text
+	_combo_label.add_theme_color_override("font_color", tint)
+	_combo_label.modulate.a = 1.0
+	_announcing = ANNOUNCE_TIME
+
+
 ## Seconds left on the brake, shown where the combo is: both are things that
 ## are true for a moment and then are not.
 func set_brake(seconds: float) -> void:
@@ -236,6 +295,8 @@ func set_daily(is_daily: bool, date: String = "") -> void:
 
 
 func set_combo(value: int) -> void:
+	if _announcing > 0.0:
+		return  # an announcement has the label; the chain can wait its turn
 	if value <= 0:
 		_combo_label.modulate.a = 0.0
 		_combo_fade = 0.0

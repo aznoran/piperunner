@@ -524,13 +524,10 @@ func _draw_station(step: Dictionary) -> void:
 	var radius := _cell * 0.36
 
 	if cleared:
-		# Taken. The same shaft of light and the same breathing the board gives
-		# a crystal, so a cleared station reads from across the room.
+		# Taken. The same breathing the board gives a crystal — and, like the
+		# board, no shaft of light above it: a column over every cleared
+		# station turned the map into a bar chart.
 		var pulse: float = 1.0 + 0.1 * sin(_time * 4.5 + float(number))
-		var beam := _skin.pickup
-		beam.a = _skin.pickup_beam_alpha * 2.0
-		draw_rect(Rect2(centre.x - _cell * 0.07, centre.y - _cell * 2.2,
-			_cell * 0.14, _cell * 2.2), beam)
 		draw_circle(centre, radius * pulse, Color(_skin.pickup, 0.9))
 		draw_circle(centre, radius * 0.45 * pulse, _skin.pickup_core)
 		return

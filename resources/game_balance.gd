@@ -22,6 +22,17 @@ extends Resource
 ## Speed added per point scored.
 @export var speed_gain: float = 0.0032
 @export var speed_cap: float = 2.3
+## How far between the starting speed and the cap the cart has to be before it
+## says so, 0..1.
+##
+## The speed climbs by a thousandth at a time and nothing marks the moment it
+## stops being manageable, so a player only finds out by losing. This is where
+## the warning comes on — early enough to steer for the next gate, not so early
+## that it is on for the whole run.
+@export_range(0.0, 1.0, 0.05) var speed_warn_at: float = 0.55
+## How far it has to fall back before the warning clears, so a cart sitting on
+## the line does not blink.
+@export_range(0.0, 0.4, 0.01) var speed_warn_slack: float = 0.08
 
 @export_group("Fuel")
 @export var fuel_max: float = 100.0
@@ -58,7 +69,7 @@ extends Resource
 @export var checkpoint_lead: int = 10
 ## Never closer to the start than this, however short their runs have been —
 ## a gate in the first few rows would be met before the speed is a problem.
-@export var checkpoint_first_min: int = 18
+@export var checkpoint_first_min: int = 14
 ## How many cells wide a gate is.
 ##
 ## One cell in a board seven wide is nearly always off the route, so taking it
@@ -67,10 +78,17 @@ extends Resource
 ## cells across is cheap to steer into and still possible to miss, which is the
 ## bargain it is supposed to be: recommended, not automatic.
 @export var checkpoint_width: int = 3
-## How much of the speed gained so far a gate hands back, 0..1. At 1.0 the
-## cart returns to its starting pace and the run restarts in all but name; at
-## 0 the gate is scenery.
-@export_range(0.0, 1.0, 0.05) var checkpoint_relief: float = 0.55
+## The pace a gate leaves the cart at, as a fraction of the way from the
+## starting speed to the cap.
+##
+## A target rather than a discount, and the difference is the whole feel of it.
+## A discount hands back a share of what was gained, so a cart that is only a
+## little fast gets a little back and the gate does nothing anyone can notice —
+## which is exactly when a player first meets one, and exactly the complaint it
+## earned. A target always leaves the cart at the same playable pace: arrive
+## flat out and the drop is enormous, arrive already slow and there was nothing
+## to fix. A gate never speeds the cart up.
+@export_range(0.0, 1.0, 0.05) var checkpoint_pace: float = 0.25
 
 @export_group("Scoring")
 ## Points per crystal = crystal_points * min(combo, crystal_combo_cap).
@@ -94,11 +112,11 @@ extends Resource
 @export var rock_density_base: float = 0.05
 @export var rock_density_gain: float = 0.0012
 @export var rock_density_cap: float = 0.14
-## Rings of cells either side of the cart's path that a crystal is picked up
-## from. It used to be an upgrade; it is now simply how the cart works, because
-## a cart that only takes what it drives exactly through reads as fussy rather
-## than as demanding.
-@export var magnet_reach: int = 1
+## Rings of cells either side of the cart's path a crystal is taken from. Zero
+## means the cart takes only what it runs through, which is the rule the game
+## is actually about: a crystal one cell over is a crystal you have to route
+## for, and pulling it in for free quietly deletes that decision.
+@export var magnet_reach: int = 0
 ## A crystal every crystal_gap_min..crystal_gap_max rows.
 @export var crystal_gap_min: int = 2
 @export var crystal_gap_max: int = 4

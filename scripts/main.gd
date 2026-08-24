@@ -52,6 +52,8 @@ var _braked: float = 0.0
 ## from the score, which is what the player earned and is never taken away —
 ## only the pace it buys is.
 var _speed_pardon: float = 0.0
+## True while the cart is past the comfortable speed and has been told so.
+var _speed_warned: bool = false
 ## Benchmarks pin the run seed here so the same board can be replayed. -1 in
 ## normal play, where every run is its own.
 var forced_seed: int = -1
@@ -550,6 +552,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	_last_placed_at = _run_began
 	_braked = 0.0
 	_speed_pardon = 0.0
+	_speed_warned = false
 	selected_mode = mode
 	daily_mode = mode == Mode.DAILY
 	_autoplayer.stop()
@@ -665,6 +668,7 @@ func _run_frame(delta: float) -> void:
 		_burn_fuel(balance.fuel_per_second * delta)
 		if state != State.PLAYING:
 			return
+		_watch_speed()
 		_cart.advance(delta, speed)
 		if state != State.PLAYING:
 			return  # the cart died mid-step
@@ -794,6 +798,26 @@ func _board_window() -> PackedByteArray:
 	return window
 
 
+## Tells the player when the cart has wound up past the point of being
+## comfortable, and again when it has not.
+##
+## The speed climbs a thousandth at a time and nothing marks the moment it
+## stops being manageable, so without this a player finds out by losing. The
+## warning is deliberately not a nag: it comes on once, with a word and a
+## buzz, and after that it is a chip on the fuel line.
+func _watch_speed() -> void:
+	var span: float = maxf(balance.speed_cap - balance.start_speed, 0.01)
+	var wound: float = clampf((speed - balance.start_speed) / span, 0.0, 1.0)
+	var over: bool = wound >= balance.speed_warn_at
+	if _speed_warned and wound < balance.speed_warn_at - balance.speed_warn_slack:
+		_speed_warned = false
+	elif over and not _speed_warned:
+		_speed_warned = true
+		_hud.announce("SPEEDING UP", Skins.current().warn)
+		GameState.vibrate(balance.haptics_place_ms)
+	_hud.set_speed(wound, over)
+
+
 ## Driven through a speed gate.
 ##
 ## It hands back a share of the pace built up since the start, so the cart is
@@ -804,25 +828,29 @@ func _board_window() -> PackedByteArray:
 ## it is a route the player has to steer into, and steering costs cells and
 ## fuel, so taking one is a decision and missing one is an answer.
 func _pass_gate(cell: Vector2i) -> void:
-	# Worked back from the speed the player is actually feeling, not from the
-	# score behind it. Past the cap those two part company badly: at nine
-	# hundred points the score buys half again the top speed, so a share of it
-	# handed back moved the cart not at all — the gate was inert at exactly the
-	# pace it exists to fix. So the target is named first and the pardon is
-	# whatever reaches it.
+	# The pace is named first and the pardon is whatever reaches it. Working
+	# from the score instead fails twice over: past the cap the score buys far
+	# more speed than the cart is doing, so a share of it moves nothing — and
+	# below the cap a cart that is only slightly fast has little to give back,
+	# so the gate does nothing at the moment a player first meets one.
 	if balance.speed_gain > 0.0:
 		var target: float = balance.start_speed \
-			+ (speed - balance.start_speed) * (1.0 - balance.checkpoint_relief)
+			+ (balance.speed_cap - balance.start_speed) * balance.checkpoint_pace
 		var wanted: float = float(score) \
 			- (target - balance.start_speed) / balance.speed_gain
-		# Never downward: a gate gives pace back and never takes it.
+		# Never downward: a gate gives pace back and never takes it, so a cart
+		# already slower than the target keeps what it has.
 		_speed_pardon = maxf(_speed_pardon, maxf(wanted, 0.0))
+	# Said out loud. The speed drops the instant the gate is crossed, which is
+	# the one kind of change a player looking at the track does not see: there
+	# is no motion to notice, only an absence of it. So the gate reports itself
+	# — where it was, on the fuel bar's line, and in the hand.
 	var at := _board.cell_to_world(cell)
-	_fx.burst(at, Skins.current().warn, 22, _cell_size * 5.0)
+	_fx.burst(at, Skins.current().warn, 26, _cell_size * 6.0)
 	_fx.floater(at, "SLOW", Skins.current().warn)
 	_screen_fx.flash()
-	GameState.vibrate(balance.haptics_crystal_ms)
-	_praise_for(Praise.Kind.CLUTCH)
+	_hud.announce("SLOWED", Skins.current().warn)
+	GameState.vibrate(balance.haptics_death_ms)
 
 
 # --- power-ups ----------------------------------------------------------

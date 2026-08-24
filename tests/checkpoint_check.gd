@@ -105,11 +105,50 @@ func _process(_delta: float) -> bool:
 		"and the score is not touched: what was earned stays earned, got %d"
 			% main.score)
 
-	# The share handed back is the one the balance sheet asks for.
-	var given: float = (fast - eased) / (fast - balance.start_speed)
-	_check(absf(given - balance.checkpoint_relief) < 0.06,
-		"it hands back the share it says it does, %.2f against %.2f"
-			% [given, balance.checkpoint_relief])
+	# It leaves the cart at the pace the sheet names, whatever it arrived at.
+	var target: float = balance.start_speed \
+		+ (balance.speed_cap - balance.start_speed) * balance.checkpoint_pace
+	_check(absf(eased - target) < 0.05,
+		"it leaves the cart at the pace it says, %.2f against %.2f"
+			% [eased, target])
+
+	# And a cart already slower than that keeps what it has: a gate gives pace
+	# back and never takes it.
+	main._speed_pardon = 0.0
+	main.score = 20
+	main.speed = balance.start_speed + 20.0 * balance.speed_gain
+	var crawling: float = main.speed
+	main._pass_gate(gate)
+	var after: float = minf(balance.start_speed
+		+ maxf(float(main.score) - main._speed_pardon, 0.0) * balance.speed_gain,
+		balance.speed_cap)
+	_check(absf(after - crawling) < 0.001,
+		"a slow cart is left alone, %.2f -> %.2f" % [crawling, after])
+
+	# --- the warning ------------------------------------------------
+	#
+	# The speed climbs a thousandth at a time, so without a word for it the
+	# player finds out they are past the point of coping by losing.
+	main._speed_warned = false
+	main._speed_pardon = 0.0
+	main.score = 20
+	main.speed = balance.start_speed
+	main._watch_speed()
+	_check(not main._speed_warned, "a cart at its starting pace says nothing")
+
+	var span: float = balance.speed_cap - balance.start_speed
+	main.speed = balance.start_speed + span * (balance.speed_warn_at + 0.05)
+	main._watch_speed()
+	_check(main._speed_warned, "and speaks up once it is past the mark")
+
+	# Sitting on the line must not blink: it takes a real fall to clear.
+	main.speed = balance.start_speed + span * (balance.speed_warn_at - 0.01)
+	main._watch_speed()
+	_check(main._speed_warned, "a cart hovering on the mark keeps the warning")
+
+	main.speed = balance.start_speed + span * 0.1
+	main._watch_speed()
+	_check(not main._speed_warned, "and a gate that really slowed it clears it")
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	return true

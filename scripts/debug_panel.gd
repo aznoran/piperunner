@@ -39,7 +39,7 @@ const KNOBS := [
 	{"id": "checkpoint_gap", "name": "Rows between gates", "min": 8, "max": 60, "step": 1},
 	{"id": "checkpoint_lead", "name": "Ahead of trouble", "min": 0, "max": 30, "step": 1},
 	{"id": "checkpoint_width", "name": "Gate width", "min": 1, "max": 7, "step": 1},
-	{"id": "checkpoint_relief", "name": "Speed given back", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"id": "checkpoint_pace", "name": "Pace left at", "min": 0.0, "max": 1.0, "step": 0.05},
 
 	{"group": "Fuel"},
 	{"id": "fuel_max", "name": "Tank", "min": 40.0, "max": 240.0, "step": 5.0},

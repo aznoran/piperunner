@@ -307,8 +307,12 @@ func plan_checkpoints(reach: int) -> void:
 	if not balance.checkpoints_on:
 		next_checkpoint_row = 0
 		return
-	var first: int = (reach - balance.checkpoint_lead) if reach > 0 \
-		else balance.checkpoint_gap
+	# Short of trouble either way. With no history to go on, the designed gap
+	# stands in for how far this player gets — and the lead comes off that too,
+	# or the very first gate lands exactly where the run was going to end
+	# anyway and is never reached at all.
+	var reference: int = reach if reach > 0 else balance.checkpoint_gap
+	var first: int = reference - balance.checkpoint_lead
 	next_checkpoint_row = maxi(first, balance.checkpoint_first_min)
 
 
@@ -629,26 +633,16 @@ func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:
 	var pulse := 1.0 + 0.12 * sin(_time * 4.5 + cell.x)
 
 	if _skin.pickup_texture != null:
-		# Keep the shaft of light — it is what makes a pickup readable from a
-		# screen away — and let the sprite do the rest.
-		var beam_tint := _skin.pickup
-		beam_tint.a = _skin.pickup_beam_alpha * reveal
-		var height := cell_size * 6.0
-		ci.draw_rect(Rect2(centre.x - cell_size * 0.07, centre.y - height,
-			cell_size * 0.14, height), beam_tint)
 		var side := cell_size * 0.78 * pulse
 		ci.draw_texture_rect(_skin.pickup_texture,
 			Rect2(centre - Vector2(side, side) * 0.5, Vector2(side, side)), false,
 			Color(1.0, 1.0, 1.0, reveal))
 		return
 
-	# Shaft of light rising out of the crystal, so it reads from a screen away.
-	var beam := _skin.pickup
-	beam.a = 0.07
-	var beam_height := cell_size * 6.0
-	ci.draw_rect(Rect2(centre.x - cell_size * 0.07, centre.y - beam_height,
-		cell_size * 0.14, beam_height), beam)
-
+	# No shaft of light. It was there to make a crystal readable from a screen
+	# away, and it did — but six cells of it above every pickup turned the
+	# board into a set of columns, and the thing being read stopped being the
+	# board. The crystal is bright enough on its own.
 	var half := cell_size * 0.17 * pulse
 	var core_half := cell_size * 0.07 * pulse
 	var glow := _skin.pickup

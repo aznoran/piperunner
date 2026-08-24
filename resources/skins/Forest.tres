@@ -31,7 +31,6 @@ shape_colors = {
 }
 pickup = Color(0.435294, 0.815686, 0.909804, 1)
 pickup_core = Color(0.847059, 0.964706, 1, 1)
-pickup_beam_alpha = 0.09
 cart_body = Color(0.949020, 0.917647, 0.839216, 1)
 cart_window = Color(0.286275, 0.196078, 0.121569, 1)
 cart_glow = Color(0.658824, 0.901961, 0.627451, 1)

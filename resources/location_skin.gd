@@ -36,7 +36,6 @@ extends Resource
 @export var pickup: Color = Color("4ce0b3")
 @export var pickup_core: Color = Color("d5fff3")
 ## Opacity of the shaft of light that marks a pickup from far away.
-@export var pickup_beam_alpha: float = 0.07
 @export var cart_body: Color = Color.WHITE
 @export var cart_window: Color = Color("0d1524")
 @export var cart_glow: Color = Color("4ce0b3")
