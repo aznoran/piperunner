@@ -321,7 +321,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Box" type="PanelContainer" parent="HowPanel"]
-custom_minimum_size = Vector2(400, 0)
+custom_minimum_size = Vector2(600, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("Panel_box")
 
@@ -335,7 +335,7 @@ theme_override_font_sizes/font_size = 24
 text = "How to play"
 
 [node name="Rules" type="RichTextLabel" parent="HowPanel/Box/Column"]
-custom_minimum_size = Vector2(400, 0)
+custom_minimum_size = Vector2(560, 0)
 layout_mode = 2
 bbcode_enabled = true
 text = "[color=#4ce0b3]Place anywhere.[/color] Tap any empty cell to drop the current pipe — not just in front of the cart.
@@ -368,7 +368,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Box" type="PanelContainer" parent="SettingsPanel"]
-custom_minimum_size = Vector2(360, 0)
+custom_minimum_size = Vector2(560, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("Panel_box")
 
@@ -402,50 +402,6 @@ unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 
-[node name="LocationButton" type="Button" parent="SettingsPanel/Box/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
-theme_override_font_sizes/font_size = 17
-theme_override_styles/normal = SubResource("Ghost_normal")
-theme_override_styles/hover = SubResource("Ghost_normal")
-theme_override_styles/pressed = SubResource("Ghost_normal")
-text = "Location"
-
-[node name="CartButton" type="Button" parent="SettingsPanel/Box/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
-theme_override_font_sizes/font_size = 17
-theme_override_styles/normal = SubResource("Ghost_normal")
-theme_override_styles/hover = SubResource("Ghost_normal")
-theme_override_styles/pressed = SubResource("Ghost_normal")
-text = "Cart"
-
-[node name="DebugAutoplayButton" type="Button" parent="SettingsPanel/Box/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
-theme_override_font_sizes/font_size = 17
-text = "DEBUG: watch the bot play"
-
-[node name="DebugExpertButton" type="Button" parent="SettingsPanel/Box/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
-theme_override_font_sizes/font_size = 17
-text = "DEBUG: expert bot"
-
-[node name="DebugUnlockButton" type="Button" parent="SettingsPanel/Box/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.823529, 0.247059, 1)
-theme_override_font_sizes/font_size = 17
-theme_override_styles/normal = SubResource("Ghost_normal")
-theme_override_styles/hover = SubResource("Ghost_normal")
-theme_override_styles/pressed = SubResource("Ghost_normal")
-text = "DEBUG: unlock everything"
-
 [node name="HowToButton" type="Button" parent="SettingsPanel/Box/Column"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -455,16 +411,6 @@ theme_override_styles/normal = SubResource("Ghost_normal")
 theme_override_styles/hover = SubResource("Ghost_normal")
 theme_override_styles/pressed = SubResource("Ghost_normal")
 text = "How to play"
-
-[node name="ResetBestButton" type="Button" parent="SettingsPanel/Box/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.301961, 0.301961, 1)
-theme_override_font_sizes/font_size = 17
-theme_override_styles/normal = SubResource("Ghost_normal")
-theme_override_styles/hover = SubResource("Ghost_normal")
-theme_override_styles/pressed = SubResource("Ghost_normal")
-text = "Reset progress"
 
 [node name="CloseSettings" type="Button" parent="SettingsPanel/Box/Column"]
 unique_name_in_owner = true
@@ -485,7 +431,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Box" type="PanelContainer" parent="UpgradesPanel"]
-custom_minimum_size = Vector2(410, 0)
+custom_minimum_size = Vector2(620, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("Panel_box")
 
@@ -493,17 +439,24 @@ theme_override_styles/panel = SubResource("Panel_box")
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Heading" type="Label" parent="UpgradesPanel/Box/Column"]
+[node name="HeadRow" type="HBoxContainer" parent="UpgradesPanel/Box/Column"]
 layout_mode = 2
+
+[node name="Heading" type="Label" parent="UpgradesPanel/Box/Column/HeadRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
 theme_override_font_sizes/font_size = 24
 text = "Depot"
 
-[node name="Wallet" type="Label" parent="UpgradesPanel/Box/Column"]
+[node name="Wallet" type="Label" parent="UpgradesPanel/Box/Column/HeadRow"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
 theme_override_colors/font_color = Color(0.298039, 0.878431, 0.701961, 1)
-theme_override_font_sizes/font_size = 19
+theme_override_font_sizes/font_size = 21
 text = "0 crystals"
+horizontal_alignment = 2
 
 [node name="ShopRows" type="VBoxContainer" parent="UpgradesPanel/Box/Column"]
 unique_name_in_owner = true
@@ -529,7 +482,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Box" type="PanelContainer" parent="QuestsPanel"]
-custom_minimum_size = Vector2(420, 0)
+custom_minimum_size = Vector2(620, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("Panel_box")
 
@@ -592,26 +545,21 @@ theme_override_font_sizes/font_size = 34
 text = "CHOOSE A MODE"
 horizontal_alignment = 1
 
-[node name="Carousel" type="ScrollContainer" parent="ModesPanel"]
+[node name="Cards" type="VBoxContainer" parent="ModesPanel"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 0.5
-offset_top = -190.0
-offset_bottom = 190.0
+offset_left = 26.0
+offset_top = -180.0
+offset_right = -26.0
+offset_bottom = 180.0
 grow_horizontal = 2
 grow_vertical = 2
-horizontal_scroll_mode = 3
-vertical_scroll_mode = 0
-
-[node name="Cards" type="HBoxContainer" parent="ModesPanel/Carousel"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
 alignment = 1
-theme_override_constants/separation = 14
+theme_override_constants/separation = 16
 
 [node name="CloseModes" type="Button" parent="ModesPanel"]
 unique_name_in_owner = true

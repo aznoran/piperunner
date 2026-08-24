@@ -46,9 +46,14 @@ const CELL_MIN := 56.0
 const CELL_MAX := 124.0
 const EDGE := 8.0
 ## Cells of road beyond the first and last stations. The line is longer than
-## the story: it comes up out of somewhere and carries on somewhere, and these
-## are the cells over which it fades away rather than stopping at a cut end.
+## the story — it comes up out of somewhere and carries on somewhere — and it
+## says so by leaving the panel at full strength rather than by dimming. A road
+## that fades out ends; one that is cut off by the edge of the screen carries
+## on past it, which is the truer thing and the better-looking one.
 const LEAD := 7
+## Rows of road drawn past the top and bottom of the grid itself, so the line
+## is cut by the edge of the panel rather than stopping at the last cell.
+const OVERRUN := 3
 
 var _skin: LocationSkin
 var _tint: Color = Color.WHITE
@@ -212,8 +217,10 @@ func _walk(total: int) -> void:
 	var cells: Array[Vector2i] = []
 	var column: int = (ROAD_LEFT + ROAD_RIGHT) / 2
 	# The whole height, edge to edge: the fading ends are road too.
-	var row: int = _rows - 1
-	var floor_row: int = 0
+	# Off the ends of the grid, so the road is cut short by the panel rather
+	# than ending on the last row anybody can see.
+	var row: int = _rows - 1 + OVERRUN
+	var floor_row: int = -OVERRUN
 
 	while row >= floor_row:
 		cells.append(Vector2i(column, row))
@@ -239,7 +246,7 @@ func _walk(total: int) -> void:
 		row -= 1
 
 	# Stations spread evenly along the middle of the road — not into the ends,
-	# which belong to the parts of the line that fade away.
+	# which are the stretches that run off the panel and out of sight.
 	var first: int = mini(LEAD, cells.size() - 1)
 	var last: int = maxi(cells.size() - 1 - LEAD, first)
 	_first_station = first
@@ -481,18 +488,6 @@ func _draw_pipe(index: int) -> void:
 	var shell: Color = _skin.pipe_shell_used if flooded else _skin.pipe_shell
 	var core: Color = _skin.pipe_core_used if flooded else _skin.pipe_core
 
-	# Past the last station and below the first, the road thins out to nothing
-	# rather than stopping at a cut end.
-	var fade := 1.0
-	if index < _first_station:
-		fade = float(index) / float(maxi(_first_station, 1))
-	elif index > _last_station:
-		fade = float(_route.size() - 1 - index) \
-			/ float(maxi(_route.size() - 1 - _last_station, 1))
-	if fade <= 0.02:
-		return
-	shell.a *= fade
-	core.a *= fade
 
 	var shell_width := _cell * 0.34
 	var core_width := _cell * 0.09

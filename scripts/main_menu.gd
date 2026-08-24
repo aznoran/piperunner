@@ -5,8 +5,6 @@ class_name MainMenu
 extends CanvasLayer
 
 signal start_pressed
-## Emitted when the player picks a different location.
-signal location_chosen(skin: LocationSkin)
 ## Emitted when the player picks a different cart look.
 signal cart_chosen(variant: int)
 ## Emitted when a mode is picked in the carousel, as one of MODE_*.
@@ -19,9 +17,10 @@ signal level_chosen(number: int)
 
 ## Style for the buy buttons, built once rather than per row.
 const BUY_RADIUS := 20
-## Mode ids, matching Main.Mode so the signal needs no translation.
+## Mode ids, matching Main.Mode so the signal needs no translation. The gap at
+## one is where the daily was; Main's enum keeps it so a saved mode from an
+## older build does not come back as the wrong game.
 const MODE_CLASSIC := 0
-const MODE_DAILY := 1
 const MODE_STORY := 2
 ## Bar tabs: corner radius and the depth of the bottom lip that gives them
 ## their pressable look.
@@ -72,19 +71,16 @@ func _ready() -> void:
 	%CloseLevels.pressed.connect(_open_modes)
 	%CloseQuests.pressed.connect(_close_panels)
 	%HowToButton.pressed.connect(_toggle.bind(_how_panel))
-	%LocationButton.pressed.connect(_cycle_location)
-	%CartButton.pressed.connect(_cycle_cart)
-	# The debug tools live on their own bench now, behind a corner button that
-	# only a debug build has at all.
-	%DebugAutoplayButton.visible = false
-	%DebugExpertButton.visible = false
-	%DebugUnlockButton.visible = false
+	# Settings holds the handful of switches that are not about the game. The
+	# cart is worn in the depot beside the other things you own, the location
+	# follows the station you are on, and the debug tools live on their own
+	# bench behind a corner key. A reset button among them was a loaded gun
+	# with no safety besides — a mis-tap cost a player everything they had.
 	if OS.is_debug_build():
 		_build_bench()
 	%CloseHow.pressed.connect(_close_panels)
 	%CloseSettings.pressed.connect(_close_panels)
 	%CloseUpgrades.pressed.connect(_close_panels)
-	%ResetBestButton.pressed.connect(_reset_progress)
 	_haptics_toggle.toggled.connect(_set_haptics)
 
 	_build_shop()
@@ -217,16 +213,13 @@ func paint(skin: LocationSkin) -> void:
 
 	for path in ["%CloseHow", "%CloseSettings", "%CloseUpgrades", "%CloseQuests",
 			"%CloseModes", "%CloseLevels",
-			"%HowToButton", "%LocationButton", "%CartButton", "%DebugUnlockButton",
-			"%DebugAutoplayButton", "%DebugExpertButton"]:
+			"%HowToButton"]:
 		var button: Button = get_node_or_null(path)
 		if button != null:
 			_paint_ghost(button, skin, skin.accent)
 	if _bench_button != null:
 		_paint_ghost(_bench_button, skin, skin.warn)
-	var reset: Button = get_node_or_null("%ResetBestButton")
-	if reset != null:
-		_paint_ghost(reset, skin, skin.danger)
+
 
 	for path in ["%HowPanel", "%SettingsPanel", "%UpgradesPanel", "%QuestsPanel"]:
 		var panel: Control = get_node_or_null(path)
@@ -344,13 +337,8 @@ func _set_menu_chrome(shown: bool) -> void:
 
 
 func _refresh() -> void:
-	_set_badge(%ModesButton, 1 if GameState.daily_result() <= 0 else 0)
-	%LocationButton.text = "Location: %s" % Skins.current().display_name
-	var carts := Skins.current().cart_variant_count()
-	%CartButton.text = ("Cart: %d of %d" % [GameState.cart_variant % carts + 1, carts]
-		if carts > 1 else "Cart: standard")
-	%CartButton.disabled = carts <= 1
-	%CartButton.modulate.a = 1.0 if carts > 1 else 0.45
+	_set_badge(%ModesButton, 0)
+
 	_best_label.text = "Best run: %d" % GameState.best
 	_haptics_toggle.set_pressed_no_signal(GameState.haptics_enabled)
 	_refresh_shop()
@@ -361,17 +349,6 @@ func _refresh() -> void:
 
 ## One row per upgrade: what it does, how far it is bought, and the price of
 ## the next level.
-## The depot: power-ups to stock and strengthen, and carts to wear.
-##
-## It used to sell upgrades — a bigger tank, a longer preview — and they were
-## quietly the wrong thing. An upgrade is a number that goes up once and then
-## sits there: it makes every run a little longer and no run more interesting,
-## and by the third attempt nobody notices it. What is sold here now is either
-## a decision the player makes during a run, or something they can see.
-##
-## Two rows a power-up. Charges are what runs out; the level is what is kept.
-## They are separate because they are different purchases, and putting them on
-## one button would mean guessing which one somebody meant.
 ## The depot: power-ups to stock and strengthen, and carts to wear.
 ##
 ## It used to sell upgrades — a bigger tank, a longer preview — and they were
@@ -392,88 +369,188 @@ func _build_shop() -> void:
 	for power in PowerUps.catalogue():
 		_power_row(power)
 
-	_shop_heading("CARTS")
-	for variant in Skins.current().cart_variant_count():
-		_cart_row(variant)
+	var carts := Skins.current().cart_variant_count()
+	if carts > 1:
+		_shop_heading("CARTS")
+		for variant in carts:
+			_cart_row(variant)
 
 	_refresh_shop()
 
 
 func _shop_heading(text: String) -> void:
 	var pad := Control.new()
-	pad.custom_minimum_size = Vector2(0, 6)
+	pad.custom_minimum_size = Vector2(0, 2)
 	_shop_rows.add_child(pad)
 
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_font_size_override("font_size", 14)
 	label.add_theme_color_override("font_color",
-		Color(Skins.current().accent, 0.75))
+		Color(Skins.current().accent, 0.7))
 	_shop_rows.add_child(label)
 
 
-## Icon, name and what it does on the left; the two buttons stacked on the
-## right. The icon is the one the run screen draws, so a power-up is the same
-## object in both places rather than a word here and a shape there.
+## One card a power-up: what it is at the top, and underneath the two things
+## that can be bought for it, each on its own line with its own price.
+##
+## They used to be two unlabelled buttons stacked in the corner, both reading
+## "+1" and a number, and there was no way to tell from looking which one
+## stocked the thing and which one made it stronger. A price is only a price
+## if you know what it buys.
 func _power_row(power: PowerUp) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	var skin := Skins.current()
+
+	var card := PanelContainer.new()
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(skin.bg_top, 0.55)
+	box.border_color = Color(skin.pipe_shell, 0.5)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(16)
+	box.content_margin_left = 13.0
+	box.content_margin_right = 13.0
+	box.content_margin_top = 12.0
+	box.content_margin_bottom = 12.0
+	card.add_theme_stylebox_override("panel", box)
+	_shop_rows.add_child(card)
+
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 9)
+	card.add_child(column)
+
+	# The icon is the one the run screen draws, so a power-up is the same
+	# object in both places rather than a word here and a shape there.
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 11)
+	column.add_child(head)
 
 	var mark := TabIcon.new()
 	mark.kind = power.icon
-	mark.color = Skins.current().accent
-	mark.custom_minimum_size = Vector2(38, 38)
+	mark.color = skin.accent
+	mark.custom_minimum_size = Vector2(34, 34)
 	mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(mark)
+	head.add_child(mark)
 
-	var text := VBoxContainer.new()
-	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_theme_constant_override("separation", 1)
+	var named := VBoxContainer.new()
+	named.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	named.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	named.add_theme_constant_override("separation", 3)
+	head.add_child(named)
 
 	var title := Label.new()
-	title.add_theme_font_size_override("font_size", 18)
-	text.add_child(title)
+	title.text = power.display_name
+	title.add_theme_font_size_override("font_size", 19)
+	named.add_child(title)
 
 	var blurb := Label.new()
+	blurb.text = power.description
 	blurb.add_theme_font_size_override("font_size", 13)
 	blurb.modulate.a = 0.55
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	blurb.custom_minimum_size = Vector2(150, 0)
-	blurb.text = power.description
-	text.add_child(blurb)
-	row.add_child(text)
+	blurb.custom_minimum_size = Vector2(180, 0)
+	named.add_child(blurb)
 
-	var keys := VBoxContainer.new()
-	keys.add_theme_constant_override("separation", 5)
-	keys.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# How many are in hand, where the eye lands first. This is the number the
+	# player came to check.
+	var held := Label.new()
+	held.add_theme_font_size_override("font_size", 26)
+	held.add_theme_color_override("font_color", skin.accent)
+	held.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	held.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	held.custom_minimum_size = Vector2(52, 0)
+	head.add_child(held)
 
+	var stock_note := Label.new()
 	var stock := _shop_key()
 	stock.pressed.connect(_buy_charge.bind(power.id))
-	keys.add_child(stock)
+	column.add_child(_buy_line(stock_note, stock))
 
+	var level_note := Label.new()
 	var level := _shop_key()
 	level.pressed.connect(_buy_level.bind(power.id))
-	keys.add_child(level)
-	row.add_child(keys)
+	column.add_child(_buy_line(level_note, level))
 
-	_shop_rows.add_child(row)
+	# Pips rather than "level 2 of 4": four dots say the same thing without
+	# arithmetic, and they say it from across the room.
+	var pips := HBoxContainer.new()
+	pips.add_theme_constant_override("separation", 5)
+	pips.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var dots: Array[Panel] = []
+	for i in power.max_level():
+		var dot := Panel.new()
+		dot.custom_minimum_size = Vector2(9, 9)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		dots.append(dot)
+		pips.add_child(dot)
+	(level_note.get_parent() as HBoxContainer).add_child(pips)
+	(level_note.get_parent() as HBoxContainer).move_child(pips, 1)
+
 	_rows[String(power.id)] = {
-		"title": title, "stock": stock, "level": level, "id": power.id,
+		"id": power.id, "held": held, "dots": dots,
+		"stock": stock, "stock_note": stock_note,
+		"level": level, "level_note": level_note,
 	}
+
+
+## A purchase: what it buys on the left, what it costs on the button.
+func _buy_line(note: Label, key: Button) -> HBoxContainer:
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	note.add_theme_font_size_override("font_size", 14)
+	note.modulate.a = 0.8
+	note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	line.add_child(note)
+	line.add_child(key)
+	return line
 
 
 ## A cart is worn rather than bought, until there is art worth charging for.
 ## The swatch is the cart itself, so the row shows the thing instead of naming
 ## it.
 func _cart_row(variant: int) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	var skin := Skins.current()
 
-	var swatch := ColorRect.new()
-	swatch.color = Skins.current().cart_body
-	swatch.custom_minimum_size = Vector2(30, 38)
-	swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(swatch)
+	var card := PanelContainer.new()
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(skin.bg_top, 0.55)
+	box.border_color = Color(skin.pipe_shell, 0.5)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(16)
+	box.content_margin_left = 13.0
+	box.content_margin_right = 13.0
+	box.content_margin_top = 10.0
+	box.content_margin_bottom = 10.0
+	card.add_theme_stylebox_override("panel", box)
+	_shop_rows.add_child(card)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 11)
+	card.add_child(row)
+
+	# The cart's own picture where there is one. A bare colour swatch was the
+	# same white rectangle for every variant, which told the player nothing
+	# about what they were putting on.
+	var art: Array[Texture2D] = skin.cart_variants
+	if variant < art.size() and art[variant] != null:
+		var shown := TextureRect.new()
+		shown.texture = art[variant]
+		shown.custom_minimum_size = Vector2(46, 38)
+		shown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		shown.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		shown.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(shown)
+	else:
+		var swatch := Panel.new()
+		var chip := StyleBoxFlat.new()
+		chip.bg_color = skin.cart_body
+		chip.border_color = Color(skin.cart_glow, 0.8)
+		chip.set_border_width_all(2)
+		chip.set_corner_radius_all(8)
+		swatch.add_theme_stylebox_override("panel", chip)
+		swatch.custom_minimum_size = Vector2(46, 32)
+		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(swatch)
 
 	var title := Label.new()
 	title.text = "Cart %d" % (variant + 1)
@@ -486,7 +563,6 @@ func _cart_row(variant: int) -> void:
 	wear.pressed.connect(_pick_cart.bind(variant))
 	row.add_child(wear)
 
-	_shop_rows.add_child(row)
 	_rows["cart_%d" % variant] = {
 		"title": title, "wear": wear, "variant": variant,
 	}
@@ -497,7 +573,8 @@ func _shop_key() -> Button:
 	key.add_theme_font_size_override("font_size", 15)
 	for what in ["normal", "hover", "pressed"]:
 		key.add_theme_stylebox_override(what, _buy_style())
-	key.custom_minimum_size = Vector2(96, 34)
+	key.custom_minimum_size = Vector2(112, 38)
+	key.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return key
 
 
@@ -507,47 +584,59 @@ func _buy_style() -> StyleBoxFlat:
 	box.border_color = Color(Skins.current().accent, 0.55)
 	box.set_border_width_all(2)
 	box.set_corner_radius_all(BUY_RADIUS)
-	box.content_margin_left = 14.0
-	box.content_margin_right = 14.0
-	box.content_margin_top = 12.0
-	box.content_margin_bottom = 12.0
+	box.content_margin_left = 12.0
+	box.content_margin_right = 12.0
+	box.content_margin_top = 9.0
+	box.content_margin_bottom = 9.0
 	return box
 
 
 func _refresh_shop() -> void:
+	var skin := Skins.current()
 	_wallet.text = "%d crystals" % GameState.crystals
 
 	for power in PowerUps.catalogue():
 		var row: Dictionary = _rows.get(String(power.id), {})
 		if row.is_empty():
 			continue
-		var title: Label = row["title"]
-		var stock: Button = row["stock"]
-		var level_key: Button = row["level"]
 
 		var held := PowerUps.charges(power.id, GameState)
 		var strength := PowerUps.level(power.id, GameState)
-		title.text = "%s   ×%d      %s %s   ·   %d/%d" % [
-			power.display_name, held,
-			_format(PowerUps.value(power.id, GameState)), power.unit,
-			strength, power.max_level()]
+		var worth := PowerUps.value(power.id, GameState)
+		(row["held"] as Label).text = "×%d" % held
 
 		var stock_cost := PowerUps.charge_cost(power.id, GameState)
-		stock.text = "+1     %d" % stock_cost
+		var stock: Button = row["stock"]
+		# Named before it is priced: the note says what the money buys, the
+		# button says what it costs.
+		(row["stock_note"] as Label).text = "One more charge"
+		stock.text = "+1   ·   %d" % stock_cost
 		stock.disabled = GameState.crystals < stock_cost
 
+		var level_key: Button = row["level"]
 		var up_cost := PowerUps.upgrade_cost(power.id, GameState)
+		(row["level_note"] as Label).text = "%s %s each" % [
+			_format(worth), power.unit]
 		if up_cost < 0:
-			level_key.text = "MAX"
+			level_key.text = "MAXED"
 			level_key.disabled = true
 		else:
-			level_key.text = "+%s   %d" % [_format(power.step), up_cost]
+			level_key.text = "%s %s   ·   %d" % [
+				_format(worth + power.step), power.unit, up_cost]
 			level_key.disabled = GameState.crystals < up_cost
+
+		var dots: Array = row["dots"]
+		for i in dots.size():
+			var pip := StyleBoxFlat.new()
+			pip.bg_color = Color(skin.accent, 0.9) if i < strength \
+				else Color(1, 1, 1, 0.13)
+			pip.set_corner_radius_all(5)
+			(dots[i] as Panel).add_theme_stylebox_override("panel", pip)
 
 		for key: Button in [stock, level_key]:
 			key.modulate.a = 1.0 if not key.disabled else 0.4
 
-	for variant in Skins.current().cart_variant_count():
+	for variant in skin.cart_variant_count():
 		var row: Dictionary = _rows.get("cart_%d" % variant, {})
 		if row.is_empty():
 			continue
@@ -556,7 +645,6 @@ func _refresh_shop() -> void:
 		wear.text = "WORN" if worn else "WEAR"
 		wear.disabled = worn
 		wear.modulate.a = 1.0 if not worn else 0.4
-
 
 ## Trims the trailing zero off whole numbers: 15.0 -> "15".
 func _format(value: float) -> String:
@@ -610,8 +698,6 @@ func set_mode_name(mode: String, kind: int = MODE_CLASSIC, goal: String = "") ->
 
 func _mode_tint(skin: LocationSkin, kind: int) -> Color:
 	match kind:
-		MODE_DAILY:
-			return skin.warn
 		MODE_STORY:
 			return skin.shape_color(PipeDefs.Type.UL)
 		_:
@@ -628,11 +714,14 @@ func _open_modes() -> void:
 
 
 func _build_modes() -> void:
-	var cards: HBoxContainer = %Cards
+	var cards: BoxContainer = %Cards
 	for child in cards.get_children():
 		child.queue_free()
 
-	var today: int = GameState.daily_result()
+	# Two modes, so they get the width three were sharing. A card wide enough
+	# to read is worth more than a third mode nobody asked for: Today was one
+	# map a day that shared its rules with classic and its board with nobody,
+	# and it earned neither the tab nor the space.
 	var skin := Skins.current()
 	_add_mode_card(cards, "CLASSIC", MODE_CLASSIC, skin.accent,
 		"Endless. One life, one board, as far as you can take it.",
@@ -640,68 +729,105 @@ func _build_modes() -> void:
 	_add_mode_card(cards, "STORY", MODE_STORY, _mode_tint(skin, MODE_STORY),
 		"Stations with a goal each. Fixed maps, learned one at a time.",
 		"CLEARED", "%d/%d" % [GameState.levels_cleared, Levels.count()])
-	_add_mode_card(cards, "TODAY", MODE_DAILY, skin.warn,
-		"One map, the same for everyone. New one at midnight.",
-		"YOUR BEST", str(today) if today > 0 else "—")
 
 
-func _add_mode_card(into: HBoxContainer, title: String, kind: int,
+func _add_mode_card(into: BoxContainer, title: String, kind: int,
 		tint: Color, blurb: String, stat_name: String, stat: String) -> void:
 	var skin := Skins.current()
 	var card := Button.new()
-	# Three modes fit the width without scrolling; a carousel you have to drag
-	# hides whatever is off-screen, and a mode you cannot see is a mode you do
-	# not play.
-	card.custom_minimum_size = Vector2(218, 330)
-	# Otherwise the scroll container stretches them to its full height.
+	# Stacked, full width. Side by side the pair was clipped at the edge of a
+	# portrait screen, and a mode you cannot see is a mode you do not play.
+	card.custom_minimum_size = Vector2(0, 168)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	card.pressed.connect(_pick_mode.bind(kind))
 
+	var current: bool = kind == _mode_kind
 	for state in ["normal", "hover", "pressed"]:
 		var box := StyleBoxFlat.new()
-		box.bg_color = skin.bg_top.lightened(0.14).lerp(tint, 0.1)
-		box.border_color = Color(tint, 0.55)
+		box.bg_color = skin.bg_top.lightened(0.14).lerp(tint,
+			0.18 if current else 0.08)
+		box.border_color = Color(tint, 0.9 if current else 0.4)
 		box.set_border_width_all(2)
 		box.set_corner_radius_all(22)
 		box.border_width_bottom = 7
 		card.add_theme_stylebox_override(state, box)
 	into.add_child(card)
 
+	var line := HBoxContainer.new()
+	line.set_anchors_preset(Control.PRESET_FULL_RECT)
+	line.offset_left = 20.0
+	line.offset_right = -20.0
+	line.offset_top = 18.0
+	line.offset_bottom = -24.0
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.add_theme_constant_override("separation", 16)
+	card.add_child(line)
+
 	var column := VBoxContainer.new()
-	column.set_anchors_preset(Control.PRESET_FULL_RECT)
-	column.offset_left = 18.0
-	column.offset_right = -18.0
-	column.offset_top = 22.0
-	column.offset_bottom = -22.0
-	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", 12)
-	card.add_child(column)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	column.add_theme_constant_override("separation", 8)
+	line.add_child(column)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	column.add_child(top)
 
 	var heading := Label.new()
 	heading.text = title
-	heading.add_theme_font_size_override("font_size", 25)
+	heading.add_theme_font_size_override("font_size", 26)
 	heading.add_theme_color_override("font_color", tint)
-	column.add_child(heading)
+	top.add_child(heading)
+
+	# Which mode the start key will actually launch. Without it the picker
+	# closes and the player has to read the line under the title to find out
+	# whether the tap took.
+	if kind == _mode_kind:
+		var here := Label.new()
+		here.text = "PLAYING"
+		here.add_theme_font_size_override("font_size", 12)
+		here.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var pill := StyleBoxFlat.new()
+		pill.bg_color = Color(tint, 0.22)
+		pill.set_corner_radius_all(9)
+		pill.content_margin_left = 9.0
+		pill.content_margin_right = 9.0
+		pill.content_margin_top = 3.0
+		pill.content_margin_bottom = 3.0
+		here.add_theme_stylebox_override("normal", pill)
+		here.add_theme_color_override("font_color", tint)
+		top.add_child(here)
 
 	var text := Label.new()
 	text.text = blurb
 	text.add_theme_font_size_override("font_size", 15)
 	text.modulate.a = 0.66
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	text.custom_minimum_size = Vector2(180, 0)
 	column.add_child(text)
+
+	# The number the mode is played for, off to the side where the eye can
+	# compare the two cards down a single column.
+	var figure := VBoxContainer.new()
+	figure.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	figure.add_theme_constant_override("separation", 2)
+	figure.custom_minimum_size = Vector2(96, 0)
+	line.add_child(figure)
 
 	var caption := Label.new()
 	caption.text = stat_name
-	caption.add_theme_font_size_override("font_size", 14)
+	caption.add_theme_font_size_override("font_size", 13)
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	caption.modulate.a = 0.45
-	column.add_child(caption)
+	figure.add_child(caption)
 
 	var value := Label.new()
 	value.text = stat
-	value.add_theme_font_size_override("font_size", 30)
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value.add_theme_font_size_override("font_size", 32)
 	value.add_theme_color_override("font_color", tint)
-	column.add_child(value)
+	figure.add_child(value)
 
 
 func _pick_mode(kind: int) -> void:
@@ -777,6 +903,13 @@ func _pick_level(number: int) -> void:
 ## One row per goal: what it asks for, how far along it is, and the payout.
 ## Rebuilt rather than patched, since the set changes at midnight and rows are
 ## cheap at three of them.
+## The day's goals: what each asks for, how far along it is, and what it pays.
+##
+## Three states and they have to be told apart at a glance, because only one of
+## them wants anything from the player. A goal in progress is quiet. A goal
+## that is done and unpaid is the whole point of opening this panel and is lit
+## accordingly. A goal already paid is out of the way but not deleted — seeing
+## what you finished is part of what makes finishing worth it.
 func _build_quests() -> void:
 	Quests.ensure_today(GameState)
 
@@ -787,65 +920,113 @@ func _build_quests() -> void:
 	for child in _quest_rows.get_children():
 		child.queue_free()
 
+	var skin := Skins.current()
 	for entry: Dictionary in GameState.quests:
 		var quest := Quests.find(StringName(entry["id"]))
 		if quest == null:
 			continue
-		var target: int = int(entry["target"])
-		var progress: int = mini(int(entry["progress"]), target)
-		var done: bool = Quests.is_complete(entry)
-		var claimed: bool = entry["claimed"]
+		_quest_row(quest, entry, skin)
 
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
 
-		var text := VBoxContainer.new()
-		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		text.add_theme_constant_override("separation", 3)
+func _quest_row(quest: Quest, entry: Dictionary, skin: LocationSkin) -> void:
+	var target: int = int(entry["target"])
+	var progress: int = mini(int(entry["progress"]), target)
+	var done: bool = Quests.is_complete(entry)
+	var claimed: bool = entry["claimed"]
+	var ready: bool = done and not claimed
 
-		var title := Label.new()
-		title.add_theme_font_size_override("font_size", 18)
-		title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		title.custom_minimum_size = Vector2(250, 0)
-		title.text = quest.text(target)
-		if claimed:
-			title.modulate.a = 0.45
-		text.add_child(title)
+	# The row itself is a card, so a finished goal can light up as one object
+	# rather than as a button that happens to be brighter.
+	var card := PanelContainer.new()
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(skin.accent, 0.14) if ready else Color(skin.bg_top, 0.5)
+	box.border_color = Color(skin.accent, 0.75) if ready \
+		else Color(skin.pipe_shell, 0.4)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(14)
+	box.content_margin_left = 14.0
+	box.content_margin_right = 14.0
+	box.content_margin_top = 11.0
+	box.content_margin_bottom = 11.0
+	card.add_theme_stylebox_override("panel", box)
+	_quest_rows.add_child(card)
 
-		var bar := ProgressBar.new()
-		bar.max_value = target
-		bar.value = progress
-		bar.show_percentage = false
-		bar.custom_minimum_size = Vector2(250, 10)
-		text.add_child(bar)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	card.add_child(row)
 
-		var count := Label.new()
-		count.add_theme_font_size_override("font_size", 14)
-		count.modulate.a = 0.6
-		count.text = "%d / %d" % [progress, target]
-		text.add_child(count)
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override("separation", 6)
+	row.add_child(text)
 
-		row.add_child(text)
+	var head := HBoxContainer.new()
+	text.add_child(head)
 
-		var claim := Button.new()
-		claim.add_theme_font_size_override("font_size", 16)
-		claim.add_theme_stylebox_override("normal", _buy_style())
-		claim.add_theme_stylebox_override("hover", _buy_style())
-		claim.add_theme_stylebox_override("pressed", _buy_style())
-		claim.custom_minimum_size = Vector2(92, 0)
-		if claimed:
-			claim.text = "DONE"
-			claim.disabled = true
-		elif done:
-			claim.text = "+%d" % quest.reward
-			claim.pressed.connect(_claim.bind(String(entry["id"])))
-		else:
-			claim.text = "+%d" % quest.reward
-			claim.disabled = true
-		claim.modulate.a = 1.0 if not claim.disabled else 0.4
-		row.add_child(claim)
+	var title := Label.new()
+	title.text = quest.text(target)
+	title.add_theme_font_size_override("font_size", 17)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.modulate.a = 0.45 if claimed else 1.0
+	head.add_child(title)
 
-		_quest_rows.add_child(row)
+	var count := Label.new()
+	count.text = "%d/%d" % [progress, target]
+	count.add_theme_font_size_override("font_size", 15)
+	count.add_theme_color_override("font_color",
+		skin.accent if done else Color(1, 1, 1, 0.55))
+	count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	head.add_child(count)
+
+	# A bar the skin can be seen in. The stock one is invisible on this
+	# background, which made every goal look untouched however far along it
+	# actually was.
+	var bar := ProgressBar.new()
+	bar.max_value = target
+	bar.value = progress
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 8)
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(1, 1, 1, 0.09)
+	track.set_corner_radius_all(4)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(skin.accent, 0.9 if done else 0.6)
+	fill.set_corner_radius_all(4)
+	bar.add_theme_stylebox_override("background", track)
+	bar.add_theme_stylebox_override("fill", fill)
+	bar.modulate.a = 0.45 if claimed else 1.0
+	text.add_child(bar)
+
+	var claim := Button.new()
+	claim.add_theme_font_size_override("font_size", 16)
+	claim.custom_minimum_size = Vector2(88, 46)
+	claim.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	for state in ["normal", "hover", "pressed"]:
+		claim.add_theme_stylebox_override(state,
+			_claim_style(skin, ready))
+	if claimed:
+		claim.text = "✓"
+		claim.disabled = true
+	elif ready:
+		# The one thing on this panel worth tapping says what it pays.
+		claim.text = "+%d" % quest.reward
+		claim.pressed.connect(_claim.bind(String(entry["id"])))
+	else:
+		claim.text = "+%d" % quest.reward
+		claim.disabled = true
+	claim.modulate.a = 1.0 if ready else (0.35 if claimed else 0.5)
+	row.add_child(claim)
+
+
+## A filled key for the goal that is owed, an outlined one for the rest.
+func _claim_style(skin: LocationSkin, ready: bool) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(skin.accent, 0.9 if ready else 0.1)
+	box.border_color = Color(skin.accent, 1.0 if ready else 0.4)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(12)
+	return box
 
 
 func _claim(id: String) -> void:
@@ -870,17 +1051,6 @@ func _debug_unlock() -> void:
 	_refresh()
 
 
-## Locations are looks, not rulesets, so switching is instant and harmless.
-func _cycle_location() -> void:
-	var skin := Skins.next()
-	GameState.location = skin.display_name
-	GameState.save_game()
-	location_chosen.emit(skin)
-	paint(skin)
-	_build_shop()
-	_refresh()
-
-
 ## Small count in the corner of a tab. Zero hides it — a badge that is always
 ## there stops being noticed.
 func _set_badge(button: Button, count: int) -> void:
@@ -889,15 +1059,6 @@ func _set_badge(button: Button, count: int) -> void:
 		return
 	badge.visible = count > 0
 	badge.text = str(count)
-
-
-func _cycle_cart() -> void:
-	var carts := Skins.current().cart_variant_count()
-	GameState.cart_variant = (GameState.cart_variant + 1) % carts
-	GameState.save_game()
-	cart_chosen.emit(GameState.cart_variant)
-	GameState.vibrate(20)
-	_refresh()
 
 
 func _set_haptics(enabled: bool) -> void:

@@ -4,7 +4,7 @@ extends Node2D
 
 enum State { MENU, PLAYING, DEAD }
 
-## What the run key launches. Classic is endless; a daily is endless on a
+## What the run key launches. Classic is endless; a daily was endless on a
 ## shared map; a story run ends when its station's goal is met.
 enum Mode { CLASSIC, DAILY, STORY }
 
@@ -113,7 +113,6 @@ var speed: float = 0.0
 ## The cart waits for the player's first pipe. Spec section 02.
 var started: bool = false
 ## True while playing today's fixed-seed challenge (spec section 11, P1).
-var daily_mode: bool = false
 ## The mode the run key will launch, picked in the modes carousel.
 var selected_mode: Mode = Mode.CLASSIC
 ## The station a story run is playing. Null outside story mode.
@@ -170,7 +169,6 @@ func _ready() -> void:
 
 	_hud.back_pressed.connect(abandon_run)
 	_hud.power_used.connect(use_power)
-	_menu.location_chosen.connect(apply_skin)
 	_menu.cart_chosen.connect(func(variant: int) -> void:
 		_cart.variant = variant
 		_cart.queue_redraw())
@@ -391,7 +389,6 @@ func _curtain_to_menu() -> void:
 ## mode carrying its own button — that keeps one obvious way to start.
 func _select_mode(mode: Mode) -> void:
 	selected_mode = mode
-	daily_mode = mode == Mode.DAILY
 	_autoplayer.stop()
 	if mode == Mode.STORY:
 		active_level = Levels.current(GameState)
@@ -408,7 +405,6 @@ func _select_level(number: int) -> void:
 	if active_level == null:
 		return
 	selected_mode = Mode.STORY
-	daily_mode = false
 	_refresh_mode_name()
 	_prepare_board(true)
 	_snap_camera()
@@ -416,9 +412,6 @@ func _select_level(number: int) -> void:
 
 func _refresh_mode_name() -> void:
 	match selected_mode:
-		Mode.DAILY:
-			_menu.set_mode_name("TODAY", _menu.MODE_DAILY,
-				"One map, same for everyone")
 		Mode.STORY:
 			if active_level == null:
 				_menu.set_mode_name("STORY", _menu.MODE_STORY)
@@ -467,7 +460,6 @@ func _show_menu(animated: bool = false) -> void:
 	_autoplayer.stop()
 	# Purchases made in the depot take effect on the board the menu lays out.
 	_rebuild_balance()
-	daily_mode = false
 	# Every transition-owned flag goes back to its resting value here, so a
 	# menu reached from any direction — title, back key, game over — is in the
 	# same state.
@@ -507,13 +499,10 @@ func _show_menu(animated: bool = false) -> void:
 ## the board stays bare — just the cart and the runway ahead of it.
 func _prepare_board(with_resources: bool) -> void:
 	# One seed drives the whole run; the offer gets its own stream so changing
-	# how many shapes are dealt cannot reshuffle the map. On a daily the seed
-	# comes from the date, so every player gets the same board (spec 11, P1).
-	# A daily and a story station are fixed maps; classic rolls a fresh one.
+	# how many shapes are dealt cannot reshuffle the map. A story station is a
+	# fixed map; classic rolls a fresh one.
 	var run_seed: int = forced_seed if forced_seed >= 0 else randi()
-	if daily_mode:
-		run_seed = GameState.daily_seed()
-	elif selected_mode == Mode.STORY and active_level != null:
+	if selected_mode == Mode.STORY and active_level != null:
 		run_seed = Levels.seed_for(active_level)
 	_board.start_run(run_seed, with_resources, _first_resource_row())
 	_board_seed = run_seed
@@ -544,7 +533,15 @@ func _first_resource_row() -> int:
 	return int(ceil(ahead)) + 2
 
 
+## The daily is gone from the game. A saved mode that still names it — or any
+## value this build does not know — comes back as classic, which is the mode
+## every other path falls through to anyway.
+func _known_mode(mode: Mode) -> Mode:
+	return mode if mode == Mode.STORY else Mode.CLASSIC
+
+
 func start_run(mode: Mode = Mode.CLASSIC) -> void:
+	mode = _known_mode(mode)
 	# A run started straight off the end card is a retry; one started from the
 	# menu is not. The overlay is only up in the first case.
 	if state == State.DEAD:
@@ -557,7 +554,6 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	_gates_taken = 0
 	_last_gate_row = -999
 	selected_mode = mode
-	daily_mode = mode == Mode.DAILY
 	_autoplayer.stop()
 	_overlay.hide_overlay()
 	_menu.fade_out(MENU_FADE)
@@ -607,7 +603,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	_hint_pulse = 0.0
 
 	# The camera pushes forward into the run while the menu clears: the cart
-	# settles into its playing position instead of jumping there. On a daily
+	# settles into its playing position instead of jumping there. On a story
 	# the board was just rebuilt, so its contents fade up too.
 	_input.enabled = false
 	# The disused tracks belong to the menu; they clear as the run begins.
@@ -631,7 +627,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	_hud.set_combo(0)
 	_hud.set_fuel(1.0)
 	_hud.reset_back_key()
-	_hud.set_daily(daily_mode, GameState.today())
+
 	_hud.set_objective(active_level if selected_mode == Mode.STORY else null, 0)
 
 
@@ -836,7 +832,7 @@ func _summon_gate() -> void:
 	if _cart.row - _last_gate_row < balance.checkpoint_gap:
 		return
 	# A little slop on where it lands, so the track is not a timetable. Off the
-	# run's own stream, so a daily deals every player the same gates.
+	# run's own stream, so a fixed map deals every player the same gates.
 	var slop: int = 0
 	if balance.checkpoint_jitter > 0:
 		slop = _offer_rng.randi_range(
@@ -1253,7 +1249,7 @@ func _die(reason: String) -> void:
 	_bank_run()
 
 	_pending_clear = {}
-	_death_reason = ("%s  ·  daily" % reason) if daily_mode else reason
+	_death_reason = reason
 	_death_pause = DEATH_PAUSE
 
 
@@ -1427,7 +1423,5 @@ func _bank_run() -> void:
 	# something to race.
 	_death_went_further = false if continued else GameState.submit_distance(distance)
 	GameState.note_run(distance)
-	if daily_mode:
-		GameState.submit_daily(score)
 	_hud.set_best(GameState.best)
 

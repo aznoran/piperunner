@@ -56,24 +56,25 @@ func _process(delta: float) -> bool:
 		5:
 			_click(menu.get_node("%ModesButton"))
 		6:
-			_ok(menu.get_node("%ModesPanel").visible, "MODES opens the carousel")
+			_ok(menu.get_node("%ModesPanel").visible, "MODES opens the picker")
 			var cards: Node = menu.get_node("%Cards")
-			_ok(cards.get_child_count() == 3, "all three modes are offered")
-			_click(cards.get_child(2))  # today's map
+			# Classic and story. The daily was a third card that shared its
+			# rules with classic and earned neither the tab nor the room.
+			_ok(cards.get_child_count() == 2, "both modes are offered")
+			_click(cards.get_child(1))  # story
 		7:
 			_ok(not menu.get_node("%ModesPanel").visible,
-				"picking a mode drops back to the menu")
-			_ok(main.selected_mode == 1, "and today's map is the one selected")
-			_click(menu.get_node("%StartButton"))
+				"picking story opens the station list")
+			_ok(menu.get_node("%LevelsPanel").visible,
+				"...which is where a station is chosen")
+			_click(menu.get_node("%CloseLevels"))
 		8:
-			_ok(main.state == 1, "the run key launches the chosen mode")
-			_ok(main.daily_mode, "...as the daily")
-			_eq(main._board.rng.seed, root.get_node("GameState").daily_seed(),
-				"...seeded from today's date")
-			main._show_menu()
-			menu.get_node("%ModesButton").pressed.emit()
-		9:
+			_ok(menu.get_node("%ModesPanel").visible,
+				"and backing out of it returns to the picker")
 			_click(menu.get_node("%Cards").get_child(0))
+		9:
+			_ok(not menu.get_node("%ModesPanel").visible,
+				"picking classic drops straight back to the menu")
 		10:
 			_ok(main.selected_mode == 0, "classic can be chosen back")
 			# Colour follows the mode, not whatever was selected before it.
@@ -89,7 +90,7 @@ func _process(delta: float) -> bool:
 			_click(menu.get_node("%StartButton"))
 		12:
 			_ok(main.state == 1, "START starts a run")
-			_ok(not main.daily_mode, "...and it is a normal one")
+			_ok(main.selected_mode == 0, "...and it is a classic one")
 			# Back out again, then check the menu still takes input — a layer
 			# left over from the run would swallow every tap silently.
 			_click(main._hud.get_node("%BackButton"))
