@@ -61,22 +61,31 @@ extends Resource
 ## steering costs cells and fuel.
 @export var checkpoints_on: bool = true
 
-## How wound up the cart has to be before a gate is called for, as a fraction
-## of the way from the starting speed to the cap.
+## How much faster than the start the cart has to be running before a gate is
+## called for, as a multiple of the starting speed.
 ##
-## Summoned by speed rather than laid out by row, and that is the correction
-## that made them work at all. On a fixed interval the first gate arrived
-## around row twenty-five, where the cart is a twelfth of the way to the cap —
-## there was nothing to slow down, so nothing was felt, however the relief was
-## calculated. A gate now turns up when the cart has actually run away, which
-## is the only time one is worth having.
-@export_range(0.05, 0.9, 0.05) var checkpoint_trigger: float = 0.3
+## Measured against the start rather than against the cap, which is the second
+## correction these needed. The cap is three and a half times the starting
+## speed and a real run rarely goes near it: at sixty cells the cart is doing
+## about 1.5x the start, which is a twelfth of the way to the cap and reads as
+## "no speed at all" on that scale — so a trigger set as a fraction of the cap
+## never fired, and a whole run could pass without meeting a gate. Against the
+## start, 1.5x is exactly what it feels like: half again as fast.
+@export_range(1.0, 3.0, 0.05) var checkpoint_trigger: float = 1.35
 ## Rows ahead of the cart a summoned gate appears. Far enough to steer for,
 ## near enough to reach before the speed does any more damage.
 @export var checkpoint_notice: int = 8
-## Rows that must pass between one gate and the next, so a cart sitting above
-## the trigger is not handed a ladder of them.
-@export var checkpoint_gap: int = 22
+## Rows that must pass between one gate and the next.
+##
+## A floor rather than a rhythm: what actually spaces them is the trigger, and
+## a run climbing back to it takes forty cells early on and six by the seventh
+## gate. This only stops a cart sitting exactly on the line from being handed a
+## ladder of them, so it is set well under the gaps the trigger produces.
+@export var checkpoint_gap: int = 8
+## Rows of slop either way on where a gate lands, so the track does not become
+## a timetable. Kept small: a gate is a thing to steer for, and one that turns
+## up somewhere unhelpful is a gate the player is right to resent.
+@export var checkpoint_jitter: int = 3
 ## How many cells wide a gate is.
 ##
 ## One cell in a board seven wide is nearly always off the route, so taking it
@@ -85,19 +94,30 @@ extends Resource
 ## is supposed to be: recommended, not automatic.
 @export var checkpoint_width: int = 3
 
-## The pace the first gate of a run leaves the cart at, as a fraction of the
-## way from the starting speed to the cap.
+## The pace the first gate of a run leaves the cart at, as a multiple of the
+## starting speed. Nearly the beginning again, on purpose: a gate is met at
+## speed and should feel like the run restarting.
+@export_range(1.0, 3.0, 0.05) var checkpoint_pace: float = 1.0
+## And how much less each gate gives back than the one before it, in the same
+## multiples.
 ##
-## Nearly the beginning again, on purpose. A gate is met at speed and should
-## feel like the run restarting.
-@export_range(0.0, 1.0, 0.05) var checkpoint_pace: float = 0.1
-## And how much less each gate gives back than the one before it.
+## A ratchet, and since a gate always fires at the trigger the whole curve
+## falls out of these three numbers:
 ##
-## A ratchet: the first leaves the cart at a tenth of the way up, the second at
-## two tenths, the third at three. So a run keeps going and keeps getting
-## harder, and the gates stop being worth anything about the ninth — which is
-## where the record is.
-@export_range(0.0, 0.5, 0.01) var checkpoint_pace_step: float = 0.1
+##   gate   drops to   slower by   cells since the last
+##     1      1.00x       26%              44
+##     2      1.05x       22%              38
+##     3      1.10x       19%              31
+##     4      1.15x       15%              25
+##     5      1.20x       11%              19
+##     6      1.25x        7%              13
+##     7      1.30x        4%               6
+##     8      closed
+##
+## Each gate gives back less than the last and arrives sooner, so the run gets
+## harder in two ways at once and runs out of rescues around a hundred and
+## seventy-five cells. That is where the record is.
+@export_range(0.0, 0.5, 0.01) var checkpoint_pace_step: float = 0.05
 
 @export_group("Scoring")
 ## Points per crystal = crystal_points * min(combo, crystal_combo_cap).

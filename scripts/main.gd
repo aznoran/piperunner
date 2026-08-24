@@ -811,7 +811,7 @@ func _board_window() -> PackedByteArray:
 func _watch_speed() -> void:
 	var span: float = maxf(balance.speed_cap - balance.start_speed, 0.01)
 	var wound: float = clampf((speed - balance.start_speed) / span, 0.0, 1.0)
-	_summon_gate(wound)
+	_summon_gate()
 	var over: bool = wound >= balance.speed_warn_at
 	if _speed_warned and wound < balance.speed_warn_at - balance.speed_warn_slack:
 		_speed_warned = false
@@ -828,14 +828,20 @@ func _watch_speed() -> void:
 ## twenty-five — where the cart is a twelfth of the way to its top speed, so
 ## there was nothing to take off it and nothing was felt. Summoning by speed
 ## means every gate that appears is one worth steering for.
-func _summon_gate(wound: float) -> void:
+func _summon_gate() -> void:
 	if not balance.checkpoints_on or _board.checkpoints.size() > 0:
 		return
-	if wound < balance.checkpoint_trigger:
+	if speed < balance.start_speed * balance.checkpoint_trigger:
 		return
 	if _cart.row - _last_gate_row < balance.checkpoint_gap:
 		return
-	var row: int = _cart.row + maxi(balance.checkpoint_notice, 2)
+	# A little slop on where it lands, so the track is not a timetable. Off the
+	# run's own stream, so a daily deals every player the same gates.
+	var slop: int = 0
+	if balance.checkpoint_jitter > 0:
+		slop = _offer_rng.randi_range(
+			-balance.checkpoint_jitter, balance.checkpoint_jitter)
+	var row: int = _cart.row + maxi(balance.checkpoint_notice + slop, 2)
 	if _board.lay_checkpoint(row):
 		_last_gate_row = row
 		_hud.announce("GATE AHEAD", Skins.current().warn)
@@ -860,11 +866,10 @@ func _pass_gate(cell: Vector2i) -> void:
 		# The ratchet: the first gate of a run puts the cart near the start
 		# again, and each one after it gives back a little less. A run keeps
 		# going and keeps getting harder, which is where a record comes from.
-		var pace: float = clampf(balance.checkpoint_pace
-			+ balance.checkpoint_pace_step * float(_gates_taken), 0.0, 1.0)
+		var pace: float = balance.checkpoint_pace \
+			+ balance.checkpoint_pace_step * float(_gates_taken)
 		_gates_taken += 1
-		var target: float = balance.start_speed \
-			+ (balance.speed_cap - balance.start_speed) * pace
+		var target: float = balance.start_speed * pace
 		# The guard belongs on the speed, not on the pardon. Refusing to let
 		# the pardon fall looked like the same rule and was not: a later gate
 		# aims higher, so it needs a *smaller* pardon, and holding the old

@@ -53,8 +53,7 @@ func _process(_delta: float) -> bool:
 		_check(main._board.checkpoints.is_empty(),
 			"a cart at its starting pace is offered no gate")
 
-		var span: float = balance.speed_cap - balance.start_speed
-		main.speed = balance.start_speed + span * (balance.checkpoint_trigger + 0.05)
+		main.speed = balance.start_speed * (balance.checkpoint_trigger + 0.05)
 		main._watch_speed()
 		_check(not main._board.checkpoints.is_empty(),
 			"and one turns up once it has run away")
@@ -62,7 +61,8 @@ func _process(_delta: float) -> bool:
 		_check(laid > main._cart.row,
 			"ahead of the cart, not under it: row %d against %d"
 				% [laid, main._cart.row])
-		_check(laid - main._cart.row <= balance.checkpoint_notice + 1,
+		_check(laid - main._cart.row
+				<= balance.checkpoint_notice + balance.checkpoint_jitter + 1,
 			"and near enough to steer for, %d rows" % (laid - main._cart.row))
 
 		# One at a time: a cart sitting above the trigger is not handed a
@@ -98,8 +98,7 @@ func _process(_delta: float) -> bool:
 			% main.score)
 
 	# The first gate of a run puts the cart nearly back at the beginning.
-	var first_target: float = balance.start_speed \
-		+ (balance.speed_cap - balance.start_speed) * balance.checkpoint_pace
+	var first_target: float = balance.start_speed * balance.checkpoint_pace
 	_check(absf(eased - first_target) < 0.05,
 		"the first gate leaves it near the start, %.2f against %.2f"
 			% [eased, first_target])
