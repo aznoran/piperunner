@@ -26,6 +26,9 @@ func start(rng: RandomNumberGenerator, size: int, dealer: PipeDealer = null,
 	_rng = rng
 	_size = maxi(1, size)
 	_dealer = dealer if dealer != null else RandomDealer.new()
+	# A new run is the one time the cursor does go back to the start: there is
+	# no previous choice to stay faithful to.
+	selected = 0
 	_deal(context)
 
 
@@ -91,6 +94,12 @@ func resize(size: int, context: Dictionary = {}) -> void:
 	_deal(context)
 
 
+## Deals a fresh set and leaves the cursor where the player left it.
+##
+## It used to snap back to the first window every time, which meant the finger
+## had to travel back across the strip after every single placement — and if
+## you were working out of the third window, you were fighting the game to stay
+## there. The shapes change; where you are looking does not.
 func _deal(context: Dictionary) -> void:
 	choices = _dealer.fill(_rng, _size, context)
-	selected = 0
+	selected = clampi(selected, 0, maxi(choices.size() - 1, 0))

@@ -100,6 +100,21 @@ func _process(_delta: float) -> bool:
 			_check(not source.chosen_was_held(),
 				"a freshly refilled window is not held")
 
+	# The cursor stays where the player put it. Snapping back to the first
+	# window after every placement meant the finger had to cross the strip
+	# again each time, and anyone working out of the third window was fighting
+	# the game to stay there.
+	if source.choices().size() > 1:
+		source.point_at(source.choices().size() - 1)
+		var chosen := source.chosen_slot()
+		for _round in 4:
+			source.spend(main._deal_context())
+			_check(source.chosen_slot() == chosen,
+				"%s keeps the cursor on the window the player picked, %d -> %d"
+					% [BlockSource.NAMES[variant], chosen, source.chosen_slot()])
+			if source.chosen_slot() != chosen:
+				break
+
 	variant += 1
 	stage = 0
 	frames = 0

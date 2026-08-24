@@ -133,7 +133,9 @@ func _check_offer() -> void:
 	offer.select(1)
 	offer.take()
 	_eq(offer.choices.size(), balance.offer_size, "taking one deals a fresh offer")
-	_eq(offer.selected, 0, "with the first shape chosen again")
+	# The shapes change; where the player is looking does not. Snapping back to
+	# the first window made the finger cross the strip after every placement.
+	_eq(offer.selected, 1, "with the cursor left on the window it was on")
 
 	# The upgrade widens the offer rather than lengthening a preview.
 	offer.resize(balance.offer_size + 1)
