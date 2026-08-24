@@ -60,35 +60,44 @@ extends Resource
 ## decision rather than a gift: the track has to be steered into one, and
 ## steering costs cells and fuel.
 @export var checkpoints_on: bool = true
-## Rows between one gate and the next. Roughly how far a player gets without
-## trouble, so the gate arrives about when the speed starts to bite.
-@export var checkpoint_gap: int = 30
-## How far ahead of trouble the first one lands. Placed where this player
-## usually dies, less this, so the gate is reached with time to spare rather
-## than exactly as the run falls apart.
-@export var checkpoint_lead: int = 10
-## Never closer to the start than this, however short their runs have been —
-## a gate in the first few rows would be met before the speed is a problem.
-@export var checkpoint_first_min: int = 14
+
+## How wound up the cart has to be before a gate is called for, as a fraction
+## of the way from the starting speed to the cap.
+##
+## Summoned by speed rather than laid out by row, and that is the correction
+## that made them work at all. On a fixed interval the first gate arrived
+## around row twenty-five, where the cart is a twelfth of the way to the cap —
+## there was nothing to slow down, so nothing was felt, however the relief was
+## calculated. A gate now turns up when the cart has actually run away, which
+## is the only time one is worth having.
+@export_range(0.05, 0.9, 0.05) var checkpoint_trigger: float = 0.3
+## Rows ahead of the cart a summoned gate appears. Far enough to steer for,
+## near enough to reach before the speed does any more damage.
+@export var checkpoint_notice: int = 8
+## Rows that must pass between one gate and the next, so a cart sitting above
+## the trigger is not handed a ladder of them.
+@export var checkpoint_gap: int = 22
 ## How many cells wide a gate is.
 ##
 ## One cell in a board seven wide is nearly always off the route, so taking it
-## meant a detour, and a detour costs cells and fuel — which showed up as the
-## long runs getting shorter while the short ones got longer. A gate a few
-## cells across is cheap to steer into and still possible to miss, which is the
-## bargain it is supposed to be: recommended, not automatic.
+## meant a detour, and a detour costs cells and fuel. A gate a few cells across
+## is cheap to steer into and still possible to miss, which is the bargain it
+## is supposed to be: recommended, not automatic.
 @export var checkpoint_width: int = 3
-## The pace a gate leaves the cart at, as a fraction of the way from the
-## starting speed to the cap.
+
+## The pace the first gate of a run leaves the cart at, as a fraction of the
+## way from the starting speed to the cap.
 ##
-## A target rather than a discount, and the difference is the whole feel of it.
-## A discount hands back a share of what was gained, so a cart that is only a
-## little fast gets a little back and the gate does nothing anyone can notice —
-## which is exactly when a player first meets one, and exactly the complaint it
-## earned. A target always leaves the cart at the same playable pace: arrive
-## flat out and the drop is enormous, arrive already slow and there was nothing
-## to fix. A gate never speeds the cart up.
-@export_range(0.0, 1.0, 0.05) var checkpoint_pace: float = 0.25
+## Nearly the beginning again, on purpose. A gate is met at speed and should
+## feel like the run restarting.
+@export_range(0.0, 1.0, 0.05) var checkpoint_pace: float = 0.1
+## And how much less each gate gives back than the one before it.
+##
+## A ratchet: the first leaves the cart at a tenth of the way up, the second at
+## two tenths, the third at three. So a run keeps going and keeps getting
+## harder, and the gates stop being worth anything about the ninth — which is
+## where the record is.
+@export_range(0.0, 0.5, 0.01) var checkpoint_pace_step: float = 0.1
 
 @export_group("Scoring")
 ## Points per crystal = crystal_points * min(combo, crystal_combo_cap).

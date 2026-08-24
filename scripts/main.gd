@@ -54,6 +54,10 @@ var _braked: float = 0.0
 var _speed_pardon: float = 0.0
 ## True while the cart is past the comfortable speed and has been told so.
 var _speed_warned: bool = false
+## Gates taken this run, which is what the ratchet counts, and the row the last
+## one was laid on, so they cannot chain.
+var _gates_taken: int = 0
+var _last_gate_row: int = -999
 ## Benchmarks pin the run seed here so the same board can be replayed. -1 in
 ## normal play, where every run is its own.
 var forced_seed: int = -1
@@ -512,9 +516,6 @@ func _prepare_board(with_resources: bool) -> void:
 	elif selected_mode == Mode.STORY and active_level != null:
 		run_seed = Levels.seed_for(active_level)
 	_board.start_run(run_seed, with_resources, _first_resource_row())
-	# Where the gates go is personal: this player's own recent runs, less the
-	# lead, so the first one lands while the run is still going.
-	_board.plan_checkpoints(GameState.usual_reach())
 	_board_seed = run_seed
 	_offer_rng.seed = run_seed + 1
 
@@ -553,6 +554,8 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	_braked = 0.0
 	_speed_pardon = 0.0
 	_speed_warned = false
+	_gates_taken = 0
+	_last_gate_row = -999
 	selected_mode = mode
 	daily_mode = mode == Mode.DAILY
 	_autoplayer.stop()
@@ -808,6 +811,7 @@ func _board_window() -> PackedByteArray:
 func _watch_speed() -> void:
 	var span: float = maxf(balance.speed_cap - balance.start_speed, 0.01)
 	var wound: float = clampf((speed - balance.start_speed) / span, 0.0, 1.0)
+	_summon_gate(wound)
 	var over: bool = wound >= balance.speed_warn_at
 	if _speed_warned and wound < balance.speed_warn_at - balance.speed_warn_slack:
 		_speed_warned = false
@@ -816,6 +820,25 @@ func _watch_speed() -> void:
 		_hud.announce("SPEEDING UP", Skins.current().warn)
 		GameState.vibrate(balance.haptics_place_ms)
 	_hud.set_speed(wound, over)
+
+
+## Calls for a gate once the cart has run away, and not before.
+##
+## Laid out on a fixed interval instead, the first gate arrived around row
+## twenty-five — where the cart is a twelfth of the way to its top speed, so
+## there was nothing to take off it and nothing was felt. Summoning by speed
+## means every gate that appears is one worth steering for.
+func _summon_gate(wound: float) -> void:
+	if not balance.checkpoints_on or _board.checkpoints.size() > 0:
+		return
+	if wound < balance.checkpoint_trigger:
+		return
+	if _cart.row - _last_gate_row < balance.checkpoint_gap:
+		return
+	var row: int = _cart.row + maxi(balance.checkpoint_notice, 2)
+	if _board.lay_checkpoint(row):
+		_last_gate_row = row
+		_hud.announce("GATE AHEAD", Skins.current().warn)
 
 
 ## Driven through a speed gate.
@@ -834,13 +857,22 @@ func _pass_gate(cell: Vector2i) -> void:
 	# below the cap a cart that is only slightly fast has little to give back,
 	# so the gate does nothing at the moment a player first meets one.
 	if balance.speed_gain > 0.0:
+		# The ratchet: the first gate of a run puts the cart near the start
+		# again, and each one after it gives back a little less. A run keeps
+		# going and keeps getting harder, which is where a record comes from.
+		var pace: float = clampf(balance.checkpoint_pace
+			+ balance.checkpoint_pace_step * float(_gates_taken), 0.0, 1.0)
+		_gates_taken += 1
 		var target: float = balance.start_speed \
-			+ (balance.speed_cap - balance.start_speed) * balance.checkpoint_pace
-		var wanted: float = float(score) \
-			- (target - balance.start_speed) / balance.speed_gain
-		# Never downward: a gate gives pace back and never takes it, so a cart
-		# already slower than the target keeps what it has.
-		_speed_pardon = maxf(_speed_pardon, maxf(wanted, 0.0))
+			+ (balance.speed_cap - balance.start_speed) * pace
+		# The guard belongs on the speed, not on the pardon. Refusing to let
+		# the pardon fall looked like the same rule and was not: a later gate
+		# aims higher, so it needs a *smaller* pardon, and holding the old
+		# larger one pinned every gate of a run to the first one's pace — the
+		# ratchet did nothing at all.
+		if speed > target:
+			_speed_pardon = maxf(float(score)
+				- (target - balance.start_speed) / balance.speed_gain, 0.0)
 	# Said out loud. The speed drops the instant the gate is crossed, which is
 	# the one kind of change a player looking at the track does not see: there
 	# is no motion to notice, only an absence of it. So the gate reports itself
@@ -850,6 +882,7 @@ func _pass_gate(cell: Vector2i) -> void:
 	_fx.floater(at, "SLOW", Skins.current().warn)
 	_screen_fx.flash()
 	_hud.announce("SLOWED", Skins.current().warn)
+	_speed_warned = false
 	GameState.vibrate(balance.haptics_death_ms)
 
 

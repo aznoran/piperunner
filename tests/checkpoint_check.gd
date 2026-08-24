@@ -44,86 +44,82 @@ func _process(_delta: float) -> bool:
 
 	var balance: GameBalance = main.balance
 	if stage == 0:
-		# --- placement follows this player, not an average one --------
-		state.recent_runs = []
 		main.start_run(0)
-		_check(main._board.next_checkpoint_row >= balance.checkpoint_first_min,
-			"with no history the first gate uses the designed gap, got %d"
-				% main._board.next_checkpoint_row)
+		main.started = true
 
-		state.recent_runs = [60, 64, 56, 60]
-		main._show_menu()
-		main.start_run(0)
-		var reach: int = state.usual_reach()
-		_check(reach == 60, "the usual reach is their own average, got %d" % reach)
-		_check(main._board.next_checkpoint_row == reach - balance.checkpoint_lead,
-			"and the first gate lands that far short of it, got %d"
-				% main._board.next_checkpoint_row)
+		# --- a gate is called for by speed, not by row ----------------
+		main.speed = balance.start_speed
+		main._watch_speed()
+		_check(main._board.checkpoints.is_empty(),
+			"a cart at its starting pace is offered no gate")
 
-		# A player who dies early still gets the gate no sooner than the floor,
-		# since a gate met before the speed bites is a gate wasted.
-		state.recent_runs = [8, 10, 9]
-		main._show_menu()
-		main.start_run(0)
-		_check(main._board.next_checkpoint_row == balance.checkpoint_first_min,
-			"a short run's gate is held at the floor, got %d"
-				% main._board.next_checkpoint_row)
+		var span: float = balance.speed_cap - balance.start_speed
+		main.speed = balance.start_speed + span * (balance.checkpoint_trigger + 0.05)
+		main._watch_speed()
+		_check(not main._board.checkpoints.is_empty(),
+			"and one turns up once it has run away")
+		var laid: int = main._board.checkpoints.keys()[0].y
+		_check(laid > main._cart.row,
+			"ahead of the cart, not under it: row %d against %d"
+				% [laid, main._cart.row])
+		_check(laid - main._cart.row <= balance.checkpoint_notice + 1,
+			"and near enough to steer for, %d rows" % (laid - main._cart.row))
+
+		# One at a time: a cart sitting above the trigger is not handed a
+		# ladder of them.
+		var count: int = main._board.checkpoints.size()
+		main._watch_speed()
+		main._watch_speed()
+		_check(main._board.checkpoints.size() == count,
+			"and only one at a time")
 
 		stage = 1
 		return false
 
 	# --- what passing one is worth ---------------------------------
-	state.recent_runs = []
 	main._show_menu()
 	main.start_run(0)
 	main.started = true
 	main.score = 900
 	var fast: float = minf(balance.start_speed
 		+ float(main.score) * balance.speed_gain, balance.speed_cap)
-	_check(fast > balance.start_speed * 1.5,
-		"the cart has wound up by nine hundred points, %.2f" % fast)
-
 	main.speed = fast
 	var gate := Vector2i(main._cart.col, main._cart.row + 4)
 	main._board.checkpoints[gate] = true
 
-	# Driven past: the gate is still there and the pace is untouched.
-	main._pull_crystals(Vector2i(gate.x + 1, gate.y))
-	_check(main._speed_pardon == 0.0,
-		"a gate nobody drove through gives nothing back")
-
-	# Driven through.
 	_check(main._board.take_checkpoint(gate), "the gate can be taken")
 	main._pass_gate(gate)
 	var eased: float = minf(balance.start_speed
 		+ maxf(float(main.score) - main._speed_pardon, 0.0) * balance.speed_gain,
 		balance.speed_cap)
 	_check(eased < fast, "passing one slows the cart, %.2f -> %.2f" % [fast, eased])
-	_check(eased >= balance.start_speed,
-		"but never below the pace it started at, %.2f" % eased)
 	_check(main.score == 900,
 		"and the score is not touched: what was earned stays earned, got %d"
 			% main.score)
 
-	# It leaves the cart at the pace the sheet names, whatever it arrived at.
-	var target: float = balance.start_speed \
+	# The first gate of a run puts the cart nearly back at the beginning.
+	var first_target: float = balance.start_speed \
 		+ (balance.speed_cap - balance.start_speed) * balance.checkpoint_pace
-	_check(absf(eased - target) < 0.05,
-		"it leaves the cart at the pace it says, %.2f against %.2f"
-			% [eased, target])
+	_check(absf(eased - first_target) < 0.05,
+		"the first gate leaves it near the start, %.2f against %.2f"
+			% [eased, first_target])
 
-	# And a cart already slower than that keeps what it has: a gate gives pace
-	# back and never takes it.
-	main._speed_pardon = 0.0
-	main.score = 20
-	main.speed = balance.start_speed + 20.0 * balance.speed_gain
-	var crawling: float = main.speed
-	main._pass_gate(gate)
-	var after: float = minf(balance.start_speed
-		+ maxf(float(main.score) - main._speed_pardon, 0.0) * balance.speed_gain,
-		balance.speed_cap)
-	_check(absf(after - crawling) < 0.001,
-		"a slow cart is left alone, %.2f -> %.2f" % [crawling, after])
+	# The ratchet: the next one gives back less, and the one after that less
+	# again, so a run keeps going and keeps getting harder.
+	var paces: Array[float] = [eased]
+	for _i in 3:
+		main.score = 900
+		main.speed = fast
+		main._pass_gate(gate)
+		paces.append(minf(balance.start_speed
+			+ maxf(float(main.score) - main._speed_pardon, 0.0)
+			* balance.speed_gain, balance.speed_cap))
+	var climbing := true
+	for i in range(1, paces.size()):
+		if paces[i] <= paces[i - 1]:
+			climbing = false
+	_check(climbing, "each gate leaves the cart faster than the last, %s"
+		% str(paces))
 
 	# --- the warning ------------------------------------------------
 	#

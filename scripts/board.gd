@@ -38,10 +38,6 @@ var crystals: Dictionary = {}  # Vector2i -> true
 ## Speed gates. Routed through like a crystal, and driven past like one too —
 ## the cart does not stop for them and nothing catches a player who missed one.
 var checkpoints: Dictionary = {}  # Vector2i -> true
-## Row the next gate is due on, and how far this player usually gets. The
-## second is handed in at the start of a run because only GameState knows it.
-var next_checkpoint_row: int = 0
-var usual_reach: int = 0
 
 ## Highest row generated so far.
 var rows_built: int = -1
@@ -209,36 +205,6 @@ func ensure_rows(up_to: int) -> void:
 				if rng.randf() < density:
 					rocks[cell] = true
 
-		if spawn_resources and balance.checkpoints_on and row >= next_checkpoint_row \
-				and next_checkpoint_row > 0:
-			var open: Array[int] = []
-			for col in balance.cols:
-				var cell := Vector2i(col, row)
-				if not rocks.has(cell) and not pipes.has(cell) \
-						and not crystals.has(cell):
-					open.append(col)
-			if not open.is_empty():
-				# Centred on the middle, so it can be reached from either side
-				# rather than being a scramble to whichever wall it landed
-				# against, and a few cells across so steering into it is a
-				# nudge rather than a detour.
-				var middle: int = balance.cols / 2
-				var half: int = maxi(balance.checkpoint_width, 1) / 2
-				var placed := false
-				for col in open:
-					if absi(col - middle) <= half:
-						checkpoints[Vector2i(col, row)] = true
-						placed = true
-				if not placed:
-					# The middle is walled off this row. One cell wherever
-					# there is room beats skipping the gate entirely.
-					var best: int = open[0]
-					for col in open:
-						if absi(col - middle) < absi(best - middle):
-							best = col
-					checkpoints[Vector2i(best, row)] = true
-				next_checkpoint_row = row + maxi(balance.checkpoint_gap, 4)
-
 		if row >= next_crystal_row:
 			var free: Array[int] = []
 			for col in balance.cols:
@@ -296,29 +262,41 @@ func flood(cell: Vector2i) -> void:
 		_terrain_dirty = true
 
 
-## Where the first gate goes, from what this player usually manages.
-##
-## Their own average less the lead, so it arrives while the run is still going
-## rather than as it comes apart. A player with no history yet gets the
-## designed gap, which is the same number a fresh save would have averaged to
-## anyway.
-func plan_checkpoints(reach: int) -> void:
-	usual_reach = reach
-	if not balance.checkpoints_on:
-		next_checkpoint_row = 0
-		return
-	# Short of trouble either way. With no history to go on, the designed gap
-	# stands in for how far this player gets — and the lead comes off that too,
-	# or the very first gate lands exactly where the run was going to end
-	# anyway and is never reached at all.
-	var reference: int = reach if reach > 0 else balance.checkpoint_gap
-	var first: int = reference - balance.checkpoint_lead
-	next_checkpoint_row = maxi(first, balance.checkpoint_first_min)
+## Puts a gate across `row`, a few cells wide and centred, and says whether it
+## managed to. Called by Main when the cart has wound up, rather than laid out
+## in advance: a gate is worth having only when there is speed to take off it.
+func lay_checkpoint(row: int) -> bool:
+	if not balance.checkpoints_on or row <= max_row:
+		return false
+	ensure_rows(row + 1)
+
+	var open: Array[int] = []
+	for col in balance.cols:
+		var cell := Vector2i(col, row)
+		if not rocks.has(cell) and not crystals.has(cell):
+			open.append(col)
+	if open.is_empty():
+		return false
+
+	# Centred, so it can be reached from either side rather than being a
+	# scramble to whichever wall it landed against.
+	var middle: int = balance.cols / 2
+	var half: int = maxi(balance.checkpoint_width, 1) / 2
+	var placed := false
+	for col in open:
+		if absi(col - middle) <= half:
+			checkpoints[Vector2i(col, row)] = true
+			placed = true
+	if not placed:
+		var best: int = open[0]
+		for col in open:
+			if absi(col - middle) < absi(best - middle):
+				best = col
+		checkpoints[Vector2i(best, row)] = true
+	_terrain_dirty = true
+	return true
 
 
-## Crossing the band anywhere takes all of it. A gate is one thing however
-## many cells it is drawn across, and leaving the rest standing would let a
-## player collect the same gate twice by weaving along its row.
 func take_checkpoint(cell: Vector2i) -> bool:
 	if not checkpoints.has(cell):
 		return false

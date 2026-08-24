@@ -36,10 +36,12 @@ const KNOBS := [
 	{"id": "assist_buffer_floor", "name": "Pressure: track below", "min": 0, "max": 8, "step": 1},
 
 	{"group": "Checkpoints"},
+	{"id": "checkpoint_trigger", "name": "Called at speed", "min": 0.05, "max": 0.9, "step": 0.05},
+	{"id": "checkpoint_notice", "name": "Rows of notice", "min": 2, "max": 20, "step": 1},
 	{"id": "checkpoint_gap", "name": "Rows between gates", "min": 8, "max": 60, "step": 1},
-	{"id": "checkpoint_lead", "name": "Ahead of trouble", "min": 0, "max": 30, "step": 1},
 	{"id": "checkpoint_width", "name": "Gate width", "min": 1, "max": 7, "step": 1},
-	{"id": "checkpoint_pace", "name": "Pace left at", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"id": "checkpoint_pace", "name": "First gate leaves at", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"id": "checkpoint_pace_step", "name": "Each gate gives less", "min": 0.0, "max": 0.5, "step": 0.01},
 
 	{"group": "Fuel"},
 	{"id": "fuel_max", "name": "Tank", "min": 40.0, "max": 240.0, "step": 5.0},
