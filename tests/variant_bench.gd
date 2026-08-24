@@ -59,6 +59,10 @@ func _initialize() -> void:
 func _begin() -> void:
 	main._show_menu()
 	experiment.override(variant)
+	# GATES=0 turns the speed gates off, so the sweep can measure what they are
+	# actually worth rather than assuming it.
+	if OS.get_environment("GATES") == "0":
+		main.base_balance.checkpoints_on = false
 	main.forced_seed = SEEDS[run]
 	main.start_run(0)
 	# Straight to the autoplayer rather than through _launch_autoplay, which

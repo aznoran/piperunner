@@ -40,6 +40,10 @@ var patience: float = 1.0
 ## keep windows. 0 spends whatever is best right now; 1 protects the shapes the
 ## strip would miss most.
 var hoarding: float = 0.0
+## Weight on speed gates, on top of how badly the cart needs one. A player who
+## never looks up does not steer for them; one who has learned what they are
+## plans the route around them.
+var gates: float = 6.0
 ## Multiplier on think time. Below 1 is a fast, twitchy player.
 var haste: float = 1.0
 ## Multiplier on the odds of simply playing the wrong cell.
@@ -64,14 +68,14 @@ static func catalogue() -> Array[Persona]:
 		# that works, throws away anything awkward rather than waiting.
 		make({
 			"name": "Dabbler", "proficiency": 0.20,
-			"climb": 3.0, "fuel": 3.0, "patience": 0.4,
+			"climb": 3.0, "fuel": 3.0, "patience": 0.4, "gates": 1.5,
 			"hoarding": 0.0, "haste": 1.25, "sloppiness": 1.6,
 		}),
 		# Height at any cost. Ignores crystals, never waits, dies with a dry
 		# tank a long way up.
 		make({
 			"name": "Rusher", "proficiency": 0.55,
-			"climb": 7.0, "fuel": 1.0, "patience": 0.3,
+			"climb": 7.0, "fuel": 1.0, "patience": 0.3, "gates": 3.0,
 			"hoarding": 0.0, "haste": 0.7, "sloppiness": 0.6,
 		}),
 		# Fuel first. Detours for every crystal and treats height as something

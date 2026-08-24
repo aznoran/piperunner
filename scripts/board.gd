@@ -35,6 +35,13 @@ var cell_size: float = 100.0
 var pipes: Dictionary = {}     # Vector2i -> PipeCell
 var rocks: Dictionary = {}     # Vector2i -> true
 var crystals: Dictionary = {}  # Vector2i -> true
+## Speed gates. Routed through like a crystal, and driven past like one too —
+## the cart does not stop for them and nothing catches a player who missed one.
+var checkpoints: Dictionary = {}  # Vector2i -> true
+## Row the next gate is due on, and how far this player usually gets. The
+## second is handed in at the start of a run because only GameState knows it.
+var next_checkpoint_row: int = 0
+var usual_reach: int = 0
 
 ## Highest row generated so far.
 var rows_built: int = -1
@@ -131,6 +138,7 @@ func start_run(seed_value: int, with_resources: bool = true,
 	pipes.clear()
 	rocks.clear()
 	crystals.clear()
+	checkpoints.clear()
 	rows_built = -1
 	next_crystal_row = maxi(balance.runway + 3, resource_floor)
 	max_row = 0
@@ -201,6 +209,36 @@ func ensure_rows(up_to: int) -> void:
 				if rng.randf() < density:
 					rocks[cell] = true
 
+		if spawn_resources and balance.checkpoints_on and row >= next_checkpoint_row \
+				and next_checkpoint_row > 0:
+			var open: Array[int] = []
+			for col in balance.cols:
+				var cell := Vector2i(col, row)
+				if not rocks.has(cell) and not pipes.has(cell) \
+						and not crystals.has(cell):
+					open.append(col)
+			if not open.is_empty():
+				# Centred on the middle, so it can be reached from either side
+				# rather than being a scramble to whichever wall it landed
+				# against, and a few cells across so steering into it is a
+				# nudge rather than a detour.
+				var middle: int = balance.cols / 2
+				var half: int = maxi(balance.checkpoint_width, 1) / 2
+				var placed := false
+				for col in open:
+					if absi(col - middle) <= half:
+						checkpoints[Vector2i(col, row)] = true
+						placed = true
+				if not placed:
+					# The middle is walled off this row. One cell wherever
+					# there is room beats skipping the gate entirely.
+					var best: int = open[0]
+					for col in open:
+						if absi(col - middle) < absi(best - middle):
+							best = col
+					checkpoints[Vector2i(best, row)] = true
+				next_checkpoint_row = row + maxi(balance.checkpoint_gap, 4)
+
 		if row >= next_crystal_row:
 			var free: Array[int] = []
 			for col in balance.cols:
@@ -256,6 +294,35 @@ func flood(cell: Vector2i) -> void:
 	if pipe != null and not pipe.flooded:
 		pipe.flooded = true
 		_terrain_dirty = true
+
+
+## Where the first gate goes, from what this player usually manages.
+##
+## Their own average less the lead, so it arrives while the run is still going
+## rather than as it comes apart. A player with no history yet gets the
+## designed gap, which is the same number a fresh save would have averaged to
+## anyway.
+func plan_checkpoints(reach: int) -> void:
+	usual_reach = reach
+	if not balance.checkpoints_on:
+		next_checkpoint_row = 0
+		return
+	var first: int = (reach - balance.checkpoint_lead) if reach > 0 \
+		else balance.checkpoint_gap
+	next_checkpoint_row = maxi(first, balance.checkpoint_first_min)
+
+
+## Crossing the band anywhere takes all of it. A gate is one thing however
+## many cells it is drawn across, and leaving the rest standing would let a
+## player collect the same gate twice by weaving along its row.
+func take_checkpoint(cell: Vector2i) -> bool:
+	if not checkpoints.has(cell):
+		return false
+	for other: Vector2i in checkpoints.keys():
+		if other.y == cell.y:
+			checkpoints.erase(other)
+	_terrain_dirty = true
+	return true
 
 
 func take_crystal(cell: Vector2i) -> bool:
@@ -481,6 +548,10 @@ func draw_live(ci: CanvasItem) -> void:
 	if balance == null:
 		return
 	if reveal > 0.0:
+		for cell: Vector2i in checkpoints:
+			if cell.y < _drawn_row_min or cell.y > _drawn_row_max:
+				continue
+			_draw_checkpoint(ci, cell)
 		for cell: Vector2i in crystals:
 			if cell.y < _drawn_row_min or cell.y > _drawn_row_max:
 				continue
@@ -518,6 +589,39 @@ func _draw_pipe(ci: CanvasItem, centre: Vector2, type: int, flooded: bool, alpha
 		var offset := Vector2(step.x, -step.y) * reach
 		ci.draw_line(centre, centre + offset, core, core_width)
 	ci.draw_circle(centre, core_width * 0.5, core)
+
+
+## A gate across the cell: two posts and a beam between them, with the arrows
+## the road signs use for "slow".
+##
+## Deliberately not a crystal. A crystal is a thing you want; a gate is a thing
+## you steer for, and drawing them alike would have the player reading the
+## board twice to tell which was which at the moment they have least time.
+func _draw_checkpoint(ci: CanvasItem, cell: Vector2i) -> void:
+	var centre := cell_to_world(cell)
+	var half := cell_size * 0.4
+	var tint: Color = _skin.warn
+	var pulse: float = 0.75 + 0.25 * sin(_time * 3.0 + cell.y)
+	var stroke: float = maxf(2.0, cell_size * 0.07)
+
+	# The posts, and the beam the cart passes under.
+	for side in [-1.0, 1.0]:
+		var x: float = centre.x + half * side
+		ci.draw_line(Vector2(x, centre.y - half), Vector2(x, centre.y + half),
+			Color(tint, reveal * 0.85), stroke)
+	ci.draw_line(Vector2(centre.x - half, centre.y),
+		Vector2(centre.x + half, centre.y), Color(tint, reveal * pulse),
+		stroke * 1.4)
+
+	# Chevrons pointing back down the track: the sign for slowing, and the one
+	# direction the cart is not going.
+	var reach := half * 0.42
+	for i in 2:
+		var y: float = centre.y - half * 0.42 + float(i) * half * 0.52
+		ci.draw_line(Vector2(centre.x - reach, y - reach * 0.5),
+			Vector2(centre.x, y + reach * 0.35), Color(tint, reveal * 0.7), stroke)
+		ci.draw_line(Vector2(centre.x + reach, y - reach * 0.5),
+			Vector2(centre.x, y + reach * 0.35), Color(tint, reveal * 0.7), stroke)
 
 
 func _draw_crystal(ci: CanvasItem, cell: Vector2i) -> void:

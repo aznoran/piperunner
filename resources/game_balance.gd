@@ -40,6 +40,38 @@ extends Resource
 ## Cells travelled before fuel starts draining.
 @export var grace_cells: int = 16
 
+@export_group("Checkpoints")
+## Gates on the track that give the speed back. The cart accelerates with the
+## score and eventually outruns a human; a checkpoint is where that is undone.
+##
+## They are routed through, exactly as crystals are — driven past, they do
+## nothing, and that is the player's own fault. Which is what makes them a
+## decision rather than a gift: the track has to be steered into one, and
+## steering costs cells and fuel.
+@export var checkpoints_on: bool = true
+## Rows between one gate and the next. Roughly how far a player gets without
+## trouble, so the gate arrives about when the speed starts to bite.
+@export var checkpoint_gap: int = 30
+## How far ahead of trouble the first one lands. Placed where this player
+## usually dies, less this, so the gate is reached with time to spare rather
+## than exactly as the run falls apart.
+@export var checkpoint_lead: int = 10
+## Never closer to the start than this, however short their runs have been —
+## a gate in the first few rows would be met before the speed is a problem.
+@export var checkpoint_first_min: int = 18
+## How many cells wide a gate is.
+##
+## One cell in a board seven wide is nearly always off the route, so taking it
+## meant a detour, and a detour costs cells and fuel — which showed up as the
+## long runs getting shorter while the short ones got longer. A gate a few
+## cells across is cheap to steer into and still possible to miss, which is the
+## bargain it is supposed to be: recommended, not automatic.
+@export var checkpoint_width: int = 3
+## How much of the speed gained so far a gate hands back, 0..1. At 1.0 the
+## cart returns to its starting pace and the run restarts in all but name; at
+## 0 the gate is scenery.
+@export_range(0.0, 1.0, 0.05) var checkpoint_relief: float = 0.55
+
 @export_group("Scoring")
 ## Points per crystal = crystal_points * min(combo, crystal_combo_cap).
 @export var crystal_points: int = 10

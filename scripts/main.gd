@@ -48,6 +48,10 @@ var _board_seed: int = 0
 ## Seconds the brake still has to run. While it is above zero the cart does not
 ## move and fuel does not burn — the whole point is a pause, not a slow lane.
 var _braked: float = 0.0
+## Points the speed does not count, because a gate gave them back. Kept apart
+## from the score, which is what the player earned and is never taken away —
+## only the pace it buys is.
+var _speed_pardon: float = 0.0
 ## Benchmarks pin the run seed here so the same board can be replayed. -1 in
 ## normal play, where every run is its own.
 var forced_seed: int = -1
@@ -506,6 +510,9 @@ func _prepare_board(with_resources: bool) -> void:
 	elif selected_mode == Mode.STORY and active_level != null:
 		run_seed = Levels.seed_for(active_level)
 	_board.start_run(run_seed, with_resources, _first_resource_row())
+	# Where the gates go is personal: this player's own recent runs, less the
+	# lead, so the first one lands while the run is still going.
+	_board.plan_checkpoints(GameState.usual_reach())
 	_board_seed = run_seed
 	_offer_rng.seed = run_seed + 1
 
@@ -542,6 +549,7 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	_run_began = _seconds()
 	_last_placed_at = _run_began
 	_braked = 0.0
+	_speed_pardon = 0.0
 	selected_mode = mode
 	daily_mode = mode == Mode.DAILY
 	_autoplayer.stop()
@@ -651,7 +659,9 @@ func _run_frame(delta: float) -> void:
 		return
 
 	if started:
-		speed = minf(balance.start_speed + score * balance.speed_gain, balance.speed_cap)
+		speed = minf(balance.start_speed
+			+ maxf(float(score) - _speed_pardon, 0.0) * balance.speed_gain,
+			balance.speed_cap)
 		_burn_fuel(balance.fuel_per_second * delta)
 		if state != State.PLAYING:
 			return
@@ -782,6 +792,37 @@ func _board_window() -> PackedByteArray:
 			else:
 				window.append(PlayLog.EMPTY)
 	return window
+
+
+## Driven through a speed gate.
+##
+## It hands back a share of the pace built up since the start, so the cart is
+## human again for another stretch. The score is untouched: what the player
+## earned stays earned, and only the speed it bought is rolled back.
+##
+## Nothing happens to a gate that is driven past. That is the whole design —
+## it is a route the player has to steer into, and steering costs cells and
+## fuel, so taking one is a decision and missing one is an answer.
+func _pass_gate(cell: Vector2i) -> void:
+	# Worked back from the speed the player is actually feeling, not from the
+	# score behind it. Past the cap those two part company badly: at nine
+	# hundred points the score buys half again the top speed, so a share of it
+	# handed back moved the cart not at all — the gate was inert at exactly the
+	# pace it exists to fix. So the target is named first and the pardon is
+	# whatever reaches it.
+	if balance.speed_gain > 0.0:
+		var target: float = balance.start_speed \
+			+ (speed - balance.start_speed) * (1.0 - balance.checkpoint_relief)
+		var wanted: float = float(score) \
+			- (target - balance.start_speed) / balance.speed_gain
+		# Never downward: a gate gives pace back and never takes it.
+		_speed_pardon = maxf(_speed_pardon, maxf(wanted, 0.0))
+	var at := _board.cell_to_world(cell)
+	_fx.burst(at, Skins.current().warn, 22, _cell_size * 5.0)
+	_fx.floater(at, "SLOW", Skins.current().warn)
+	_screen_fx.flash()
+	GameState.vibrate(balance.haptics_crystal_ms)
+	_praise_for(Praise.Kind.CLUTCH)
 
 
 # --- power-ups ----------------------------------------------------------
@@ -1029,6 +1070,9 @@ func _on_cart_stepped(cell: Vector2i) -> void:
 			_praise_for(Praise.Kind.RECORD)
 
 	cells_run += 1
+
+	if _board.take_checkpoint(cell):
+		_pass_gate(cell)
 
 	var taken := _pull_crystals(cell)
 	for spot in taken:

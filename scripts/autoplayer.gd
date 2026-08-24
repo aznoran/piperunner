@@ -369,8 +369,26 @@ func _score(joint: Vector2i, piece: int, entry: int) -> float:
 	var score: float = float(next.y - joint.y) * persona.climb
 	if _board.crystals.has(next):
 		score += persona.fuel  # fuel is distance
+
+	# A speed gate is worth what the speed is costing. Early on the cart is
+	# slow and a gate is barely worth the detour; near the cap it is the
+	# difference between reading the board and guessing at it, which is
+	# exactly how a player comes to value them.
+	if _board.checkpoints.has(next):
+		var wound: float = clampf((_main.speed - _main.balance.start_speed)
+			/ maxf(_main.balance.speed_cap - _main.balance.start_speed, 0.01),
+			0.0, 1.0)
+		score += persona.gates * wound
 	if not _clear(next, PipeDefs.OPPOSITE[exit]):
 		score -= 8.0  # aiming the cart at a pipe that will not take it
+
+	# Sideways towards the nearest gate, when one is worth having, beats
+	# sideways towards anything else: fuel buys cells and a gate buys the time
+	# to place them.
+	var gate := _nearest_gate()
+	if gate != Board.NO_CELL and _main.speed > _main.balance.start_speed * 1.6:
+		score += float(absi(joint.x - gate.x) - absi(next.x - gate.x)) \
+			* persona.gates * 0.3
 
 	# Sideways towards the nearest crystal beats sideways away from it.
 	var crystal := _nearest_crystal()
@@ -553,6 +571,23 @@ func _stockpile(joint: Vector2i) -> bool:
 ## because a hundred cells cannot be crossed on one tank.
 func _thirst() -> float:
 	return lerpf(THIRSTY, 0.75, _grade())
+
+
+## The nearest gate ahead and on screen, or nothing. Same shape as the crystal
+## search, because the bot wants them for the same reason: they are both cells
+## the route has to be bent toward.
+func _nearest_gate() -> Vector2i:
+	var rows := _board.visible_rows()
+	var best := Board.NO_CELL
+	var best_cost := 999
+	for cell: Vector2i in _board.checkpoints:
+		if cell.y <= _cart.row or cell.y > rows.y:
+			continue
+		var cost: int = (cell.y - _cart.row) + absi(cell.x - _cart.col) * 2
+		if cost < best_cost:
+			best_cost = cost
+			best = cell
+	return best
 
 
 ## The nearest crystal ahead that is actually on screen. Chasing one off the

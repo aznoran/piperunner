@@ -42,6 +42,10 @@ var upgrades: Dictionary = {}
 ## things — a level is kept and a charge is spent.
 var power_levels: Dictionary = {}
 var power_charges: Dictionary = {}
+## The last handful of distances, newest last. Kept so the game can put a
+## checkpoint where *this* player tends to come unstuck rather than where the
+## average one does — the two are rarely the same number.
+var recent_runs: Array = []
 
 
 func _ready() -> void:
@@ -58,6 +62,7 @@ func load_game() -> void:
 	upgrades = config.get_value("progress", "upgrades", {})
 	power_levels = config.get_value("progress", "power_levels", {})
 	power_charges = config.get_value("progress", "power_charges", {})
+	recent_runs = config.get_value("progress", "recent_runs", [])
 	daily_date = config.get_value("progress", "daily_date", "")
 	daily_best = config.get_value("progress", "daily_best", 0)
 	quest_date = config.get_value("progress", "quest_date", "")
@@ -79,6 +84,7 @@ func save_game() -> void:
 	config.set_value("progress", "upgrades", upgrades)
 	config.set_value("progress", "power_levels", power_levels)
 	config.set_value("progress", "power_charges", power_charges)
+	config.set_value("progress", "recent_runs", recent_runs)
 	config.set_value("progress", "daily_date", daily_date)
 	config.set_value("progress", "daily_best", daily_best)
 	config.set_value("progress", "quest_date", quest_date)
@@ -146,7 +152,28 @@ func submit_daily(score: int) -> bool:
 
 ## Files a finished run for the dealer's benefit: a run that fell well short of
 ## the player's own record counts towards a slump, a decent one clears it.
+## Runs remembered for the checkpoint placement. Long enough to be steady,
+## short enough to follow a player who is getting better.
+const RECENT_RUNS := 8
+
+
+## How far this player usually gets, from their own last few runs.
+##
+## Zero until there are a few to go on, which is the caller's cue to use the
+## designed default instead of a number made of one lucky attempt.
+func usual_reach() -> int:
+	if recent_runs.size() < 3:
+		return 0
+	var total := 0
+	for distance: int in recent_runs:
+		total += distance
+	return int(round(float(total) / float(recent_runs.size())))
+
+
 func note_run(distance: int) -> void:
+	recent_runs.append(distance)
+	while recent_runs.size() > RECENT_RUNS:
+		recent_runs.pop_front()
 	runs_played += 1
 	if best_distance > 0 and distance < best_distance * 0.6:
 		slump_streak += 1
