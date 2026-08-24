@@ -24,7 +24,10 @@ const POWER_SIZE := 78.0
 ## What a key may shrink or grow to when it is matched to a shape slot.
 const POWER_MIN := 52.0
 const POWER_MAX := 86.0
-const POWER_MARGIN := 10.0
+## How far a key sits from the edge of the screen, and the least daylight it
+## will accept between itself and the shape strip.
+const POWER_EDGE := 18.0
+const POWER_GAP := 34.0
 ## The bar's key face and the 9-patch inset that keeps its corners crisp — the
 ## same numbers the menu uses, because it is the same button.
 const KEY_FACE := "res://art/ui/tab_face.png"
@@ -177,20 +180,23 @@ func place_powers(slots: Array[Rect2]) -> void:
 		if key == null:
 			continue
 		key.size = Vector2(side, side)
-		# Alternating outward, so a third power-up would stack beside the first
-		# rather than land on top of it.
+		# Pushed out to the edges rather than sat next to the strip, and the
+		# gap that leaves is the point. A power-up costs a charge and a shape
+		# costs a turn, so a thumb that catches the wrong one during a fast
+		# stretch has done real damage — the two want as much daylight between
+		# them as the screen has to give.
 		var rank: int = index / 2
-		var step: float = side + POWER_MARGIN
+		var step: float = side + POWER_GAP
 		var x: float
 		if index % 2 == 0:
-			x = rightmost.end.x + POWER_MARGIN + step * float(rank)
-			# Nowhere to put it: tuck it against the edge rather than off it.
-			if x + side > wide:
-				x = maxf(wide - side - 2.0, rightmost.end.x + 2.0)
+			x = wide - POWER_EDGE - side - step * float(rank)
+			# Never closer to the strip than the gap, however narrow the screen.
+			x = maxf(x, rightmost.end.x + POWER_GAP)
+			x = minf(x, wide - side - 2.0)
 		else:
-			x = leftmost.position.x - POWER_MARGIN - side - step * float(rank)
-			if x < 0.0:
-				x = minf(2.0, leftmost.position.x - side - 2.0)
+			x = POWER_EDGE + step * float(rank)
+			x = minf(x, leftmost.position.x - POWER_GAP - side)
+			x = maxf(x, 2.0)
 		key.position = Vector2(x, middle - side * 0.5)
 		_resize_key_face(key, side)
 		index += 1
