@@ -21,9 +21,14 @@ func variant() -> int:
 ## Distinct rather than free, and helped on quality rather than on
 ## availability: three distinct shapes practically always contain one that
 ## fits, so the queue's kind of assistance would be answering a question this
-## mechanic does not ask. See OfferDealer.
+## mechanic does not ask.
+##
+## PathDealer takes that further by asking not whether a shape fits but whether
+## it carries the path on — the two are the same thing while the cart climbs
+## and come apart the moment it turns. See PathDealer; OfferDealer is still the
+## base it builds on and still what the held strip deals with.
 func make_dealer() -> PipeDealer:
-	return OfferDealer.new()
+	return PathDealer.new()
 
 
 func attach(offer_bar: OfferBar) -> void:

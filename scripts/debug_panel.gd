@@ -26,6 +26,9 @@ const KNOBS := [
 
 	{"group": "Dealer"},
 	{"id": "turn_relief", "name": "Turn relief", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"id": "path_turn_chance", "name": "After a turn: carry on", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"id": "path_straight_share", "name": "...and resume the climb", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"id": "path_pity_strength", "name": "Barren-streak urgency", "min": 0.0, "max": 2.0, "step": 0.05},
 	{"id": "assist_max_new", "name": "Assist: new player", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"id": "assist_max_early", "name": "Assist: early", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"id": "assist_max_veteran", "name": "Assist: veteran", "min": 0.0, "max": 1.0, "step": 0.05},

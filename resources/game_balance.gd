@@ -213,6 +213,44 @@ extends Resource
 ## strip rather than choosing the cell. Zero restores the raw 42.9%.
 @export_range(0.0, 1.0, 0.05) var turn_relief: float = 0.5
 
+## PathDealer's knobs. They replace turn_relief wherever that rule is in force
+## — it guarantees a shape after the fact, these decide the draw — so
+## turn_relief still stands for the rules that have not moved over.
+##
+## Both rules work the same way: the offer is drawn evenly, and a rule that
+## fires claims one cell of it at random. Claiming every cell was the first
+## design and it saturated — for a sideways cart the shapes that carry the path
+## on are exactly three, the size of the strip, so a high chance dealt the same
+## fixed set every turn instead of an offer.
+
+## How often, once the cart is off its climb, one cell of the offer is drawn
+## from the shapes that carry the path on rather than from all seven.
+##
+## Zero is off and leaves the even draw untouched. There is no floor: a missed
+## roll costs the player nothing now, where the first design dealt a miss out
+## of the shapes that do not carry on and so needed one to stay fair.
+@export_range(0.0, 1.0, 0.05) var path_turn_chance: float = 0.0
+
+## Of the draws that do come from the carrying pool, how many go to the shapes
+## that put the cart back on its climb rather than merely crossing further. The
+## rest split what is left evenly.
+##
+## Climbing is the score, and after a corner exactly one shape of the three
+## restores it — UL coming from the left, UR from the right — so an even draw
+## would give the shape that matters a third of the pool. This is the knob that
+## says how much more than a third it is worth.
+@export_range(0.0, 1.0, 0.05) var path_straight_share: float = 0.70
+
+## How sharply a run of offers with nothing worth having raises the odds that
+## the next one is given something. The curve is tanh(k·n) over n barren deals
+## — a sigmoid rescaled to start at zero — so this is k.
+##
+## Zero switches the rule off. At 0.25 it takes six barren deals to reach 90%;
+## at 0.60, three; at 1.20 the second deal is already all but certain. A curve
+## rather than a counter on purpose: "every fifth deal" is learnable, and a
+## player counting to the rescue has stopped playing the game in front of them.
+@export_range(0.0, 2.0, 0.05) var path_pity_strength: float = 0.0
+
 @export_group("Praise")
 ## Seconds between praise messages. Praise devalues faster than anything else
 ## in the game, so this is the main defence.
