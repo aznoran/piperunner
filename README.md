@@ -204,6 +204,13 @@ switched under **SETUP → Pick shape with**. The digits work whatever is chosen
 The strip prints the live scheme onto the slots, which is the only explanation
 that reliably arrives; the phone builds draw no caps and show no setting.
 
+Settings holds one control or the other, never both: the phone builds get the
+vibration switch and no keyboard row, the web and desktop builds get the
+keyboard row and no vibration switch. `GameState.vibrate` stops asking on the
+platforms that lost the switch — a browser on an Android phone would honour
+`navigator.vibrate`, and a game that buzzes with no way to stop it is a
+complaint rather than a feature.
+
 `KeyScheme` holds the tables, `GameState.key_scheme` remembers the choice, and
 both `InputHandler` and `OfferBar` are handed it rather than reading it — they
 carry a `class_name`, so they are compiled before the autoloads exist. Same

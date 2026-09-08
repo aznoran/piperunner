@@ -86,6 +86,7 @@ func _ready() -> void:
 	%CloseSettings.pressed.connect(_close_panels)
 	%CloseUpgrades.pressed.connect(_close_panels)
 	_haptics_toggle.toggled.connect(_set_haptics)
+	_hide_haptics_off_phone()
 	_build_controls_row()
 	_build_how_to()
 	# Cloud progress can land after the menu is already up, and every number on
@@ -349,7 +350,8 @@ func _refresh() -> void:
 	_set_badge(%ModesButton, 0)
 
 	_best_label.text = tr("Best run: %d") % GameState.best
-	_haptics_toggle.set_pressed_no_signal(GameState.haptics_enabled)
+	if _haptics_toggle != null:
+		_haptics_toggle.set_pressed_no_signal(GameState.haptics_enabled)
 	if _keys_picker != null:
 		_keys_picker.select(KeyScheme.clamp_id(GameState.key_scheme))
 	_refresh_shop()
@@ -1075,6 +1077,26 @@ func _set_badge(button: Button, count: int) -> void:
 	badge.text = str(count)
 
 
+## Takes the vibration switch out of Settings where there is nothing to
+## vibrate. A browser is played on a desk as often as in a hand, and a switch
+## that does nothing is worse than a missing one — it reads as broken.
+##
+## GameState.vibrate stops asking on the same platforms, so this hides a
+## setting that is off rather than one that is on and unreachable.
+func _hide_haptics_off_phone() -> void:
+	if OS.has_feature("mobile"):
+		return
+	var row: Control = _haptics_toggle.get_parent()
+	row.visible = false
+	# Out of the column as well as out of sight: a VBoxContainer still spends
+	# its separation on a hidden child, which left a gap where the row was.
+	row.get_parent().remove_child(row)
+	row.queue_free()
+	# The refresh reads this every time the panel opens, and the node it points
+	# at is on its way out.
+	_haptics_toggle = null
+
+
 ## The rules card. Assembled here rather than held in the scene because its
 ## last line depends on what the player is holding: a phone is told about
 ## tapping and a browser about the keyboard, and neither wants to read the
@@ -1089,17 +1111,19 @@ func _build_how_to() -> void:
 	rules.text = text
 
 
-## The keyboard row in Settings, built beside the vibration switch.
+## The keyboard row in Settings, in the place the vibration switch just left.
 ##
 ## In code rather than in the scene because it does not exist on every build:
-## the phone exports have no keyboard, and a dead setting sitting under
-## "Vibration" is worse than no setting at all. The web and desktop builds are
-## the ones that get it.
+## the phone exports have no keyboard, and a dead setting is worse than a
+## missing one. Which is the same reason the switch it replaces is gone here —
+## the two swap over on exactly the same platforms, so Settings ends up with
+## one row either way rather than two on one platform and none on the other.
 func _build_controls_row() -> void:
 	if OS.has_feature("mobile"):
 		return
-	var haptics_row: Control = _haptics_toggle.get_parent()
-	var column: VBoxContainer = haptics_row.get_parent()
+	# Reached through the panel rather than through the vibration switch, which
+	# by this point has been taken out of the tree.
+	var column: VBoxContainer = _settings_panel.get_node("Box/Column")
 
 	var row := HBoxContainer.new()
 	row.name = "KeysRow"
@@ -1119,7 +1143,7 @@ func _build_controls_row() -> void:
 	row.add_child(_keys_picker)
 
 	column.add_child(row)
-	column.move_child(row, haptics_row.get_index() + 1)
+	column.move_child(row, _best_label.get_index() + 1)
 
 	# One line under the picker, because the split between choosing and placing
 	# is the only thing about the desktop controls that is not obvious, and the

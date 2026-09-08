@@ -276,6 +276,12 @@ func bank_crystals(count: int) -> void:
 ## (spec section 13). Amplitude is requested explicitly: the default leaves it
 ## to the platform, which on iOS can come out too faint to notice.
 func vibrate(milliseconds: int) -> void:
+	# Only the phone builds carry the switch that turns this off (see
+	# MainMenu._hide_haptics_off_phone), so only they may buzz. A browser on an
+	# Android phone would honour navigator.vibrate, and a game that buzzes with
+	# no way to stop it is a complaint, not a feature.
+	if not OS.has_feature("mobile"):
+		return
 	if not haptics_enabled:
 		return
 	Input.vibrate_handheld(milliseconds, 1.0)
