@@ -18,18 +18,39 @@
 			touch-action: none;
 			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 		}
-		body { display: flex; align-items: center; justify-content: center; }
+		body {
+			display: flex; align-items: center; justify-content: center;
+			/* The surround is not spare space, it is most of a desktop window,
+			   so it is painted rather than left black: the game's own night
+			   sky, with the faint vertical shafts the menu draws over its
+			   board, and a vignette to sit the play column in the middle of
+			   it. Flat black read as a letterbox — as though something had
+			   failed to fill it. */
+			background:
+				radial-gradient(ellipse 90% 70% at 50% 45%,
+					rgba(76, 224, 179, .05), transparent 70%),
+				repeating-linear-gradient(90deg,
+					rgba(255, 255, 255, .018) 0 1px, transparent 1px 96px),
+				linear-gradient(180deg, #0b111c 0%, #07090f 55%, #05070c 100%);
+		}
 
 		/* The game is drawn for a phone held upright and its layout is derived
 		   from the viewport width — one cell is width / columns — so letting a
 		   desktop window stretch it would not give a wider board, it would give
 		   six enormous cells and no board to speak of. The canvas keeps the
-		   design's 9:16 and the page fills the rest. */
+		   design's 9:16 and takes every pixel of height the window has; the
+		   page fills what is left.
+
+		   Sized in script rather than here, because the engine has to be told
+		   the same numbers — see fitCanvas. */
 		#canvas {
 			display: block;
-			width: min(100vw, calc(100vh * 720 / 1280));
-			height: min(100vh, calc(100vw * 1280 / 720));
 			touch-action: none;
+			/* Seats the column in the painted surround instead of letting it
+			   float in it. */
+			box-shadow:
+				0 0 0 1px rgba(76, 224, 179, .10),
+				0 0 60px rgba(0, 0, 0, .55);
 		}
 		#canvas:focus { outline: none; }
 
@@ -177,10 +198,35 @@
 	<script>
 	const GODOT_CONFIG = $GODOT_CONFIG;
 	const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
-	// The canvas is sized by the stylesheet above, not by the window, so the
-	// engine has to follow the element rather than the other way round.
-	GODOT_CONFIG.canvasResizePolicy = 1;
+	// 0 = the engine does not size the canvas; this file does.
+	//
+	// The other two policies both get it wrong here. "Project" pins the canvas
+	// to the project's 720x1280 and then divides by the pixel ratio, so on a
+	// retina desktop the game sat in a 360x640 box in the middle of a very
+	// large window — most of the screen was surround. "Adaptive" fills the
+	// window, which for a layout that derives one cell from the viewport width
+	// means six enormous cells and three visible rows.
+	GODOT_CONFIG.canvasResizePolicy = 0;
 	const engine = new Engine(GODOT_CONFIG);
+
+	// The largest 9:16 box the window holds, at the display's real pixel
+	// density. The style size is what the page lays out; the width and height
+	// attributes are the framebuffer the engine draws into, and the two have
+	// to be set together or the game renders soft.
+	function fitCanvas() {
+		const canvas = document.getElementById('canvas');
+		const dpr = window.devicePixelRatio || 1;
+		const w = Math.min(window.innerWidth, window.innerHeight * 720 / 1280);
+		const h = Math.min(window.innerHeight, window.innerWidth * 1280 / 720);
+		canvas.style.width = w + 'px';
+		canvas.style.height = h + 'px';
+		canvas.width = Math.max(1, Math.round(w * dpr));
+		canvas.height = Math.max(1, Math.round(h * dpr));
+	}
+	fitCanvas();
+	// Rotating a phone, resizing a window, and dragging between two monitors of
+	// different densities all land here.
+	window.addEventListener('resize', fitCanvas);
 
 	(function () {
 		const boot = document.getElementById('boot');

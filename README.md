@@ -145,9 +145,26 @@ For the same reason the preset has `variant/thread_support=false`: threads need
 `web/index.html` is the custom shell. It carries the platform's requirements —
 no context menu, no text selection, no page scroll, arrow keys swallowed so the
 page does not scroll under a player using them — and the `window.YaBridge` shim
-the game talks to. It also pins the canvas to the design's 9:16: the layout
-derives one cell from the viewport width, so a stretched desktop window would
-give six enormous cells rather than a wider board.
+the game talks to.
+
+**The shell sizes the canvas, not the engine** (`canvas_resize_policy=0`, and
+`fitCanvas` in the shell). Neither of the engine's own policies fits a portrait
+game on a desktop:
+
+- *Project* pins the canvas to the project's 720×1280 and then divides by the
+  pixel ratio, so on a retina display the game sat in a 360×640 box in the
+  middle of a 1710×825 window — most of the screen was surround.
+- *Adaptive* fills the window, and the layout derives one cell from the
+  viewport width, so a wide window gives six enormous cells and three rows.
+
+`fitCanvas` takes the largest 9:16 box the window holds and sets the style size
+and the framebuffer together — the second at the display's real density, or the
+game renders soft. On the same window that is 464×825 backed by 928×1650.
+
+What is left over is painted rather than left black: the game's own night sky,
+the faint vertical shafts the menu draws over its board, and a vignette. A
+portrait game on a wide desktop always has a surround; the only question is
+whether it looks like one.
 
 The SDK is loaded with a five-second deadline. If it stalls or fails, the game
 starts anyway — no ads, no cloud saves, still playable.
