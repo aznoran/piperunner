@@ -7,6 +7,11 @@
 ##
 ## Each shape carries its own colour (LocationSkin.shape_colors) so the chosen
 ## one is recognisable without reading its outline.
+##
+## Where there is a keyboard the slot also wears the key that picks it. The
+## setting that chooses the layout lives three taps deep in the menu, and a
+## control nobody can find is a control nobody has: printing it on the thing it
+## operates is the only explanation that reliably arrives.
 class_name OfferBar
 extends Control
 
@@ -37,12 +42,27 @@ var _centres: Array[Vector2] = []
 var _font: Font
 var _label_size: int = 16
 
+## Which keyboard layout the caps show, per KeyScheme. Pushed in by Main
+## rather than read off the settings autoload: this script carries a
+## class_name, so it is compiled during global class registration, before the
+## autoloads exist, and naming one here makes it fail to compile under the
+## headless tools. The same reason Skins is a plain class — see the README.
+var key_scheme: int = KeyScheme.Id.QWE:
+	set(value):
+		key_scheme = KeyScheme.clamp_id(value)
+		queue_redraw()
+
+## Whether to print key caps on the slots. False on the phone builds, where
+## there is no keyboard and the cap would be one more thing in the way.
+var _show_keys: bool = not OS.has_feature("mobile")
+
 var _slot_box := StyleBoxFlat.new()
 var _marker_box := StyleBoxFlat.new()
+var _cap_box := StyleBoxFlat.new()
 
 
 func _ready() -> void:
-	_font = ThemeDB.fallback_font
+	_font = Fonts.face()
 	set_skin(Skins.current())
 	get_viewport().size_changed.connect(_relayout)
 	_relayout()
@@ -89,6 +109,7 @@ func _relayout() -> void:
 	_label_size = maxi(11, int(_drawn_slot * 0.19))
 	_slot_box.set_corner_radius_all(int(_drawn_slot * 0.16))
 	_marker_box.set_corner_radius_all(maxi(2, int(_drawn_slot * 0.05)))
+	_cap_box.set_corner_radius_all(maxi(2, int(_drawn_slot * 0.09)))
 	queue_redraw()
 
 
@@ -126,13 +147,13 @@ func _draw() -> void:
 		return
 	for i in _choices.size():
 		_draw_slot(_centres[i], _drawn_slot, _choices[i], i == _selected,
-			i < _held.size() and _held[i])
-	_draw_label("CHOOSE", Vector2(size.x * 0.5, _row_y() - _drawn_slot * 0.66),
+			i < _held.size() and _held[i], i)
+	_draw_label(tr("CHOOSE"), Vector2(size.x * 0.5, _row_y() - _drawn_slot * 0.66),
 		Color(1.0, 1.0, 1.0, 0.34))
 
 
 func _draw_slot(centre: Vector2, slot_size: float, type: int,
-		chosen: bool, held: bool) -> void:
+		chosen: bool, held: bool, index: int) -> void:
 	var tint: Color = _skin.shape_color(type)
 	var rect := Rect2(centre - Vector2(slot_size, slot_size) * 0.5,
 		Vector2(slot_size, slot_size))
@@ -152,6 +173,8 @@ func _draw_slot(centre: Vector2, slot_size: float, type: int,
 
 	if held:
 		_draw_hold_pip(centre, slot_size, tint)
+	if _show_keys:
+		_draw_key_cap(centre, slot_size, tint, chosen, index)
 
 	if not chosen:
 		return
@@ -162,6 +185,28 @@ func _draw_slot(centre: Vector2, slot_size: float, type: int,
 	_marker_box.bg_color = tint
 	draw_style_box(_marker_box,
 		Rect2(centre + Vector2(-bar.x * 0.5, slot_size * 0.62), bar))
+
+
+## The key that picks this slot, on the corner the hold pip does not use. Dim
+## until the slot is the chosen one, like everything else on the strip — the
+## caps are a reference to glance at, not a row of buttons competing with the
+## shapes for the eye.
+func _draw_key_cap(centre: Vector2, slot_size: float, tint: Color,
+		chosen: bool, index: int) -> void:
+	var text := KeyScheme.cap(key_scheme, index)
+	if text.is_empty() or _font == null:
+		return
+	var box := slot_size * 0.3
+	var corner := centre + Vector2(-slot_size, -slot_size) * 0.5
+	_cap_box.bg_color = Color(tint, 0.7 if chosen else 0.28)
+	draw_style_box(_cap_box, Rect2(corner, Vector2(box, box)))
+
+	var size_px := maxi(9, int(box * 0.62))
+	var width := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
+		size_px).x
+	draw_string(_font, corner + Vector2((box - width) * 0.5, box * 0.76), text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1.0, size_px,
+		Color(0.04, 0.05, 0.09, 1.0 if chosen else 0.75))
 
 
 ## A held window keeps its shape until the player takes from it, and has to say

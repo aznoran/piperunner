@@ -34,7 +34,7 @@ func _ready() -> void:
 		_particles.append(Particle.new())
 	for i in FLOATER_POOL:
 		_floaters.append(Floater.new())
-	_font = ThemeDB.fallback_font
+	_font = Fonts.face()
 
 
 func set_cell_size(size: float) -> void:

@@ -55,6 +55,9 @@ func _process(_delta: float) -> bool:
 	_check_dealer()
 	_check_continue()
 	_check_station_finish()
+	_check_keyboard()
+	_check_ads()
+	_check_translations()
 
 	print("--- %d checks, %d failed ---" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -875,6 +878,198 @@ func _check_continue() -> void:
 	state.best_distance = saved_distance
 	state.save_game()
 	main._show_menu()
+
+
+# --- desktop and web ----------------------------------------------------
+
+## The keyboard picks a shape; it never places one. Both halves matter: a key
+## that placed would spend the turn from across the screen, and a key that
+## picked nothing would leave the web build with the strip as its only control.
+func _check_keyboard() -> void:
+	var K := KeyScheme
+	_eq(K.slot_for(K.Id.QWE, KEY_Q, 3), 0, "Q is the first slot")
+	_eq(K.slot_for(K.Id.QWE, KEY_E, 3), 2, "E is the third")
+	_eq(K.slot_for(K.Id.ASD, KEY_S, 3), 1, "S is the second on the home row")
+	_eq(K.slot_for(K.Id.ARROWS, KEY_LEFT, 3), 0, "left arrow is the first")
+	_eq(K.slot_for(K.Id.ARROWS, KEY_RIGHT, 3), 2, "right arrow is the third")
+
+	# A fourth key does nothing until an upgrade has widened the offer to it.
+	_eq(K.slot_for(K.Id.QWE, KEY_R, 3), -1, "the fourth key is dead on a row of three")
+	_eq(K.slot_for(K.Id.QWE, KEY_R, 4), 3, "and alive on a row of four")
+
+	# The digits are accepted whatever the scheme: they are what a player tries
+	# without being told, and refusing them to protect a setting nobody has
+	# opened is a small piece of rudeness.
+	_eq(K.slot_for(K.Id.ASD, KEY_2, 3), 1, "the number row works under any scheme")
+	_eq(K.slot_for(K.Id.ARROWS, KEY_J, 3), -1, "an unmapped key picks nothing")
+	# A save written by a version with more schemes than this one, or a
+	# corrupted one, must not index off the end of the table.
+	_ok(K.clamp_id(99) >= 0 and K.clamp_id(99) < K.NAMES.size(),
+		"a stored scheme out of range lands on a real one")
+	_ok(K.clamp_id(-4) >= 0, "and so does a negative one")
+	_ok(not K.cap(99, 0).is_empty(), "an out-of-range scheme still draws a cap")
+
+	# End to end, through the real handler and the real strip.
+	main.start_run()
+	# Fetched by node rather than as main._input: on a Node that name already
+	# belongs to the engine's own input callback, and GDScript resolves it to
+	# the method.
+	var handler: InputHandler = main.get_node("InputHandler")
+	handler.key_scheme = KeyScheme.Id.QWE
+	handler.enabled = true
+	var slots: int = main._blocks.choices().size()
+	_ok(slots >= 3, "the strip offers at least three shapes")
+
+	var laid: int = board.pipes.size()
+	var before: int = main._blocks.chosen_slot()
+	var target: int = 2 if before != 2 else 0
+	var event := InputEventKey.new()
+	event.pressed = true
+	event.keycode = KeyScheme.KEYS[KeyScheme.Id.QWE][target]
+	handler._key(event)
+	_eq(main._blocks.chosen_slot(), target, "a key press moves the choice")
+
+	# Held down, it is one choice and not a stream of them: the echo repeats
+	# would otherwise re-point the strip sixty times a second.
+	var echo := InputEventKey.new()
+	echo.pressed = true
+	echo.echo = true
+	echo.keycode = KeyScheme.KEYS[KeyScheme.Id.QWE][before]
+	handler._key(echo)
+	_eq(main._blocks.chosen_slot(), target, "a repeat is not a second choice")
+
+	# Choosing is free; only placing spends the turn.
+	_eq(board.pipes.size(), laid, "choosing places nothing")
+	main._show_menu()
+
+
+## The ad policy, driven through a stand-in for the platform.
+##
+## Worth testing without a browser because the rule is a counting rule — every
+## second death, never inside the platform's cooldown, and never twice for one
+## death — and counting rules go wrong quietly.
+func _check_ads() -> void:
+	# Fetched by name, not written as `Yandex`: this file is compiled before the
+	# autoloads are stood up, so naming one would fail to compile — the same
+	# reason GameState is reached for the same way throughout.
+	var ya: Node = root.get_node("Yandex")
+	var sdk: GDScript = load("res://scripts/yandex_sdk.gd")
+	var cooldown: float = sdk.INTERSTITIAL_COOLDOWN
+
+	_ok(not ya.rewarded_is_real(), "off the platform there is no ad to watch")
+
+	var bridge := FakeBridge.new()
+	ya.install_test_bridge(bridge)
+
+	var closes := [0]
+	var on_close := func() -> void: closes[0] += 1
+	ya.interstitial_closed.connect(on_close)
+
+	ya._deaths = 0
+	ya._last_interstitial = -cooldown
+	ya.note_death()
+	_eq(bridge.interstitials, 0, "the first death is left alone")
+	_eq(closes[0], 1, "and still answers, so the card is not stranded")
+
+	ya.note_death()
+	_eq(bridge.interstitials, 1, "the second carries the ad")
+	_eq(closes[0], 2, "and answers when it closes")
+	_ok(not ya.get_tree().paused, "the tree is handed back afterwards")
+
+	# Inside the cooldown the platform would refuse it anyway, so the game does
+	# not ask — and the card must still appear.
+	ya.note_death()
+	ya.note_death()
+	_eq(bridge.interstitials, 1, "a second ad inside the cooldown is not asked for")
+	_eq(closes[0], 4, "but every death still answers")
+
+	# A rewarded video watched to the end is the ad that death owed.
+	ya.credit_ad_shown()
+	_eq(ya._deaths, 0, "watching one resets the count")
+
+	ya.interstitial_closed.disconnect(on_close)
+
+	var granted := [false]
+	var on_reward := func(ok: bool) -> void: granted[0] = ok
+	ya.rewarded_result.connect(on_reward)
+	bridge.reward = true
+	ya.show_rewarded()
+	_ok(granted[0], "a video watched to the end pays out")
+	bridge.reward = false
+	ya.show_rewarded()
+	_ok(not granted[0], "a skipped one does not")
+	ya.rewarded_result.disconnect(on_reward)
+
+	# Back to the no-platform arrangement the rest of the checks expect.
+	ya._bridge = null
+	ya.available = false
+	ya._deaths = 0
+	ya._last_interstitial = -cooldown
+
+
+## The Russian build is the one the platform serves by default, so the strings
+## it is made of have to be there. Spot-checked rather than exhaustive: what
+## this is guarding against is the catalogue failing to load at all, and the
+## rules card, whose entry spans several lines and is the one shape of CSV that
+## quietly comes back empty.
+func _check_translations() -> void:
+	var was := TranslationServer.get_locale()
+	TranslationServer.set_locale("ru")
+	for key: String in ["Out of fuel", "Try Again", "START", "CHOOSE",
+			"Reach row %d", "First Run", "Collect %d crystals"]:
+		_ok(tr(key) != key, "ru: %s is translated" % key)
+	var rules := tr("HOW_TO_RULES")
+	_ok(rules != "HOW_TO_RULES", "ru: the rules card has text")
+	_ok(rules.count("\n") >= 4, "ru: and kept its lines")
+
+	TranslationServer.set_locale("en")
+	_eq(tr("Try Again"), "Try Again", "en: the source strings come back unchanged")
+	_ok(tr("HOW_TO_RULES").begins_with("[color="), "en: the rules card too")
+	TranslationServer.set_locale(was)
+
+
+## A stand-in for the platform, so the ad policy can be driven without one.
+## Answers immediately, which is the case the real bridge cannot promise and
+## the one the counting has to be right in.
+class FakeBridge extends RefCounted:
+	var interstitials: int = 0
+	var reward: bool = true
+	var _on_rewarded: Callable
+	var _on_interstitial: Callable
+	var _on_load: Callable
+
+	func register(rewarded: Callable, interstitial: Callable, load_cb: Callable) -> void:
+		_on_rewarded = rewarded
+		_on_interstitial = interstitial
+		_on_load = load_cb
+
+	func isReady() -> bool:
+		return true
+
+	func getLang() -> String:
+		return "ru"
+
+	func ready() -> void:
+		pass
+
+	func gameplayStart() -> void:
+		pass
+
+	func gameplayStop() -> void:
+		pass
+
+	func showInterstitial() -> void:
+		interstitials += 1
+		_on_interstitial.call([true])
+
+	func showRewarded() -> void:
+		_on_rewarded.call([reward])
+
+	func save(_text: String) -> void:
+		pass
+
+	func load() -> void:
+		_on_load.call([""])
 
 
 ## Meeting a station goal has to end the run as a win, not as a crash. This

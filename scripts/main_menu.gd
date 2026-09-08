@@ -45,6 +45,10 @@ const FADE_TIME := 0.24
 @onready var _best_label: Label = %BestLabel
 @onready var _haptics_toggle: CheckButton = %HapticsToggle
 
+## The keyboard layout picker. Built in code and null on the phone builds,
+## where there is no keyboard to lay out.
+var _keys_picker: OptionButton
+
 ## Buy button per upgrade id, so a purchase refreshes without rebuilding rows.
 var _rows: Dictionary = {}
 var _face: Texture2D
@@ -82,6 +86,11 @@ func _ready() -> void:
 	%CloseSettings.pressed.connect(_close_panels)
 	%CloseUpgrades.pressed.connect(_close_panels)
 	_haptics_toggle.toggled.connect(_set_haptics)
+	_build_controls_row()
+	_build_how_to()
+	# Cloud progress can land after the menu is already up, and every number on
+	# it belongs to the player.
+	GameState.progress_reloaded.connect(_refresh)
 
 	_build_shop()
 	paint(Skins.current())
@@ -339,8 +348,10 @@ func _set_menu_chrome(shown: bool) -> void:
 func _refresh() -> void:
 	_set_badge(%ModesButton, 0)
 
-	_best_label.text = "Best run: %d" % GameState.best
+	_best_label.text = tr("Best run: %d") % GameState.best
 	_haptics_toggle.set_pressed_no_signal(GameState.haptics_enabled)
+	if _keys_picker != null:
+		_keys_picker.select(KeyScheme.clamp_id(GameState.key_scheme))
 	_refresh_shop()
 	_build_quests()
 
@@ -365,13 +376,13 @@ func _build_shop() -> void:
 		child.queue_free()
 	_rows.clear()
 
-	_shop_heading("POWER-UPS")
+	_shop_heading(tr("POWER-UPS"))
 	for power in PowerUps.catalogue():
 		_power_row(power)
 
 	var carts := Skins.current().cart_variant_count()
 	if carts > 1:
-		_shop_heading("CARTS")
+		_shop_heading(tr("CARTS"))
 		for variant in carts:
 			_cart_row(variant)
 
@@ -438,12 +449,12 @@ func _power_row(power: PowerUp) -> void:
 	head.add_child(named)
 
 	var title := Label.new()
-	title.text = power.display_name
+	title.text = tr(power.display_name)
 	title.add_theme_font_size_override("font_size", 19)
 	named.add_child(title)
 
 	var blurb := Label.new()
-	blurb.text = power.description
+	blurb.text = tr(power.description)
 	blurb.add_theme_font_size_override("font_size", 13)
 	blurb.modulate.a = 0.55
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -553,7 +564,7 @@ func _cart_row(variant: int) -> void:
 		row.add_child(swatch)
 
 	var title := Label.new()
-	title.text = "Cart %d" % (variant + 1)
+	title.text = tr("Cart %d") % (variant + 1)
 	title.add_theme_font_size_override("font_size", 18)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -593,7 +604,7 @@ func _buy_style() -> StyleBoxFlat:
 
 func _refresh_shop() -> void:
 	var skin := Skins.current()
-	_wallet.text = "%d crystals" % GameState.crystals
+	_wallet.text = tr("%d crystals") % GameState.crystals
 
 	for power in PowerUps.catalogue():
 		var row: Dictionary = _rows.get(String(power.id), {})
@@ -609,20 +620,20 @@ func _refresh_shop() -> void:
 		var stock: Button = row["stock"]
 		# Named before it is priced: the note says what the money buys, the
 		# button says what it costs.
-		(row["stock_note"] as Label).text = "One more charge"
+		(row["stock_note"] as Label).text = tr("One more charge")
 		stock.text = "+1   ·   %d" % stock_cost
 		stock.disabled = GameState.crystals < stock_cost
 
 		var level_key: Button = row["level"]
 		var up_cost := PowerUps.upgrade_cost(power.id, GameState)
-		(row["level_note"] as Label).text = "%s %s each" % [
-			_format(worth), power.unit]
+		(row["level_note"] as Label).text = tr("%s %s each") % [
+			_format(worth), tr(power.unit)]
 		if up_cost < 0:
-			level_key.text = "MAXED"
+			level_key.text = tr("MAXED")
 			level_key.disabled = true
 		else:
-			level_key.text = "%s %s   ·   %d" % [
-				_format(worth + power.step), power.unit, up_cost]
+			level_key.text = tr("%s %s   ·   %d") % [
+				_format(worth + power.step), tr(power.unit), up_cost]
 			level_key.disabled = GameState.crystals < up_cost
 
 		var dots: Array = row["dots"]
@@ -642,7 +653,7 @@ func _refresh_shop() -> void:
 			continue
 		var wear: Button = row["wear"]
 		var worn: bool = GameState.cart_variant == variant
-		wear.text = "WORN" if worn else "WEAR"
+		wear.text = tr("WORN") if worn else tr("WEAR")
 		wear.disabled = worn
 		wear.modulate.a = 1.0 if not worn else 0.4
 
@@ -723,12 +734,12 @@ func _build_modes() -> void:
 	# map a day that shared its rules with classic and its board with nobody,
 	# and it earned neither the tab nor the space.
 	var skin := Skins.current()
-	_add_mode_card(cards, "CLASSIC", MODE_CLASSIC, skin.accent,
-		"Endless. One life, one board, as far as you can take it.",
-		"FURTHEST", str(GameState.best_distance))
-	_add_mode_card(cards, "STORY", MODE_STORY, _mode_tint(skin, MODE_STORY),
-		"Stations with a goal each. Fixed maps, learned one at a time.",
-		"CLEARED", "%d/%d" % [GameState.levels_cleared, Levels.count()])
+	_add_mode_card(cards, tr("CLASSIC"), MODE_CLASSIC, skin.accent,
+		tr("Endless. One life, one board, as far as you can take it."),
+		tr("FURTHEST"), str(GameState.best_distance))
+	_add_mode_card(cards, tr("STORY"), MODE_STORY, _mode_tint(skin, MODE_STORY),
+		tr("Stations with a goal each. Fixed maps, learned one at a time."),
+		tr("CLEARED"), "%d/%d" % [GameState.levels_cleared, Levels.count()])
 
 
 func _add_mode_card(into: BoxContainer, title: String, kind: int,
@@ -785,7 +796,7 @@ func _add_mode_card(into: BoxContainer, title: String, kind: int,
 	# whether the tap took.
 	if kind == _mode_kind:
 		var here := Label.new()
-		here.text = "PLAYING"
+		here.text = tr("PLAYING")
 		here.add_theme_font_size_override("font_size", 12)
 		here.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		var pill := StyleBoxFlat.new()
@@ -859,10 +870,10 @@ func _build_levels() -> void:
 	# Progress and the next station's terms share this line, so the field below
 	# stays a field — captions on it were a list again by another name.
 	var next := Levels.current(GameState)
-	%Progress.text = "%d of %d cleared" % [GameState.levels_cleared, Levels.count()]
+	%Progress.text = tr("%d of %d cleared") % [GameState.levels_cleared, Levels.count()]
 	if next != null:
 		%Progress.text += "   ·   %d  %s — %s" \
-			% [next.number, next.title, next.goal_short()]
+			% [next.number, tr(next.title), next.goal_short()]
 
 	if _map == null:
 		_map = StoryMap.new()
@@ -1006,7 +1017,10 @@ func _quest_row(quest: Quest, entry: Dictionary, skin: LocationSkin) -> void:
 		claim.add_theme_stylebox_override(state,
 			_claim_style(skin, ready))
 	if claimed:
-		claim.text = "✓"
+		# Not a tick: neither the game's face nor the bundled fallback has one,
+		# so U+2713 drew as an empty box in every language. The radical sign is
+		# the closest mark both fonts actually carry.
+		claim.text = "√"
 		claim.disabled = true
 	elif ready:
 		# The one thing on this panel worth tapping says what it pays.
@@ -1059,6 +1073,70 @@ func _set_badge(button: Button, count: int) -> void:
 		return
 	badge.visible = count > 0
 	badge.text = str(count)
+
+
+## The rules card. Assembled here rather than held in the scene because its
+## last line depends on what the player is holding: a phone is told about
+## tapping and a browser about the keyboard, and neither wants to read the
+## other's instructions.
+func _build_how_to() -> void:
+	var rules: RichTextLabel = _how_panel.get_node_or_null("Box/Column/Rules")
+	if rules == null:
+		return
+	var text := tr("HOW_TO_RULES")
+	if not OS.has_feature("mobile"):
+		text += "\n" + tr("HOW_TO_KEYS")
+	rules.text = text
+
+
+## The keyboard row in Settings, built beside the vibration switch.
+##
+## In code rather than in the scene because it does not exist on every build:
+## the phone exports have no keyboard, and a dead setting sitting under
+## "Vibration" is worse than no setting at all. The web and desktop builds are
+## the ones that get it.
+func _build_controls_row() -> void:
+	if OS.has_feature("mobile"):
+		return
+	var haptics_row: Control = _haptics_toggle.get_parent()
+	var column: VBoxContainer = haptics_row.get_parent()
+
+	var row := HBoxContainer.new()
+	row.name = "KeysRow"
+
+	var label := Label.new()
+	label.text = tr("Pick shape with")
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", 18)
+	row.add_child(label)
+
+	_keys_picker = OptionButton.new()
+	_keys_picker.name = "KeysPicker"
+	for name in KeyScheme.NAMES:
+		_keys_picker.add_item(name)
+	_keys_picker.select(KeyScheme.clamp_id(GameState.key_scheme))
+	_keys_picker.item_selected.connect(_set_key_scheme)
+	row.add_child(_keys_picker)
+
+	column.add_child(row)
+	column.move_child(row, haptics_row.get_index() + 1)
+
+	# One line under the picker, because the split between choosing and placing
+	# is the only thing about the desktop controls that is not obvious, and the
+	# strip itself only ever teaches half of it.
+	var note := Label.new()
+	note.name = "KeysNote"
+	note.text = tr("Keys choose the shape · the mouse places it")
+	note.modulate = Color(1.0, 1.0, 1.0, 0.55)
+	note.add_theme_font_size_override("font_size", 14)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(note)
+	column.move_child(note, row.get_index() + 1)
+
+
+func _set_key_scheme(index: int) -> void:
+	GameState.key_scheme = KeyScheme.clamp_id(index)
+	GameState.save_game()
 
 
 func _set_haptics(enabled: bool) -> void:

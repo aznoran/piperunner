@@ -5,6 +5,9 @@ extends Node
 const SAVE_PATH := "user://piperunner.cfg"
 
 signal best_changed(value: int)
+## Cloud progress arrived and replaced what was read off disk. Anything showing
+## a number the player owns has to look again.
+signal progress_reloaded()
 
 var best: int = 0
 ## Furthest row ever reached. Distance and score are different things — a run
@@ -14,6 +17,10 @@ var best_distance: int = 0
 ## Crystals banked across runs — the currency for meta upgrades (spec 11, P0).
 var crystals: int = 0
 var haptics_enabled: bool = true
+## Which keyboard layout picks shapes off the strip — an index into
+## KeyScheme.NAMES. Only ever consulted where there is a keyboard, so it costs
+## the phone builds nothing to carry.
+var key_scheme: int = KeyScheme.Id.QWE
 ## Display name of the chosen location skin. Empty means the default.
 var location: String = ""
 ## Which of the location's cart looks the player picked.
@@ -50,6 +57,8 @@ var recent_runs: Array = []
 
 func _ready() -> void:
 	load_game()
+	Yandex.cloud_loaded.connect(_on_cloud_loaded)
+	Yandex.load_cloud()
 
 
 func load_game() -> void:
@@ -72,11 +81,21 @@ func load_game() -> void:
 	slump_streak = config.get_value("progress", "slump_streak", 0)
 	last_continue = config.get_value("progress", "last_continue", 0.0)
 	haptics_enabled = config.get_value("settings", "haptics", true)
+	key_scheme = KeyScheme.clamp_id(config.get_value("settings", "key_scheme",
+		KeyScheme.Id.QWE))
 	location = config.get_value("settings", "location", "")
 	cart_variant = config.get_value("settings", "cart_variant", 0)
 
 
+## Writes to disk and queues the same picture to the player's cloud slot, so
+## progress follows them off this browser. The cloud write is coalesced inside
+## Yandex; this is called on every banked run and the platform rate-limits it.
 func save_game() -> void:
+	_write_disk()
+	Yandex.save_cloud(to_dict())
+
+
+func _write_disk() -> void:
 	var config := ConfigFile.new()
 	config.set_value("progress", "best", best)
 	config.set_value("progress", "best_distance", best_distance)
@@ -94,9 +113,72 @@ func save_game() -> void:
 	config.set_value("progress", "slump_streak", slump_streak)
 	config.set_value("progress", "last_continue", last_continue)
 	config.set_value("settings", "haptics", haptics_enabled)
+	config.set_value("settings", "key_scheme", key_scheme)
 	config.set_value("settings", "location", location)
 	config.set_value("settings", "cart_variant", cart_variant)
 	config.save(SAVE_PATH)
+
+
+## Everything worth carrying between one browser and the next, flattened into
+## one dictionary — the cloud stores JSON, which has no opinion about the
+## ConfigFile's two sections. Settings travel with progress on purpose: a
+## player who turned the vibration off did not mean "on this device only".
+func to_dict() -> Dictionary:
+	return {
+		"best": best, "best_distance": best_distance, "crystals": crystals,
+		"upgrades": upgrades, "power_levels": power_levels,
+		"power_charges": power_charges, "recent_runs": recent_runs,
+		"daily_date": daily_date, "daily_best": daily_best,
+		"quest_date": quest_date, "quests": quests,
+		"levels_cleared": levels_cleared, "runs_played": runs_played,
+		"slump_streak": slump_streak, "last_continue": last_continue,
+		"haptics": haptics_enabled, "location": location,
+		"cart_variant": cart_variant, "key_scheme": key_scheme,
+	}
+
+
+## Cloud progress wins, but only when it is actually ahead.
+##
+## The two copies are not versioned and cannot be merged field by field without
+## inventing a rule per field, so the question is which single copy to keep.
+## Runs played is the honest measure of which browser saw more of this player,
+## and the best score breaks the tie: a fresh browser reading a real account
+## must not be handed a wiped save, and a player who got further while the
+## cloud was unreachable must not lose the run.
+func _on_cloud_loaded(data: Dictionary) -> void:
+	if data.is_empty():
+		return
+	var theirs_runs := int(data.get("runs_played", 0))
+	var theirs_best := int(data.get("best", 0))
+	if theirs_runs < runs_played or (theirs_runs == runs_played and theirs_best <= best):
+		Yandex.save_cloud(to_dict())  # ours is the fuller copy — push, do not pull
+		return
+	_apply_dict(data)
+	_write_disk()
+	best_changed.emit(best)
+	progress_reloaded.emit()
+
+
+func _apply_dict(data: Dictionary) -> void:
+	best = int(data.get("best", best))
+	best_distance = int(data.get("best_distance", best_distance))
+	crystals = int(data.get("crystals", crystals))
+	upgrades = data.get("upgrades", upgrades)
+	power_levels = data.get("power_levels", power_levels)
+	power_charges = data.get("power_charges", power_charges)
+	recent_runs = data.get("recent_runs", recent_runs)
+	daily_date = str(data.get("daily_date", daily_date))
+	daily_best = int(data.get("daily_best", daily_best))
+	quest_date = str(data.get("quest_date", quest_date))
+	quests = data.get("quests", quests)
+	levels_cleared = int(data.get("levels_cleared", levels_cleared))
+	runs_played = int(data.get("runs_played", runs_played))
+	slump_streak = int(data.get("slump_streak", slump_streak))
+	last_continue = float(data.get("last_continue", last_continue))
+	haptics_enabled = bool(data.get("haptics", haptics_enabled))
+	location = str(data.get("location", location))
+	cart_variant = int(data.get("cart_variant", cart_variant))
+	key_scheme = KeyScheme.clamp_id(int(data.get("key_scheme", key_scheme)))
 
 
 ## Returns true when this run beat the score record.

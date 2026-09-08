@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+	<title>$GODOT_PROJECT_NAME</title>
+	<style>
+		/* The platform rejects games that scroll, select text or open a context
+		   menu, and pull-to-refresh must not fire over the canvas. */
+		html, body {
+			margin: 0; padding: 0; border: 0;
+			width: 100%; height: 100%;
+			position: fixed; overflow: hidden;
+			overscroll-behavior: none;
+			background: #07090f; color: #fff;
+			user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+			-webkit-tap-highlight-color: transparent;
+			touch-action: none;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+		}
+		body { display: flex; align-items: center; justify-content: center; }
+
+		/* The game is drawn for a phone held upright and its layout is derived
+		   from the viewport width — one cell is width / columns — so letting a
+		   desktop window stretch it would not give a wider board, it would give
+		   six enormous cells and no board to speak of. The canvas keeps the
+		   design's 9:16 and the page fills the rest. */
+		#canvas {
+			display: block;
+			width: min(100vw, calc(100vh * 720 / 1280));
+			height: min(100vh, calc(100vw * 1280 / 720));
+			touch-action: none;
+		}
+		#canvas:focus { outline: none; }
+
+		#boot {
+			position: fixed; inset: 0; z-index: 10;
+			display: flex; flex-direction: column; align-items: center; justify-content: center;
+			gap: 18px; background: #07090f;
+		}
+		#boot .mark {
+			font-size: 26px; font-weight: 900; letter-spacing: 5px; color: #4ce0b3;
+		}
+		#boot .bar {
+			width: 190px; height: 4px; border-radius: 2px;
+			background: rgba(255,255,255,.12); overflow: hidden;
+		}
+		#boot .bar i {
+			display: block; height: 100%; width: 0%;
+			background: #4ce0b3; border-radius: 2px; transition: width .2s;
+		}
+		#boot .note {
+			font-size: 13px; color: #8b93a8; max-width: 80%;
+			text-align: center; line-height: 1.45;
+		}
+		#boot.failed .bar { display: none; }
+	</style>
+	$GODOT_HEAD_INCLUDE
+</head>
+<body>
+	<canvas id="canvas">HTML5 canvas is not supported.</canvas>
+	<noscript>Для игры нужен JavaScript.</noscript>
+
+	<div id="boot">
+		<div class="mark">PIPE RUNNER</div>
+		<div class="bar"><i id="boot-bar"></i></div>
+		<div class="note" id="boot-note"></div>
+	</div>
+
+	<script>
+	// Defined synchronously, so the interface already exists by the time the
+	// Yandex autoload looks it up in its _ready.
+	window.YaBridge = (function () {
+		var sdk = null, player = null;
+		var cbRewarded = null, cbInterstitial = null, cbLoad = null;
+
+		function call(cb, value) { try { if (cb) cb(value); } catch (e) { console.error(e); } }
+
+		return {
+			attach: function (s, p) { sdk = s; player = p; },
+			register: function (rewarded, interstitial, load) {
+				cbRewarded = rewarded; cbInterstitial = interstitial; cbLoad = load;
+			},
+			isReady: function () { return sdk !== null; },
+			getLang: function () {
+				try { return sdk.environment.i18n.lang || 'ru'; } catch (e) { return 'ru'; }
+			},
+			ready: function () {
+				try { sdk.features.LoadingAPI.ready(); } catch (e) { /* older SDK */ }
+			},
+			gameplayStart: function () {
+				try { sdk.features.GameplayAPI.start(); } catch (e) { /* older SDK */ }
+			},
+			gameplayStop: function () {
+				try { sdk.features.GameplayAPI.stop(); } catch (e) { /* older SDK */ }
+			},
+			showInterstitial: function () {
+				var done = false;
+				var finish = function () { if (!done) { done = true; call(cbInterstitial, true); } };
+				// The game pauses behind an ad, so a callback that never arrives
+				// would freeze it for good. Always leave the engine a way back.
+				setTimeout(finish, 45000);
+				try {
+					sdk.adv.showFullscreenAdv({ callbacks: { onClose: finish, onError: finish } });
+				} catch (e) { finish(); }
+			},
+			showRewarded: function () {
+				var granted = false, done = false;
+				var finish = function () { if (!done) { done = true; call(cbRewarded, granted); } };
+				setTimeout(finish, 45000);
+				try {
+					sdk.adv.showRewardedVideo({ callbacks: {
+						onRewarded: function () { granted = true; },
+						onClose: finish,
+						onError: finish,
+					} });
+				} catch (e) { finish(); }
+			},
+			save: function (text) {
+				if (!player) return;
+				try { player.setData(JSON.parse(text), true); } catch (e) { console.error(e); }
+			},
+			load: function () {
+				if (!player) { call(cbLoad, ''); return; }
+				try {
+					player.getData().then(
+						function (d) { call(cbLoad, JSON.stringify(d || {})); },
+						function () { call(cbLoad, ''); }
+					);
+				} catch (e) { call(cbLoad, ''); }
+			},
+		};
+	}());
+
+	// Long-press selection and the context menu are both explicit moderation
+	// failures, and a two-finger drag over the canvas must not pan the page.
+	document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, { passive: false });
+	document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+	document.addEventListener('selectstart', function (e) { e.preventDefault(); }, { passive: false });
+	document.addEventListener('touchmove', function (e) {
+		if (e.touches.length > 1) e.preventDefault();
+	}, { passive: false });
+	// The arrow keys are one of the control schemes, and the page must not
+	// scroll out from under a player using them.
+	window.addEventListener('keydown', function (e) {
+		if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].indexOf(e.key) !== -1) {
+			e.preventDefault();
+		}
+	}, { passive: false });
+
+	function loadYandexSdk() {
+		return new Promise(function (resolve) {
+			// Never block the game on the SDK: if it stalls, the game still has
+			// to start — without ads and without cloud saves, but playable.
+			var settled = false;
+			var finish = function () { if (!settled) { settled = true; resolve(); } };
+			setTimeout(finish, 5000);
+
+			var s = document.createElement('script');
+			s.src = 'https://yandex.ru/games/sdk/v2';
+			s.onerror = finish;
+			s.onload = function () {
+				if (!window.YaGames) { finish(); return; }
+				window.YaGames.init().then(function (ysdk) {
+					ysdk.getPlayer({ scopes: false }).then(
+						function (p) { window.YaBridge.attach(ysdk, p); finish(); },
+						function () { window.YaBridge.attach(ysdk, null); finish(); }
+					);
+				}, finish);
+			};
+			document.head.appendChild(s);
+		});
+	}
+	</script>
+
+	<script src="$GODOT_URL"></script>
+	<script>
+	const GODOT_CONFIG = $GODOT_CONFIG;
+	const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+	// The canvas is sized by the stylesheet above, not by the window, so the
+	// engine has to follow the element rather than the other way round.
+	GODOT_CONFIG.canvasResizePolicy = 1;
+	const engine = new Engine(GODOT_CONFIG);
+
+	(function () {
+		const boot = document.getElementById('boot');
+		const bar = document.getElementById('boot-bar');
+		const note = document.getElementById('boot-note');
+
+		function fail(err) {
+			console.error(err);
+			boot.classList.add('failed');
+			note.textContent = (err && err.message) ? err.message : String(err);
+		}
+
+		const missing = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+		if (missing.length !== 0) {
+			fail(new Error('Браузер не поддерживает: ' + missing.join(', ')));
+			return;
+		}
+
+		loadYandexSdk().then(function () {
+			return engine.startGame({
+				onProgress: function (current, total) {
+					if (current > 0 && total > 0) bar.style.width = (100 * current / total) + '%';
+				},
+			});
+		}).then(function () {
+			bar.style.width = '100%';
+			boot.remove();
+			document.getElementById('canvas').focus();
+		}, fail);
+	}());
+	</script>
+</body>
+</html>

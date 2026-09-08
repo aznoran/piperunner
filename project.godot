@@ -14,6 +14,9 @@ config/quit_on_go_back=false
 
 [autoload]
 
+; Yandex comes first: GameState asks it for cloud progress while loading, and
+; off the platform every one of those calls is a no-op.
+Yandex="*res://scripts/yandex_sdk.gd"
 GameState="*res://scripts/game_state.gd"
 Analytics="*res://scripts/analytics.gd"
 Experiment="*res://scripts/experiment.gd"
@@ -34,6 +37,14 @@ theme/custom="res://resources/UiTheme.tres"
 [input_devices]
 
 pointing/emulate_touch_from_mouse=true
+
+[internationalization]
+
+; Russian is what the platform serves by default, so it is the one the game has
+; to be right in; English is the fallback and the language the source strings
+; are written in, which is why every key is its own English text.
+locale/translations=PackedStringArray("res://resources/i18n/strings.en.translation", "res://resources/i18n/strings.ru.translation")
+locale/fallback="en"
 
 [rendering]
 

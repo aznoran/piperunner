@@ -514,10 +514,10 @@ func _draw_record_ghost(ci: CanvasItem) -> void:
 	ci.draw_dashed_line(Vector2(0.0, y), Vector2(right, y), mark,
 		cell_size * 0.05, cell_size * 0.16)
 
-	var font := ThemeDB.fallback_font
+	var font := Fonts.face()
 	if font == null:
 		return
-	var label := "BEST %d" % ghost_row
+	var label := tr("BEST %d") % ghost_row
 	var size := maxi(12, int(cell_size * 0.24))
 	var text_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0, size).x

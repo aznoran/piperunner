@@ -138,8 +138,7 @@ grow_horizontal = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.85)
 theme_override_font_sizes/font_size = 24
-text = "Place a pipe to start
-the cart waits for you"
+text = "START_HINT"
 horizontal_alignment = 1
 
 [node name="Hud" parent="." instance=ExtResource("8_hud")]

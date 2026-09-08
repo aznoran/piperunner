@@ -7,6 +7,7 @@ const SHOTS := {
 	30: "menu-shop",
 	70: "menu-goals",
 	110: "menu-settings",
+	150: "menu-howto",
 }
 
 var main: Node
@@ -49,10 +50,14 @@ func _process(_delta: float) -> bool:
 		menu._toggle(menu._quests_panel)
 	elif frames == 90:
 		menu._toggle(menu._settings_panel)
+	elif frames == 130:
+		# The rules card, which is assembled at runtime and reads differently
+		# per platform — worth a picture rather than a promise.
+		menu._toggle(menu._how_panel)
 
 	if SHOTS.has(frames):
 		pending = SHOTS[frames]
-	return frames > 130
+	return frames > 170
 
 
 func _on_post_draw() -> void:

@@ -21,4 +21,7 @@ extends Resource
 
 
 func text(target: int) -> String:
-	return description % target
+	# The description is a printf template held in the .tres, so it is the
+	# template that gets translated and the number that gets substituted —
+	# the other way round would need one key per target.
+	return tr(description) % target

@@ -70,22 +70,22 @@ func consider(kind: Kind, combo: int = 0) -> String:
 func _text_for(kind: Kind, combo: int) -> String:
 	match kind:
 		Kind.RECORD:
-			return "NEW BEST"
+			return tr("NEW BEST")
 		Kind.CLUTCH:
-			return "CLUTCH"
+			return tr("CLUTCH")
 		Kind.CLEAN:
-			return "CLEAN"
+			return tr("CLEAN")
 		Kind.SWEEP:
-			return "SWEEP"
+			return tr("SWEEP")
 		Kind.CHAIN:
 			if combo >= 5:
-				return "PERFECT"
+				return tr("PERFECT")
 			if combo == 4:
-				return "SUPER"
+				return tr("SUPER")
 			if combo == 3:
-				return "GREAT"
+				return tr("GREAT")
 			if combo == 2:
-				return "NICE"
+				return tr("NICE")
 			return ""
 		_:
 			return ""

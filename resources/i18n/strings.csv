@@ -1,0 +1,119 @@
+keys,en,ru
+Derailed,Derailed,Сход с рельсов
+Off the edge,Off the edge,За краем
+Out of fuel,Out of fuel,Топливо кончилось
+FUEL,FUEL,ТОПЛИВО
+Score: %d,Score: %d,Счёт: %d
+Best: %d,Best: %d,Рекорд: %d
+CHAIN x%d,CHAIN x%d,ЦЕПЬ x%d
+FAST  ×%.1f,FAST  ×%.1f,РАЗГОН  ×%.1f
+HELD  %.1f,HELD  %.1f,СТОП  %.1f
+DAILY,DAILY,ДЕНЬ
+DAILY  ·  %s,DAILY  ·  %s,ДЕНЬ  ·  %s
+CHOOSE,CHOOSE,ВЫБЕРИ
+NICE,NICE,НЕПЛОХО
+GREAT,GREAT,ОТЛИЧНО
+SUPER,SUPER,СУПЕР
+PERFECT,PERFECT,ИДЕАЛЬНО
+CLUTCH,CLUTCH,В ПОСЛЕДНИЙ МИГ
+CLEAN,CLEAN,ЧИСТО
+SWEEP,SWEEP,ПОДЧИСТУЮ
+CLEARED,CLEARED,ПРОЙДЕНО
+Try Again,Try Again,Ещё раз
+Menu,Menu,Меню
+Next,Next,Дальше
+Continue,Continue,Продолжить
+Watch ad · Continue,Watch ad · Continue,Реклама · Продолжить
+%d cells climbed,%d cells climbed,Пройдено клеток: %d
+NEW BEST,NEW BEST,НОВЫЙ РЕКОРД
+FURTHEST YET,FURTHEST YET,ДАЛЬШЕ ВСЕХ
+NEW BEST  ·  FURTHEST YET,NEW BEST  ·  FURTHEST YET,НОВЫЙ РЕКОРД  ·  ДАЛЬШЕ ВСЕХ
+STATION %d CLEARED,STATION %d CLEARED,СТАНЦИЯ %d ПРОЙДЕНА
++%d crystals,+%d crystals,+%d кристаллов
+Already cleared,Already cleared,Уже пройдена
+STORY COMPLETE,STORY COMPLETE,СЮЖЕТ ПРОЙДЕН
+START,START,ИГРАТЬ
+DEPOT,DEPOT,ДЕПО
+MODES,MODES,РЕЖИМЫ
+GOALS,GOALS,ЦЕЛИ
+SETUP,SETUP,НАСТРОЙКИ
+Settings,Settings,Настройки
+Close,Close,Закрыть
+Back,Back,Назад
+Got it,Got it,Понятно
+How to play,How to play,Как играть
+Vibration,Vibration,Вибрация
+Best run: %d,Best run: %d,Лучший забег: %d
+Today's goals,Today's goals,Цели дня
+New set every day at midnight.,New set every day at midnight.,Новый набор каждый день в полночь.
+THE LINE,THE LINE,ВЕТКА
+CHOOSE A MODE,CHOOSE A MODE,ВЫБЕРИ РЕЖИМ
+Pick shape with,Pick shape with,Выбор фигуры
+Keys choose the shape · the mouse places it,Keys choose the shape · the mouse places it,Клавиши выбирают фигуру · мышь ставит её
+CLASSIC,CLASSIC,КЛАССИКА
+STORY,STORY,СЮЖЕТ
+"Endless. One life, one board, as far as you can take it.","Endless. One life, one board, as far as you can take it.","Бесконечный. Одна жизнь, одно поле — насколько хватит."
+"Stations with a goal each. Fixed maps, learned one at a time.","Stations with a goal each. Fixed maps, learned one at a time.","Станции, у каждой своя цель. Карты фиксированы, проходятся по одной."
+FURTHEST,FURTHEST,ДАЛЬШЕ ВСЕГО
+PLAYING,PLAYING,СЕЙЧАС
+%d of %d cleared,%d of %d cleared,Пройдено %d из %d
+%d crystals,%d crystals,%d кристаллов
+POWER-UPS,POWER-UPS,УСИЛЕНИЯ
+CARTS,CARTS,ВАГОНЕТКИ
+Cart %d,Cart %d,Вагонетка %d
+One more charge,One more charge,Ещё один заряд
+%s %s each,%s %s each,по %s %s
+%s %s   ·   %d,%s %s   ·   %d,%s %s   ·   %d
+MAXED,MAXED,МАКСИМУМ
+WORN,WORN,НАДЕТА
+WEAR,WEAR,НАДЕТЬ
+Brake,Brake,Тормоз
+STOP,STOP,СТОП
+"Stops the cart where it stands, so you can build ahead of it without the clock.","Stops the cart where it stands, so you can build ahead of it without the clock.",Останавливает вагонетку на месте — можно строить впереди без спешки.
+s,s,с
+Tracklayer,Tracklayer,Путеукладчик
+LAY,LAY,ПУТЬ
+"Lays the next stretch of track for you, straight up, past whatever is in the way.","Lays the next stretch of track for you, straight up, past whatever is in the way.","Сам укладывает участок пути вверх, сквозь всё, что мешает."
+cells,cells,клеток
+Reach row %d,Reach row %d,Дойти до ряда %d
+Collect %d crystals,Collect %d crystals,Собрать %d кристаллов
+Chain %d crystals,Chain %d crystals,Цепочка из %d кристаллов
+Dump %d pipes behind you,Dump %d pipes behind you,Сбросить %d труб позади себя
+ROW %d,ROW %d,РЯД %d
+%d CRYSTALS,%d CRYSTALS,%d КРИСТАЛЛОВ
+CHAIN %d,CHAIN %d,ЦЕПЬ %d
+%d DUMPED,%d DUMPED,СБРОШЕНО %d
+First Run,First Run,Первый рейс
+Foraging,Foraging,Сбор
+Uphill,Uphill,В гору
+Chain Gang,Chain Gang,Цепочка
+Housekeeping,Housekeeping,Уборка
+The Narrows,The Narrows,Теснина
+Deep Seam,Deep Seam,Глубокий пласт
+Switchback,Switchback,Серпантин
+Long Chain,Long Chain,Длинная цепь
+Deadfall,Deadfall,Завал
+Mother Lode,Mother Lode,Главная жила
+The Long Haul,The Long Haul,Долгий путь
+Travel %d cells,Travel %d cells,Проехать %d клеток
+Chain %d crystals in one run,Chain %d crystals in one run,Цепочка из %d кристаллов за забег
+Survive %d cells in one run,Survive %d cells in one run,Продержаться %d клеток за забег
+Score %d points,Score %d points,Набрать %d очков
+Dump %d pipes behind the cart,Dump %d pipes behind the cart,Сбросить %d труб позади вагонетки
+HOW_TO_RULES,"[color=#4ce0b3]Place anywhere.[/color] Any empty cell, not just in front of the cart.
+[color=#4ce0b3]Three shapes on offer.[/color] Take one — choosing is free, placing spends the turn.
+[color=#4ce0b3]Crystals are fuel.[/color] Route the cart through them or you run dry.
+[color=#4ce0b3]The white ring[/color] is where the cart needs pipe next.
+[color=#4ce0b3]Building over a pipe[/color] is allowed, but it costs fuel.
+[color=#4ce0b3]Press and drag[/color] to aim, release to place. The board freezes while you hold.","[color=#4ce0b3]Ставь куда угодно.[/color] Любая пустая клетка, не только перед вагонеткой.
+[color=#4ce0b3]Три фигуры на выбор.[/color] Бери одну — выбирать можно сколько угодно, ход тратит установка.
+[color=#4ce0b3]Кристаллы — это топливо.[/color] Веди вагонетку через них, иначе бак опустеет.
+[color=#4ce0b3]Белое кольцо[/color] — там вагонетке нужна следующая труба.
+[color=#4ce0b3]Поверх трубы[/color] строить можно, но это стоит топлива.
+[color=#4ce0b3]Нажми и веди[/color] — целься, отпусти — поставится. Пока держишь, поле стоит."
+HOW_TO_KEYS,"[color=#ffd23f]Keys[/color] pick the shape: Q W E, A S D or the arrows — change it in Settings. The mouse places it.","[color=#ffd23f]Клавиши[/color] выбирают фигуру: Q W E, A S D или стрелки — переключается в настройках. Мышь ставит."
+BEST %d,BEST %d,РЕКОРД %d
+START_HINT,"Place a pipe to start
+the cart waits for you","Поставь трубу, чтобы начать
+вагонетка ждёт тебя"
+Depot,Depot,Депо

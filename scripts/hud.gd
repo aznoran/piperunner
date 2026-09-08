@@ -270,7 +270,7 @@ func set_speed(ratio: float, warn: bool) -> void:
 	_speed_chip.visible = warn
 	if not warn:
 		return
-	_speed_chip.text = "FAST  ×%.1f" % (1.0 + ratio)
+	_speed_chip.text = tr("FAST  ×%.1f") % (1.0 + ratio)
 	var heat: Color = _skin.warn.lerp(_skin.danger, clampf(ratio, 0.0, 1.0))
 	_speed_chip.add_theme_color_override("font_color", heat)
 	# Breathing, so it reads as a state the run is in rather than as a label
@@ -297,17 +297,17 @@ func set_brake(seconds: float) -> void:
 			_combo_label.modulate.a = 0.0
 		return
 	_braking = true
-	_combo_label.text = "HELD  %.1f" % seconds
+	_combo_label.text = tr("HELD  %.1f") % seconds
 	_combo_label.modulate.a = 1.0
 	_combo_label.add_theme_color_override("font_color", _skin.accent)
 
 
 func set_score(value: int) -> void:
-	_score_label.text = "Score: %d" % value
+	_score_label.text = tr("Score: %d") % value
 
 
 func set_best(value: int) -> void:
-	_best_label.text = "Best: %d" % value
+	_best_label.text = tr("Best: %d") % value
 
 
 ## Marks the run as today's fixed-seed challenge, which otherwise looks
@@ -357,7 +357,7 @@ func fade_out_back_key() -> void:
 
 func set_daily(is_daily: bool, date: String = "") -> void:
 	_daily_label.visible = is_daily
-	_daily_label.text = "DAILY  ·  %s" % date if not date.is_empty() else "DAILY"
+	_daily_label.text = tr("DAILY  ·  %s") % date if not date.is_empty() else tr("DAILY")
 
 
 func set_combo(value: int) -> void:
@@ -367,7 +367,7 @@ func set_combo(value: int) -> void:
 		_combo_label.modulate.a = 0.0
 		_combo_fade = 0.0
 		return
-	_combo_label.text = "CHAIN x%d" % value
+	_combo_label.text = tr("CHAIN x%d") % value
 	_combo_label.modulate.a = 1.0
 	_combo_fade = 2.5
 

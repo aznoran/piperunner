@@ -66,7 +66,9 @@ func _begin_run() -> void:
 
 func _bot_step() -> void:
 	var board: Board = main._board
-	var offer: PipeOffer = main._offer
+	# The offer moved behind BlockSource when the variants landed; the bot
+	# only ever needed the shapes on the strip, which is on that interface.
+	var offer: BlockSource = main._blocks
 	var cart: Cart = main._cart
 
 	var ahead := board.frontier(cart.cell(), cart.entry)
@@ -106,11 +108,12 @@ func _bot_step() -> void:
 ## shapes to choose between, taking whichever fits first is a turn more often
 ## than not, and a route that turns every move walks itself sideways out of the
 ## build window — which measures the bot, not the game.
-func _best_choice(offer: PipeOffer, need: int) -> int:
+func _best_choice(offer: BlockSource, need: int) -> int:
 	var best := -1
 	var best_rank := -1
-	for i in offer.choices.size():
-		var exit: int = PipeDefs.exit_side(offer.choices[i], need)
+	var choices := offer.choices()
+	for i in choices.size():
+		var exit: int = PipeDefs.exit_side(choices[i], need)
 		if exit == PipeDefs.NO_EXIT:
 			continue
 		var rank := 1

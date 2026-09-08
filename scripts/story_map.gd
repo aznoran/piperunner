@@ -104,7 +104,7 @@ var _rock_box := StyleBoxFlat.new()
 
 
 func _ready() -> void:
-	_font = ThemeDB.fallback_font
+	_font = Fonts.face()
 	# The map moves itself rather than leaving it to the scroll. A
 	# ScrollContainer only drags on touch where the platform reports a
 	# touchscreen, which is true on the phone and false everywhere the thing

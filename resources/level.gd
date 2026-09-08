@@ -21,13 +21,13 @@ extends Resource
 func goal_text() -> String:
 	match String(goal_metric):
 		"distance":
-			return "Reach row %d" % goal_target
+			return tr("Reach row %d") % goal_target
 		"crystals":
-			return "Collect %d crystals" % goal_target
+			return tr("Collect %d crystals") % goal_target
 		"chain":
-			return "Chain %d crystals" % goal_target
+			return tr("Chain %d crystals") % goal_target
 		"dumped":
-			return "Dump %d pipes behind you" % goal_target
+			return tr("Dump %d pipes behind you") % goal_target
 		_:
 			return "%s %d" % [goal_metric, goal_target]
 
@@ -36,12 +36,12 @@ func goal_text() -> String:
 func goal_short() -> String:
 	match String(goal_metric):
 		"distance":
-			return "ROW %d" % goal_target
+			return tr("ROW %d") % goal_target
 		"crystals":
-			return "%d CRYSTALS" % goal_target
+			return tr("%d CRYSTALS") % goal_target
 		"chain":
-			return "CHAIN %d" % goal_target
+			return tr("CHAIN %d") % goal_target
 		"dumped":
-			return "%d DUMPED" % goal_target
+			return tr("%d DUMPED") % goal_target
 		_:
 			return "%s %d" % [goal_metric, goal_target]

@@ -136,12 +136,20 @@ var _board_fresh: bool = false
 ## knows which card to show.
 var _pending_clear: Dictionary = {}
 var _hint_pulse: float = 0.0
+## True between asking for the death's fullscreen ad and the ad being done.
+## The signal fires synchronously when there is no ad to show, so this is set
+## before the request and not after it.
+var _awaiting_ad: bool = false
+## True while a rewarded video the player asked for is in flight.
+var _awaiting_reward: bool = false
 ## Where the camera holds the cart right now. Animated on the way into a run
 ## instead of switching, which is what made the cart appear to teleport.
 var _camera_anchor: float = MENU_CAMERA_ANCHOR
 
 
 func _ready() -> void:
+	# Before anything draws: the theme's face has no Cyrillic of its own.
+	Fonts.install_fallbacks()
 	if base_balance == null:
 		base_balance = load("res://resources/GameBalance.tres")
 	_rebuild_balance()
@@ -162,6 +170,7 @@ func _ready() -> void:
 	_cart.derailed.connect(_on_cart_derailed)
 
 	_input.offer_chosen.connect(_on_offer_chosen)
+	_input.hover_moved.connect(_on_hover_moved)
 	_input.aim_started.connect(_on_aim_moved)
 	_input.aim_moved.connect(_on_aim_moved)
 	_input.aim_released.connect(_on_aim_released)
@@ -180,7 +189,9 @@ func _ready() -> void:
 	_autoplayer.took_over.connect(PlayLog.note_player)
 	_overlay.retry_pressed.connect(func() -> void: start_run(selected_mode))
 	_overlay.menu_pressed.connect(_curtain_to_menu)
-	_overlay.continue_pressed.connect(_take_continue)
+	_overlay.continue_pressed.connect(_request_continue)
+	Yandex.rewarded_result.connect(_on_rewarded_result)
+	Yandex.interstitial_closed.connect(_on_interstitial_closed)
 	GameState.best_changed.connect(_hud.set_best)
 	get_viewport().size_changed.connect(_apply_layout)
 
@@ -194,6 +205,18 @@ func _ready() -> void:
 	_hud.set_score(0)
 	_hud.set_fuel(1.0)
 	_show_menu()
+	# The platform holds its own loading screen over the game until this is
+	# called, so it has to wait for a frame that is actually worth looking at —
+	# the menu, laid out, over a board that has been generated.
+	_announce_ready.call_deferred()
+
+
+## Tells the platform the game is up. Deferred by one frame past the menu being
+## built, which is the difference between "the scene exists" and "it has been
+## drawn once".
+func _announce_ready() -> void:
+	await get_tree().process_frame
+	Yandex.loading_ready()
 
 
 ## Folds bought upgrades into a copy of the baseline. Called before every run,
@@ -414,12 +437,12 @@ func _refresh_mode_name() -> void:
 	match selected_mode:
 		Mode.STORY:
 			if active_level == null:
-				_menu.set_mode_name("STORY", _menu.MODE_STORY)
+				_menu.set_mode_name(tr("STORY"), _menu.MODE_STORY)
 			else:
-				_menu.set_mode_name("%d · %s" % [active_level.number, active_level.title],
+				_menu.set_mode_name("%d · %s" % [active_level.number, tr(active_level.title)],
 					_menu.MODE_STORY, active_level.goal_text())
 		_:
-			_menu.set_mode_name("CLASSIC", _menu.MODE_CLASSIC)
+			_menu.set_mode_name(tr("CLASSIC"), _menu.MODE_CLASSIC)
 
 
 func _set_camera_anchor(value: float) -> void:
@@ -457,6 +480,7 @@ func _fade_in(item: CanvasItem, duration: float) -> void:
 ## boot has nothing to animate from, so it snaps.
 func _show_menu(animated: bool = false) -> void:
 	state = State.MENU
+	Yandex.gameplay_stop()
 	_autoplayer.stop()
 	# Purchases made in the depot take effect on the board the menu lays out.
 	_rebuild_balance()
@@ -591,6 +615,9 @@ func start_run(mode: Mode = Mode.CLASSIC) -> void:
 	# menu reuses that board, so preparing it is not the same event as playing
 	# it, and a header written there would describe the wrong run.
 	PlayLog.begin_run(Experiment.name_of(), _board_seed, int(selected_mode))
+	# Brackets active play for the platform, which uses it to decide when it is
+	# rude to interrupt.
+	Yandex.gameplay_start()
 	_decor.visible = false
 	# The board came from the menu, so the offer was dealt before this run's
 	# balance sheet existed; an upgrade that widens it has to be applied now.
@@ -1009,6 +1036,11 @@ func _refresh_strip() -> void:
 	if _blocks == null:
 		return
 	_blocks.refresh()
+	# Neither the strip nor the input handler may read the settings autoload —
+	# both carry a class_name and are compiled before the autoloads exist — so
+	# the chosen layout is handed to them from here, where it is legal to ask.
+	_input.key_scheme = GameState.key_scheme
+	_offer_bar.key_scheme = GameState.key_scheme
 	var targets := _blocks.tap_targets()
 	_input.offer_rects = targets
 	_input.offer_strip_top = _blocks.strip_top()
@@ -1049,6 +1081,17 @@ func _on_offer_chosen(index: int) -> void:
 	# The ghost is still holding up the shape chosen a moment ago.
 	_board.hide_ghost()
 	GameState.vibrate(balance.haptics_place_ms)
+
+
+## A mouse can point at a cell without committing to it, which a finger cannot,
+## so the desktop build gets the ghost for free while the player is still
+## deciding. Deliberately does *not* freeze the camera: the board is meant to
+## keep climbing under a cursor that is only looking, and freezing on hover
+## would mean the board stops whenever the mouse crosses it.
+func _on_hover_moved(world_position: Vector2) -> void:
+	if state != State.PLAYING or _camera_frozen:
+		return
+	_board.show_ghost(_board.world_to_cell(world_position), _blocks.current())
 
 
 func _on_aim_moved(world_position: Vector2) -> void:
@@ -1251,6 +1294,7 @@ func _die(reason: String) -> void:
 	_pending_clear = {}
 	_death_reason = reason
 	_death_pause = DEATH_PAUSE
+	Yandex.gameplay_stop()
 
 
 ## Everything a goal can be measured against, in one place.
@@ -1302,7 +1346,7 @@ func _check_station_goal() -> void:
 func _celebrate(level: Level) -> void:
 	_death_pause = CLEAR_CELEBRATION
 
-	_praise_label.text = "CLEARED"
+	_praise_label.text = tr("CLEARED")
 	_praise_slot.visible = true
 	_praise_slot.modulate = Color(Skins.current().accent, 1.0)
 	_praise_label.pivot_offset = _praise_label.size * 0.5
@@ -1332,12 +1376,27 @@ func _celebrate(level: Level) -> void:
 ## met is a finish, a crash is a crash.
 func _show_end_card() -> void:
 	if _pending_clear.is_empty():
-		_overlay.show_game_over(_death_reason, score, distance, _death_was_record,
-			_death_went_further, _continue_is_worth_offering())
+		# The one moment in a run where a fullscreen ad interrupts nothing: the
+		# cart has already crashed and the card has not landed yet. Yandex
+		# decides whether this death is one that carries an ad — every second
+		# one, never inside the platform's cooldown — and answers on
+		# interstitial_closed either way, immediately when there is no ad.
+		_awaiting_ad = true
+		Yandex.note_death()
 		return
 	_overlay.show_station_cleared(_pending_clear["level"], _pending_clear["reward"],
 		Levels.all_cleared(GameState))
 	_pending_clear = {}
+
+
+func _on_interstitial_closed() -> void:
+	if not _awaiting_ad:
+		return
+	_awaiting_ad = false
+	if state != State.DEAD:
+		return
+	_overlay.show_game_over(_death_reason, score, distance, _death_was_record,
+		_death_went_further, _continue_is_worth_offering())
 
 
 ## Whether this death is the kind worth offering a way out of: close to the
@@ -1360,6 +1419,39 @@ func _continue_is_worth_offering() -> bool:
 		var progress := Levels.progress(active_level, run_metrics())
 		return progress >= active_level.goal_target * balance.continue_goal_ratio
 	return false
+
+
+## The player asked for the continue. On the platform it is paid for with a
+## rewarded video and granted only if the video paid out; everywhere else —
+## editor, phone builds — there is no ad to watch and it is simply granted, so
+## the flow past this point is the same one in every build.
+##
+## The card comes down before the ad goes up: an ad rendered over a live UI is
+## a moderation failure, and the card has nothing to say while it is playing.
+func _request_continue() -> void:
+	if state != State.DEAD or continued or _awaiting_reward:
+		return
+	_awaiting_reward = true
+	_overlay.hide_overlay()
+	Yandex.show_rewarded()
+
+
+func _on_rewarded_result(granted: bool) -> void:
+	if not _awaiting_reward:
+		return
+	_awaiting_reward = false
+	if state != State.DEAD:
+		return
+	if not granted:
+		# Skipped, or the ad failed. Nothing was earned and nothing is taken:
+		# the card comes back with the offer still on it.
+		_overlay.reopen()
+		return
+	# A video watched to the end is the ad this death owed, so the fullscreen
+	# one does not also land on the next death. Two in a row is the exact thing
+	# the platform's guidelines call out.
+	Yandex.credit_ad_shown()
+	_take_continue()
 
 
 ## Puts the cart back on the last track it was actually on and refuels part of
@@ -1402,6 +1494,7 @@ func _take_continue() -> void:
 
 	state = State.PLAYING
 	_input.enabled = true
+	Yandex.gameplay_start()
 	_fx.burst(_cart.position, Skins.current().accent, 24, _cell_size * 6.0)
 	GameState.vibrate(balance.haptics_crystal_ms)
 
